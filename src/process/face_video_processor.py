@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 import logging
 import cv2
-import tqdm
+import traceback
+
 from typing import List, Optional, Dict, Union
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from tqdm import tqdm
 
 from Zh.src.utils.crop.cropper import crop_face_from_frame
 from Zh.src.utils.face_detection.face_detector import FaceDetector
@@ -32,7 +34,7 @@ class VideoProcessor:
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.use_tqdm = use_tqdm
-        self.detector = FaceDetector()
+        self.detector = FaceDetector(False, False, 1).landmarker
 
     def _augment_frame(self, frame: np.ndarray, augmentations: Dict[str, List[Dict]]) -> Dict[str, np.ndarray]:
         """
@@ -52,26 +54,26 @@ class VideoProcessor:
             for aug_params in aug_configs:
                 augmented_frame = original_frame.copy()
 
-                if aug_name == "gaussian_blur":
+                if aug_name == "gaussianblur":
                     kernel_size = aug_params.get("kernel_size", 3)
-                    aug_key = f"{aug_name}_kernelsize-{kernel_size}"
+                    aug_key = f"{aug_name}_kernelsize{kernel_size}"
                     augmented_frame = cv2.GaussianBlur(augmented_frame, (kernel_size, kernel_size), 0)
 
                 elif aug_name == "brightness":
                     alpha = aug_params.get("alpha", 1.1)
                     beta = aug_params.get("beta", 0)
-                    aug_key = f"{aug_name}_alpha-{alpha}_beta-{beta}"
+                    aug_key = f"{aug_name}_alpha{alpha}_beta{beta}"
                     augmented_frame = np.clip(augmented_frame * alpha + beta, 0, 255).astype(np.uint8)
 
                 elif aug_name == "contrast":
                     alpha = aug_params.get("alpha", 1.2)
                     beta = aug_params.get("beta", 0)
-                    aug_key = f"{aug_name}_alpha-{alpha}_beta-{beta}"
+                    aug_key = f"{aug_name}_alpha{alpha}_beta{beta}"
                     augmented_frame = np.clip(augmented_frame * alpha + beta, 0, 255).astype(np.uint8)
 
                 elif aug_name == "flip":
                     flip_code = aug_params.get("flip_code", 1)
-                    aug_key = f"{aug_name}_flipcode-{flip_code}"
+                    aug_key = f"{aug_name}_flipcode{flip_code}"
                     augmented_frame = cv2.flip(augmented_frame, flip_code)
 
                 elif aug_name == "grayscale":
@@ -81,7 +83,7 @@ class VideoProcessor:
 
                 elif aug_name == "rotate":
                     angle = aug_params.get("angle", 10)
-                    aug_key = f"{aug_name}_angle-{angle}"
+                    aug_key = f"{aug_name}_angle{angle}"
                     height, width = augmented_frame.shape[:2]
                     matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1)
                     augmented_frame = cv2.warpAffine(augmented_frame, matrix, (width, height))
@@ -90,7 +92,7 @@ class VideoProcessor:
 
         return augmented_frames    
     
-    def _process_frame(self, frame: cv2.Mat, width: int, height: int, temp_detection_result: Optional["mp.tasks.vision.FaceDetectorResult"] = None) -> Optional[cv2.Mat]:
+    def _process_frame(self, frame: cv2.Mat, width: int, height: int, temp_detection_result: Optional["mp.tasks.vision.FaceDetectorResult"] = []) -> Optional[cv2.Mat]:
         """
         Processes a single frame, detecting and cropping the face.
 
@@ -106,15 +108,13 @@ class VideoProcessor:
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
         detection_result = self.detector.detect(mp_image)
 
-        try:
-            cropped_face = crop_face_from_frame(frame, detection_result, width, height, margin=0.1)
-            return cropped_face
-        except Exception:
-            if temp_detection_result is None:
-                return None
-            cropped_face = crop_face_from_frame(frame, temp_detection_result, width, height, margin=0.1)
-            return cropped_face
-
+        cropped_face = crop_face_from_frame(frame, detection_result, width, height, margin=0.1)
+        if cropped_face is not None: return cropped_face, detection_result
+        if temp_detection_result == []: return None, []
+        cropped_face = crop_face_from_frame(frame, temp_detection_result, width, height, margin=0.1)
+        return cropped_face, temp_detection_result
+        
+        
     def _save_video(self, frames: List[np.ndarray], output_path: str, fps: float, start_frame: int, end_frame: int) -> None:
         """
         Saves processed frames as a video.
@@ -170,75 +170,80 @@ class VideoProcessor:
         if augmentations is None:
             augmentations = {}
 
-        try:
-            logging.info(f"Starting processing for video: {input_path}")
-            cap = cv2.VideoCapture(input_path)
-            if not cap.isOpened():
-                logging.warning(f"Failed to open video: {input_path}")
+        # try:
+        logging.info(f"Starting processing for video: {input_path}")
+        cap = cv2.VideoCapture(input_path)
+        if not cap.isOpened():
+            logging.warning(f"Failed to open video: {input_path}")
+            return None
+
+        fps, width, height, total_frames = get_video_info(cap)
+        start_frame = int(start_second * fps)
+        end_frame = int(end_second * fps) if end_second is not None else total_frames
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
+        all_augmented_frames = {}
+        cropped_frames = []
+        temp_detection_result = []
+
+        
+        with tqdm(total=end_frame - start_frame, desc=f"Processing {os.path.basename(input_path)}", unit="frame", disable=not self.use_tqdm) as progress_bar:
+            while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
+                print(f'frame = {cap.get(cv2.CAP_PROP_POS_FRAMES)}')
+                ret, frame = cap.read()
+                if not ret:
+                    logging.warning(f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
+                    break
+
+                if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
+                    logging.info(f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
+
+                cropped_frame, temp_detection_result = self._process_frame(frame, width, height, temp_detection_result) if crop else frame
+                if cropped_frame is not None:
+                    if crop:
+                        cropped_frames.append(cropped_frame)
+
+                    augmented_frames = self._augment_frame(cropped_frame, augmentations)
+                    for aug_key, aug_frame in augmented_frames.items():
+                        if aug_key not in all_augmented_frames:
+                            all_augmented_frames[aug_key] = []
+                        all_augmented_frames[aug_key].append(aug_frame)
+
+                progress_bar.update(1)
+
+            cap.release()
+
+        logging.info(f"Completed processing for video: {input_path}")
+
+        if save:
+            if crop and cropped_frames:
+                print('saving')
+                cropped_folder = os.path.join(self.output_folder, f"cropped")
+                os.makedirs(cropped_folder, exist_ok=True)
+                cropped_output_path = os.path.join(cropped_folder, f"{output_base}_cropped.mp4")
+                self._save_video(cropped_frames, cropped_output_path, fps, start_frame, end_frame)
+                output_paths["cropped"] = cropped_output_path
+                print(f'saved {cropped_output_path}')
+
+            for aug_key, aug_frames in all_augmented_frames.items():
+                aug_folder = os.path.join(self.output_folder, f"{aug_key}")
+                os.makedirs(aug_folder, exist_ok=True)
+                aug_output_path = os.path.join(aug_folder, f"{output_base}_{aug_key}.mp4")
+                self._save_video(aug_frames, aug_output_path, fps, start_frame, end_frame)
+                output_paths[aug_key] = aug_output_path
+
+            if not output_paths:
+                logging.warning(f"No faces detected in video: {input_path}")
                 return None
 
-            fps, width, height, total_frames = get_video_info(cap)
-            start_frame = int(start_second * fps)
-            end_frame = int(end_second * fps) if end_second is not None else total_frames
-            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+            return output_paths
 
-            all_augmented_frames = {}
-            cropped_frames = []
-            temp_detection_result = None
+        else:
+            return output_paths
 
-            with tqdm(total=end_frame - start_frame, desc=f"Processing {os.path.basename(input_path)}", unit="frame", disable=not self.use_tqdm) as progress_bar:
-                while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
-                    ret, frame = cap.read()
-                    if not ret:
-                        logging.warning(f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
-                        break
-
-                    if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
-                        logging.info(f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
-
-                    cropped_frame = self._process_frame(frame, width, height, temp_detection_result) if crop else frame
-                    if cropped_frame is not None:
-                        if crop:
-                            cropped_frames.append(cropped_frame)
-                            temp_detection_result = self.detector.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=frame))
-
-                        augmented_frames = self._augment_frame(cropped_frame, augmentations)
-                        for aug_key, aug_frame in augmented_frames.items():
-                            if aug_key not in all_augmented_frames:
-                                all_augmented_frames[aug_key] = []
-                            all_augmented_frames[aug_key].append(aug_frame)
-
-                    progress_bar.update(1)
-
-                cap.release()
-
-            logging.info(f"Completed processing for video: {input_path}")
-
-            if save:
-                if crop and cropped_frames:
-                    output_cropped_path = os.path.join(self.output_folder, f"{output_base}_cropped.mp4")
-                    self._save_video(cropped_frames, output_cropped_path, fps, start_frame, end_frame)
-                    output_paths["cropped"] = output_cropped_path
-
-                for aug_key, aug_frames in all_augmented_frames.items():
-                    aug_folder = os.path.join(self.output_folder, f"{output_base}_{aug_key}")
-                    os.makedirs(aug_folder, exist_ok=True)
-                    aug_output_path = os.path.join(aug_folder, f"{video_file}_{aug_key}.mp4")
-                    self._save_video(aug_frames, aug_output_path, fps, start_frame, end_frame)
-                    output_paths[aug_key] = aug_output_path
-
-                if not output_paths:
-                    logging.warning(f"No faces detected in video: {input_path}")
-                    return None
-
-                return output_paths
-
-            else:
-                return output_paths
-
-        except Exception as e:
-            logging.error(f"Error processing {video_file}: {e}")
-            return None
+        # except Exception as e:
+        #     logging.error(f"Error processing {video_file}: %s", traceback.format_exc()) # log the full traceback
+        #     return None
 
     def process_multiple_videos(self, 
                                 video_files: List[str], 
@@ -265,7 +270,7 @@ class VideoProcessor:
         video_files  = os.listdir(self.input_folder) if video_files == None else video_files
     
         if parallel:
-            with ThreadPoolExecutor() as executor:
+            with ProcessPoolExecutor() as executor:
                 results = list(executor.map(lambda file: self.process_single_video(file, start_second, end_second, augmentations, save), video_files))
             return results
         else:
