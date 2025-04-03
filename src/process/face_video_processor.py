@@ -148,6 +148,7 @@ class VideoProcessor:
             out.release()
         logging.info(f"Augmented video saved at: {output_path}")
         
+        
     def process_single_video(self, 
                             video_file: str, 
                             start_second: int = 0, 
@@ -186,69 +187,74 @@ class VideoProcessor:
             fps, width, height, total_frames = get_video_info(cap)
             start_frame = int(start_second * fps)
             end_frame = int(end_second * fps) if end_second is not None else total_frames
-            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
-            all_augmented_frames = {}
-            cropped_frames = []
-            temp_detection_result = []
 
             
-            with tqdm(total=end_frame - start_frame, desc=f"Processing {os.path.basename(input_path)}", unit="frame", disable=not self.use_tqdm) as progress_bar:
-                while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
-                    ret, frame = cap.read()
-                    if not ret:
-                        logging.warning(f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
-                        break
-
-                    if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
-                        logging.info(f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
-
-                    cropped_frame, temp_detection_result = self._process_frame(frame, width, height, temp_detection_result) if crop else frame
-                    if cropped_frame is not None:
-                        if crop:
-                            cropped_frames.append(cropped_frame)
-
-                        augmented_frames = self._augment_frame(cropped_frame, augmentations)
-                        for aug_key, aug_frame in augmented_frames.items():
-                            if aug_key not in all_augmented_frames:
-                                all_augmented_frames[aug_key] = []
-                            all_augmented_frames[aug_key].append(aug_frame)
-
-                    progress_bar.update(1)
-
-                cap.release()
-
-            logging.info(f"Completed processing for video: {input_path}")
-
             if save:
-                if crop and cropped_frames:
-                    print('saving')
+                try:
+                    first_frame_height, first_frame_width = -1, -1
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+                    temp_detection_result = []
+                    while cap.isOpened() and first_frame_width == -1 and first_frame_height == -1:
+                        ret, frame = cap.read()
+                        if not ret:
+                            logging.warning(f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
+                            break
+                        cropped_frame, temp_detection_result = self._process_frame(frame, width, height, temp_detection_result) if crop else frame
+                        if cropped_frame is not None:
+                            first_frame_height, first_frame_width = cropped_frame.shape[:2]
+                            augmented_frames = self._augment_frame(cropped_frame, augmentations)
+                    logging.warning(f"New video dimensions found: {first_frame_height}, {first_frame_width}")
+
+                except Exception as e:
+                    logging.error(f"Error processing {video_file}: %s", traceback.format_exc())
+                    return None
+
+                if crop:
                     cropped_folder = os.path.join(self.output_folder, f"cropped")
                     os.makedirs(cropped_folder, exist_ok=True)
                     cropped_output_path = os.path.join(cropped_folder, f"{output_base}_cropped.mp4")
-                    self._save_video(cropped_frames, cropped_output_path, fps, start_frame, end_frame)
-                    output_paths["cropped"] = cropped_output_path
-                    print(f'saved {cropped_output_path}')
+                    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                    out_crop = cv2.VideoWriter(cropped_output_path, fourcc, fps, (first_frame_width, first_frame_height))
 
-                for aug_key, aug_frames in all_augmented_frames.items():
+                aug_writers = {}
+                for aug_key in augmented_frames.keys():
                     aug_folder = os.path.join(self.output_folder, f"{aug_key}")
                     os.makedirs(aug_folder, exist_ok=True)
                     aug_output_path = os.path.join(aug_folder, f"{output_base}_{aug_key}.mp4")
-                    self._save_video(aug_frames, aug_output_path, fps, start_frame, end_frame)
-                    output_paths[aug_key] = aug_output_path
+                    aug_writers[aug_key] = cv2.VideoWriter(aug_output_path, fourcc, fps, (first_frame_width, first_frame_height))
 
-                if not output_paths:
-                    logging.warning(f"No faces detected in video: {input_path}")
-                    return None
+                cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+                temp_detection_result = []
+                with tqdm(total=end_frame - start_frame, desc=f"Processing {os.path.basename(input_path)}", unit="frame", disable=not self.use_tqdm) as progress_bar:
+                    while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
+                        ret, frame = cap.read()
+                        if not ret:
+                            logging.warning(f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
+                            break
+                        if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
+                            logging.info(f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}")
 
-                return output_paths
-
-            else:
-                return output_paths
+                        cropped_frame, temp_detection_result = self._process_frame(frame, width, height, temp_detection_result) if crop else frame
+                        if cropped_frame is not None:
+                            if crop:
+                                resized_frame = cv2.resize(cropped_frame, (first_frame_width, first_frame_height), interpolation=cv2.INTER_LINEAR)
+                                out_crop.write(resized_frame)
+                            augmented_frames = self._augment_frame(cropped_frame, augmentations)
+                            for aug_key, aug_frame in augmented_frames.items():
+                                resized_frame = cv2.resize(aug_frame, (first_frame_width, first_frame_height), interpolation=cv2.INTER_LINEAR)
+                                aug_writers[aug_key].write(resized_frame)
+                        progress_bar.update(1)
+                if crop:
+                    out_crop.release()
+                for writer in aug_writers.values():
+                    writer.release()
+            cap.release()
+            return output_paths
 
         except Exception as e:
-            logging.error(f"Error processing {video_file}: %s", traceback.format_exc()) # log the full traceback
+            logging.error(f"Error processing {video_file}: %s", traceback.format_exc())
             return None
+        
 
     def process_multiple_videos(self, 
                                 video_files: List[str], 
@@ -257,7 +263,8 @@ class VideoProcessor:
                                 end_second: Optional[int] = None,
                                 augmentations: Optional[Dict[str, List[Dict]]] = None,
                                 save: bool = True,
-                                crop: bool = True) -> List[Optional[Dict[str,str]]]:
+                                crop: bool = True,
+                                max_workers: Optional[int] = 10) -> List[Optional[Dict[str,str]]]:
         """
         Processes multiple video files, either sequentially or in parallel.
 
@@ -277,7 +284,7 @@ class VideoProcessor:
         args = (start_second, end_second, augmentations, save, crop)
 
         if parallel:
-            with ProcessPoolExecutor(max_workers=5) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 results = list(executor.map(_process_video_helper, [self] * len(video_files), video_files, *([arg] * len(video_files) for arg in args)))
             return results
         else:
