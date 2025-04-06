@@ -1,0 +1,6 @@
+.venv/
+.git/
+.ipynb_checkpoints/
+data/
+outputs/
+temp/
