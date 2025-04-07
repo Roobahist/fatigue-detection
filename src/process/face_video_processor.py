@@ -4,18 +4,23 @@ import gc
 import logging
 import os
 import traceback
+import tracemalloc
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
 from typing import Dict, List, Optional, Union
 
 import cv2
 import mediapipe as mp
+import memory_profiler
 import numpy as np
+import objgraph as o
+from memory_profiler import profile
 from tqdm import tqdm
 
-from Zh.src.utils.cleanup import cleanup
 from Zh.src.utils.crop.cropper import crop_face_from_frame
 from Zh.src.utils.face_detection.face_detector import FaceDetector
+from Zh.src.utils.memory import cleanup
+from Zh.src.utils.memory import print_all_memory as vm
 from Zh.src.utils.video import get_video_info
 
 # def _process_video_helper(
@@ -35,6 +40,7 @@ class VideoProcessor:
     A class to process video files, detecting and cropping faces, with support for multiple videos.
     """
 
+    @profile
     def __init__(self, input_folder: str, output_folder: str, use_tqdm: bool = False):
         """
         Initializes the VideoProcessor.
@@ -48,6 +54,7 @@ class VideoProcessor:
         self.output_folder = output_folder
         self.use_tqdm = use_tqdm
 
+    @profile
     def _augment_frame(
         self, frame: np.ndarray, augmentations: Dict[str, List[Dict]]
     ) -> Dict[str, np.ndarray]:
@@ -114,6 +121,7 @@ class VideoProcessor:
 
         return augmented_frames
 
+    @profile
     def _process_frame(
         self,
         frame: cv2.Mat,
@@ -149,6 +157,7 @@ class VideoProcessor:
         )
         return cropped_face, temp_detection_result
 
+    @profile
     def _save_video(
         self,
         frames: List[np.ndarray],
@@ -196,6 +205,7 @@ class VideoProcessor:
             out.release()
         logging.info(f"Augmented video saved at: {output_path}")
 
+    @profile
     def process_single_video(
         self,
         video_file: str,
@@ -381,6 +391,7 @@ class VideoProcessor:
                 global_vars=globals(),
             )
 
+    @profile
     def process_multiple_videos(
         self,
         video_files: List[str],
@@ -406,13 +417,13 @@ class VideoProcessor:
         Returns:
             A list of output video paths (or None if processing failed).
         """
-
         video_files = (
             os.listdir(self.input_folder) if video_files == [] else video_files
         )
         args = (start_second, end_second, augmentations, save, crop)
         _process_single_video = partial(self.process_single_video)
         if parallel:
+            breakpoint()
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 results = list(
                     executor.map(
@@ -423,5 +434,6 @@ class VideoProcessor:
                 )
             return results
         else:
+            breakpoint()
             results = [self.process_single_video(file, *args) for file in video_files]
             return results

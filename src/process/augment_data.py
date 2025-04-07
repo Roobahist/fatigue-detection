@@ -1,14 +1,24 @@
 if __name__ == "__main__":
+    import os
+    import tracemalloc
+
+    import memory_profiler
+    import objgraph as o
+
     from Zh.src.process.face_video_processor import *
+    from Zh.src.utils.memory import print_all_memory as vm
+
+    pid = os.getpid()
+    print(pid)
+
+    breakpoint()
 
     input_folder = "/home/mojtaba.kananisarche/Zh/data/UTA/1-raw_30fps"
     # output_folder='/home/mojtaba.kananisarche/Zh/temp/out'
-    output_folder = "/work/long_lab/Mojtaba/augmented3"
-
+    output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
     vp = VideoProcessor(
-        input_folder=input_folder, output_folder=output_folder, use_tqdm=True
+        input_folder=input_folder, output_folder=output_folder, use_tqdm=False
     )
-
     augmentations = {
         # "gaussianblur": [
         #     {"kernel_size": 3},
@@ -22,13 +32,13 @@ if __name__ == "__main__":
         "grayscale": [{}],  # No parameters needed
         "rotate": [{"angle": 5}, {"angle": -5}],
     }
-
     vp.process_multiple_videos(
-        video_files=[],
+        video_files=[],  # all
+        # video_files=os.listdir(input_folder)[:5],
         parallel=True,
         start_second=0,
-        end_second=None,
+        end_second=1,
         augmentations=augmentations,
         save=True,
-        max_workers=30,
+        max_workers=5,
     )
