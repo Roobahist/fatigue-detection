@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import gc
 import logging
+import multiprocessing
 import os
+import sys
 import traceback
 import tracemalloc
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
+from multiprocessing import Pool
 from typing import Dict, List, Optional, Union
 
 import cv2
@@ -22,6 +25,8 @@ from Zh.src.utils.face_detection.face_detector import FaceDetector
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.memory import print_all_memory as vm
 from Zh.src.utils.video import get_video_info
+
+# log_file = open("/home/mojtaba.kananisarche/Zh/temp/mem3.log", "w")
 
 # def _process_video_helper(
 #     video_processor_instance, file, start_second, end_second, augmentations, save, crop
@@ -40,7 +45,7 @@ class VideoProcessor:
     A class to process video files, detecting and cropping faces, with support for multiple videos.
     """
 
-    @profile
+    # @profile(stream=log_file)
     def __init__(self, input_folder: str, output_folder: str, use_tqdm: bool = False):
         """
         Initializes the VideoProcessor.
@@ -54,7 +59,7 @@ class VideoProcessor:
         self.output_folder = output_folder
         self.use_tqdm = use_tqdm
 
-    @profile
+    # @profile(stream=log_file)
     def _augment_frame(
         self, frame: np.ndarray, augmentations: Dict[str, List[Dict]]
     ) -> Dict[str, np.ndarray]:
@@ -121,7 +126,7 @@ class VideoProcessor:
 
         return augmented_frames
 
-    @profile
+    # @profile(stream=log_file)
     def _process_frame(
         self,
         frame: cv2.Mat,
@@ -141,23 +146,36 @@ class VideoProcessor:
         Returns:
             The cropped face frame, or None if face detection fails.
         """
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-        detector = FaceDetector(False, False, 1).landmarker
-        detection_result = detector.detect(mp_image)
+        try:
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+            detector = FaceDetector(False, False, 1).landmarker
+            detection_result = detector.detect(mp_image)
 
-        cropped_face = crop_face_from_frame(
-            frame, detection_result, width, height, margin=0.1
-        )
-        if cropped_face is not None:
-            return cropped_face, detection_result
-        if temp_detection_result == []:
-            return None, []
-        cropped_face = crop_face_from_frame(
-            frame, temp_detection_result, width, height, margin=0.1
-        )
-        return cropped_face, temp_detection_result
+            cropped_face = crop_face_from_frame(
+                frame, detection_result, width, height, margin=0.1
+            )
+            if cropped_face is not None:
+                return cropped_face, detection_result
+            if temp_detection_result == []:
+                return None, []
+            cropped_face = crop_face_from_frame(
+                frame, temp_detection_result, width, height, margin=0.1
+            )
+            return cropped_face, temp_detection_result
 
-    @profile
+        except Exception as e:
+            logging.error(f"Error processing a frame")
+            return None
+
+        finally:
+            # print(locals())
+            cleanup(
+                ["mp_image", "detector", "detection_result"],
+                local_vars=locals(),
+                global_vars=globals(),
+            )
+
+    # @profile(stream=log_file)
     def _save_video(
         self,
         frames: List[np.ndarray],
@@ -205,7 +223,7 @@ class VideoProcessor:
             out.release()
         logging.info(f"Augmented video saved at: {output_path}")
 
-    @profile
+    # @profile(stream=log_file)
     def process_single_video(
         self,
         video_file: str,
@@ -370,28 +388,65 @@ class VideoProcessor:
                 for writer in aug_writers.values():
                     writer.release()
             cap.release()
-            return output_paths
+            return None
 
         except Exception as e:
             logging.error(f"Error processing {video_file}: %s", traceback.format_exc())
             return None
 
         finally:
-            cleanup(
-                [
-                    "cap",
-                    "out_crop",
-                    "aug_writers",
-                    "cropped_frame",
-                    "temp_detection_result",
-                    "augmented_frames",
-                    "frame",
-                ],
-                local_vars=locals(),
-                global_vars=globals(),
-            )
+            try:
+                cap.release()
+            except:
+                pass
+            try:
+                del cap
+            except:
+                pass
+            try:
+                del ret
+            except:
+                pass
+            try:
+                del frame
+            except:
+                pass
+            try:
+                del cropped_frame
+            except:
+                pass
+            try:
+                del temp_detection_result
+            except:
+                pass
+            try:
+                del augmented_frames
+            except:
+                pass
+            try:
+                del out_crop
+            except:
+                pass
+            try:
+                del aug_writers
+            except:
+                pass
+            gc.collect()
+            # cleanup(
+            #     [
+            #         "cap",
+            #         "out_crop",
+            #         "aug_writers",
+            #         "cropped_frame",
+            #         "temp_detection_result",
+            #         "augmented_frames",
+            #         "frame",
+            #     ],
+            #     local_vars=locals(),
+            #     global_vars=globals(),
+            # )
 
-    @profile
+    # @profile(stream=log_file)
     def process_multiple_videos(
         self,
         video_files: List[str],
@@ -423,17 +478,34 @@ class VideoProcessor:
         args = (start_second, end_second, augmentations, save, crop)
         _process_single_video = partial(self.process_single_video)
         if parallel:
-            breakpoint()
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                results = list(
-                    executor.map(
+            # breakpoint()
+            try:
+                with multiprocessing.Pool(
+                    processes=max_workers, maxtasksperchild=1
+                ) as pool:
+                    pool.starmap(
                         _process_single_video,
-                        video_files,
-                        *([arg] * len(video_files) for arg in args),
+                        zip(video_files, *([arg] * len(video_files) for arg in args)),
                     )
-                )
-            return results
+                # return results
+
+                # with ProcessPoolExecutor(
+                #     max_workers=max_workers,
+                # ) as executor:
+                #     results = list(
+                #         executor.map(
+                #             _process_single_video,
+                #             video_files,
+                #             *([arg] * len(video_files) for arg in args),
+                #         )
+                #     )
+                # return results
+
+            except KeyboardInterrupt:
+                print("Ctrl+C detected! Attempting to shut down gracefully...")
+                # executor.shutdown(wait=False, cancel_futures=True)
+                sys.exit(1)
         else:
-            breakpoint()
+            # breakpoint()
             results = [self.process_single_video(file, *args) for file in video_files]
             return results

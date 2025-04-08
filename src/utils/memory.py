@@ -2,6 +2,7 @@ import gc
 import inspect
 import sys
 from typing import List
+from memory_profiler import profile
 
 
 def format_size(size_in_bytes):
@@ -37,7 +38,7 @@ def print_all_memory(local_vars, global_vars):
         formatted_size = format_size(size)
         print(f"{name}: {formatted_size}")
 
-
+# @profile
 def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
     """
     Cleans up variables safely:
@@ -64,8 +65,11 @@ def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
 
         # Delete from local or global scope
         if local_vars and var_name in local_vars:
+            print(f"deleting local {var_name}")
             del local_vars[var_name]
+
         if global_vars and var_name in global_vars:
+            print(f"deleting global {var_name}")
             del global_vars[var_name]
 
     gc.collect()

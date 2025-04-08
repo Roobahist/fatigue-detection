@@ -11,7 +11,7 @@ if __name__ == "__main__":
     pid = os.getpid()
     print(pid)
 
-    breakpoint()
+    # breakpoint()
 
     input_folder = "/home/mojtaba.kananisarche/Zh/data/UTA/1-raw_30fps"
     # output_folder='/home/mojtaba.kananisarche/Zh/temp/out'
@@ -20,10 +20,7 @@ if __name__ == "__main__":
         input_folder=input_folder, output_folder=output_folder, use_tqdm=False
     )
     augmentations = {
-        # "gaussianblur": [
-        #     {"kernel_size": 3},
-        #     {"kernel_size": 5}
-        # ],
+        "gaussianblur": [{"kernel_size": 3}, {"kernel_size": 5}],
         "brightness": [{"alpha": 1.2, "beta": 10}, {"alpha": 0.8, "beta": -10}],
         "contrast": [{"alpha": 1.5, "beta": 0}, {"alpha": 0.7, "beta": 0}],
         "flip": [
@@ -33,12 +30,12 @@ if __name__ == "__main__":
         "rotate": [{"angle": 5}, {"angle": -5}],
     }
     vp.process_multiple_videos(
-        video_files=[],  # all
-        # video_files=os.listdir(input_folder)[:5],
+        # video_files=[],  # all
+        video_files=os.listdir(input_folder)[:5],
         parallel=True,
         start_second=0,
-        end_second=1,
+        end_second=2,
         augmentations=augmentations,
         save=True,
-        max_workers=5,
+        max_workers=1,
     )
