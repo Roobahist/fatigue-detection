@@ -17,10 +17,12 @@ import mediapipe as mp
 import memory_profiler
 import numpy as np
 import objgraph as o
+from deepface import DeepFace as DF
 from memory_profiler import profile
 from tqdm import tqdm
 
 from Zh.src.utils.cropper import crop_face_from_frame
+from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.memory import print_all_memory as vm
@@ -232,6 +234,8 @@ class VideoProcessor:
         augmentations: Optional[Dict[str, List[Dict]]] = None,
         save: bool = True,
         crop: bool = True,
+        find_embedding: bool = True,
+        embedding_model: str = "Facenet",
     ) -> Optional[Dict[str, str]]:
         """
         Processes a single video file, detecting and cropping faces, with configurable augmentations.
@@ -308,7 +312,9 @@ class VideoProcessor:
                     return None
 
                 if crop:
-                    cropped_folder = os.path.join(self.output_folder, f"cropped")
+                    cropped_folder = os.path.join(
+                        self.output_folder, "video", f"cropped"
+                    )
                     os.makedirs(cropped_folder, exist_ok=True)
                     cropped_output_path = os.path.join(
                         cropped_folder, f"{output_base}_cropped.mp4"
@@ -320,10 +326,24 @@ class VideoProcessor:
                         fps,
                         (first_frame_width, first_frame_height),
                     )
+                    if find_embedding:
+                        cropped_embedding_folder = os.path.join(
+                            self.output_folder,
+                            "embedding",
+                            f"{embedding_model}",
+                            f"cropped",
+                        )
+                        os.makedirs(cropped_embedding_folder, exist_ok=True)
+                        cropped_embedding_path = os.path.join(
+                            cropped_embedding_folder, f"{output_base}_cropped.csv"
+                        )
+                        cropped_embedding_writer = CSVWriter(cropped_embedding_path)
 
                 aug_writers = {}
+                aug_embedding_writers = {}
+
                 for aug_key in augmented_frames.keys():
-                    aug_folder = os.path.join(self.output_folder, f"{aug_key}")
+                    aug_folder = os.path.join(self.output_folder, "video", f"{aug_key}")
                     os.makedirs(aug_folder, exist_ok=True)
                     aug_output_path = os.path.join(
                         aug_folder, f"{output_base}_{aug_key}.mp4"
@@ -334,6 +354,18 @@ class VideoProcessor:
                         fps,
                         (first_frame_width, first_frame_height),
                     )
+                    if find_embedding:
+                        aug_embedding_folder = os.path.join(
+                            self.output_folder,
+                            "embedding",
+                            f"{embedding_model}",
+                            f"{aug_key}",
+                        )
+                        os.makedirs(aug_embedding_folder, exist_ok=True)
+                        aug_embedding_path = os.path.join(
+                            aug_embedding_folder, f"{output_base}_{aug_key}.csv"
+                        )
+                        aug_embedding_writers[aug_key] = CSVWriter(aug_embedding_path)
 
                 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
                 temp_detection_result = []
@@ -372,6 +404,24 @@ class VideoProcessor:
                                     interpolation=cv2.INTER_LINEAR,
                                 )
                                 out_crop.write(resized_frame)
+                                if find_embedding:
+                                    cropped_embedding_writer.write(
+                                        [
+                                            round(x, 3)
+                                            for x in DF.represent(
+                                                img_path=resized_frame,
+                                                enforce_detection=False,
+                                                detector_backend="skip",
+                                                model_name=embedding_model,
+                                                normalization=(
+                                                    "Facenet"
+                                                    if embedding_model == "Facenet"
+                                                    else "base"
+                                                ),
+                                            )[0]["embedding"]
+                                        ]
+                                    )
+
                             augmented_frames = self._augment_frame(
                                 cropped_frame, augmentations
                             )
@@ -382,11 +432,35 @@ class VideoProcessor:
                                     interpolation=cv2.INTER_LINEAR,
                                 )
                                 aug_writers[aug_key].write(resized_frame)
+                                if find_embedding:
+                                    aug_embedding_writers[aug_key].write(
+                                        [
+                                            round(x, 3)
+                                            for x in DF.represent(
+                                                img_path=resized_frame,
+                                                enforce_detection=False,
+                                                detector_backend="skip",
+                                                model_name=embedding_model,
+                                                normalization=(
+                                                    "Facenet"
+                                                    if embedding_model == "Facenet"
+                                                    else "base"
+                                                ),
+                                            )[0]["embedding"]
+                                        ]
+                                    )
                         progress_bar.update(1)
+
                 if crop:
                     out_crop.release()
-                for writer in aug_writers.values():
+                    if find_embedding:
+                        cropped_embedding_writer.close()
+
+                for aug_key, writer in aug_writers.items():
                     writer.release()
+                    if find_embedding:
+                        aug_embedding_writers[aug_key].close()
+
             cap.release()
             return None
 
@@ -395,56 +469,21 @@ class VideoProcessor:
             return None
 
         finally:
-            try:
-                cap.release()
-            except:
-                pass
-            try:
-                del cap
-            except:
-                pass
-            try:
-                del ret
-            except:
-                pass
-            try:
-                del frame
-            except:
-                pass
-            try:
-                del cropped_frame
-            except:
-                pass
-            try:
-                del temp_detection_result
-            except:
-                pass
-            try:
-                del augmented_frames
-            except:
-                pass
-            try:
-                del out_crop
-            except:
-                pass
-            try:
-                del aug_writers
-            except:
-                pass
-            gc.collect()
-            # cleanup(
-            #     [
-            #         "cap",
-            #         "out_crop",
-            #         "aug_writers",
-            #         "cropped_frame",
-            #         "temp_detection_result",
-            #         "augmented_frames",
-            #         "frame",
-            #     ],
-            #     local_vars=locals(),
-            #     global_vars=globals(),
-            # )
+            cleanup(
+                [
+                    "cap",
+                    "out_crop",
+                    "aug_writers",
+                    "cropped_frame",
+                    "temp_detection_result",
+                    "augmented_frames",
+                    "frame",
+                    "cropped_embedding_writer",
+                    "aug_embedding_writers",
+                ],
+                local_vars=locals(),
+                global_vars=globals(),
+            )
 
     # @profile(stream=log_file)
     def process_multiple_videos(
@@ -457,6 +496,8 @@ class VideoProcessor:
         save: bool = True,
         crop: bool = True,
         max_workers: Optional[int] = 10,
+        find_embedding: bool = True,
+        embedding_model: str = "Facenet",
     ) -> List[Optional[Dict[str, str]]]:
         """
         Processes multiple video files, either sequentially or in parallel.
@@ -475,7 +516,15 @@ class VideoProcessor:
         video_files = (
             os.listdir(self.input_folder) if video_files == [] else video_files
         )
-        args = (start_second, end_second, augmentations, save, crop)
+        args = (
+            start_second,
+            end_second,
+            augmentations,
+            save,
+            crop,
+            find_embedding,
+            embedding_model,
+        )
         _process_single_video = partial(self.process_single_video)
         if parallel:
             # breakpoint()
@@ -487,6 +536,7 @@ class VideoProcessor:
                         _process_single_video,
                         zip(video_files, *([arg] * len(video_files) for arg in args)),
                     )
+                return
                 # return results
 
                 # with ProcessPoolExecutor(

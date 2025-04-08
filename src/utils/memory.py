@@ -2,6 +2,7 @@ import gc
 import inspect
 import sys
 from typing import List
+
 from memory_profiler import profile
 
 
@@ -13,10 +14,10 @@ def format_size(size_in_bytes):
         size_in_bytes /= 1024.0
 
 
-def print_all_memory(local_vars, global_vars):  
+def print_all_memory(local_vars, global_vars):
     """Prints the memory usage of provided local and global variables, sorted by name.
-        usage : print_all_memory(locals(), globals())
-        usage : vm(locals(), globals())
+    usage : print_all_memory(locals(), globals())
+    usage : vm(locals(), globals())
     """
 
     print("--- Local Variables ---")
@@ -38,6 +39,7 @@ def print_all_memory(local_vars, global_vars):
         formatted_size = format_size(size)
         print(f"{name}: {formatted_size}")
 
+
 # @profile
 def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
     """
@@ -45,6 +47,8 @@ def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
     - Calls .release() or .close() if available
     - Deletes variable from provided locals/globals
     - Triggers garbage collection
+
+    #TODO some vars might be collections of vars or writers like aug_writers and should be handled separatly
     """
     for var_name in var_names:
         var = None
@@ -65,11 +69,11 @@ def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
 
         # Delete from local or global scope
         if local_vars and var_name in local_vars:
-            print(f"deleting local {var_name}")
+            # print(f"deleting local {var_name}")
             del local_vars[var_name]
 
         if global_vars and var_name in global_vars:
-            print(f"deleting global {var_name}")
+            # print(f"deleting global {var_name}")
             del global_vars[var_name]
 
     gc.collect()

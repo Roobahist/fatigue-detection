@@ -14,8 +14,9 @@ if __name__ == "__main__":
     # breakpoint()
 
     input_folder = "/home/mojtaba.kananisarche/Zh/data/UTA/1-raw_30fps"
+    output_folder='/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded'
     # output_folder='/home/mojtaba.kananisarche/Zh/temp/out'
-    output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
+    # output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
     vp = VideoProcessor(
         input_folder=input_folder, output_folder=output_folder, use_tqdm=False
     )
@@ -30,12 +31,14 @@ if __name__ == "__main__":
         "rotate": [{"angle": 5}, {"angle": -5}],
     }
     vp.process_multiple_videos(
-        # video_files=[],  # all
-        video_files=os.listdir(input_folder)[:5],
+        video_files=[],  # all
+        # video_files=os.listdir(input_folder)[:2],
         parallel=True,
         start_second=0,
-        end_second=2,
+        end_second=None,
         augmentations=augmentations,
         save=True,
-        max_workers=1,
+        max_workers=15,
+        find_embedding=True,
+        embedding_model='Facenet'
     )
