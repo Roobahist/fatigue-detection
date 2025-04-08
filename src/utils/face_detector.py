@@ -3,7 +3,7 @@ import numpy as np
 from typing import Optional
 import cv2
 
-MODEL_PATH = '/home/mojtaba.kananisarche/Zh/src/utils/face_detection/face_landmarker_v2_with_blendshapes.task'
+MODEL_PATH = '/home/mojtaba.kananisarche/Zh/src/utils/face_landmarker_v2_with_blendshapes.task'
 
 class FaceDetector:
     """

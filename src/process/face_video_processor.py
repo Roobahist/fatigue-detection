@@ -21,7 +21,7 @@ from memory_profiler import profile
 from tqdm import tqdm
 
 from Zh.src.utils.crop.cropper import crop_face_from_frame
-from Zh.src.utils.face_detection.face_detector import FaceDetector
+from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.memory import print_all_memory as vm
 from Zh.src.utils.video import get_video_info
