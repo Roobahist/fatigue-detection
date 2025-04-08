@@ -20,7 +20,7 @@ import objgraph as o
 from memory_profiler import profile
 from tqdm import tqdm
 
-from Zh.src.utils.crop.cropper import crop_face_from_frame
+from Zh.src.utils.cropper import crop_face_from_frame
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.memory import print_all_memory as vm
