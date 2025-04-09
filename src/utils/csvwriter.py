@@ -1,7 +1,7 @@
 class CSVWriter:
-    def __init__(self, filename):
+    def __init__(self, file_path):
         import csv
-        self.file = open(filename, 'a+', newline='')
+        self.file = open(file_path, 'a+', newline='')
         self.writer = csv.writer(self.file)
 
     def write(self, row):
@@ -17,6 +17,6 @@ class CSVWriter:
 
 
 # CSVW = CSVWriter(
-#     filename="/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded/embedding/Facenet/cropped/1_06_5_30fps_cropped.csv"
+#     file_path="/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded/embedding/Facenet/cropped/1_06_5_30fps_cropped.csv"
 # )
 # print(CSVW.current_line())
