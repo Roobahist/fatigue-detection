@@ -83,13 +83,15 @@ def process_single_video(
 
         cap = cv2.VideoCapture(video_file_path)
         if not cap.isOpened():
-            logging.error(f"Failed to open video: {video_file_path}")
+            logging.error(f"Failed to open video {file_index} - {video_file_path}")
 
         fps, _, _, total_frames = get_video_info(cap=cap)
         start_frame = max(int(start_second * fps), CSVW.get_current_line_number(), 0)
         end_frame = int(end_second * fps) if end_second is not None else total_frames
 
-        logging.info(f"Start Frame: {start_frame}, End Frame: {end_frame}")
+        logging.info(
+            f"Video {file_index} - Start Frame: {start_frame}, End Frame: {end_frame}"
+        )
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
         with tqdm(
@@ -99,14 +101,15 @@ def process_single_video(
             disable=not use_tqdm,
         ) as progress_bar:
             while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
-                if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
+                current_frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+                if current_frame_idx % 1000 == 0:
                     logging.info(
-                        f"Frame {cv2.CAP_PROP_POS_FRAMES} : {os.path.basename(video_file_path)}"
+                        f"Frame {current_frame_idx} : {os.path.basename(video_file_path)}"
                     )
                 ret, frame = cap.read()
                 if not ret:
                     logging.error(
-                        f"Failed to read frame {cv2.CAP_PROP_POS_FRAMES} : {os.path.basename(video_file_path)}"
+                        f"Failed to read frame {current_frame_idx} : {os.path.basename(video_file_path)}"
                     )
                     progress_bar.update(1)
                     continue
@@ -241,28 +244,31 @@ def process_parallel_or_serial(
 
 if __name__ == "__main__":
 
-    input_folder_path, output_folder_path, max_workers = sys.argv[1], sys.argv[2], int(sys.argv[3])
+    input_folder_path, output_folder_path, max_workers = (
+        sys.argv[1],
+        sys.argv[2],
+        int(sys.argv[3]),
+    )
     # input_folder_path = "/work/long_lab/Mojtaba/augmented"
     # output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmentated_embedded"
     # output_folder_path = "/home/mojtaba.kananisarche/Zh/temp/out/embedding/Facenet"
     # output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded"
     # input_folder_path, output_folder_path, max_workers = (
-        # "/work/long_lab/Mojtaba/augmented/brightness_alpha0.8_beta-10",
-        # "/home/mojtaba.kananisarche/Zh/temp/out4",
-        # 2,
+    # "/work/long_lab/Mojtaba/augmented/brightness_alpha0.8_beta-10",
+    # "/home/mojtaba.kananisarche/Zh/temp/out4",
+    # 2,
     # )
-
+    # video_file_names=[
+    #     "1_06_5_30fps_brightness_alpha0.8_beta-10.mp4"
+    # ],
     logging.info("Starting ...")
     process_parallel_or_serial(
         input_folder_path=input_folder_path,
         output_folder_path=output_folder_path,
-        # video_file_names=[
-        #     "1_06_5_30fps_brightness_alpha0.8_beta-10.mp4"
-        # ],
         video_file_names=[],
         parallel=True,
         start_second=0,
-        end_second=1,
+        end_second=None,
         max_workers=max_workers,
         embedding_model="Facenet",
         embedding_normalization="Facenet",
