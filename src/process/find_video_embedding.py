@@ -1,6 +1,7 @@
 import logging
 import multiprocessing
 import os
+import sys
 import traceback
 from typing import List, Optional
 
@@ -23,7 +24,7 @@ VIDEO_EXTS = [".mp4", ".mov", ".avi"]
 
 def find_folders_to_create(input_folder_path, output_folder_path):
     try:
-        to_create_folder_paths = []
+        to_create_folder_paths = [output_folder_path]
         folder_names_inside_input_folder_path = [
             folder_name
             for folder_name in os.listdir(input_folder_path)
@@ -60,10 +61,10 @@ def process_single_video(
     embedding_model: Optional[str] = "Facenet",
     embedding_normalization: Optional[str] = "Facenet",
     use_tqdm: Optional[bool] = False,
-    index: Optional[int] = -1,
+    file_index: Optional[int] = -1,
 ):
     try:
-        logging.info(f"--- Processing Video {index} ---")
+        logging.info(f"--- Processing Video {file_index} - {video_file_path} ---")
         FP = FrameProcessor()
         file_path = (
             os.path.splitext(
@@ -123,7 +124,9 @@ def process_single_video(
                 CSVW.write(frame_embedding)
                 progress_bar.update(1)
 
-        logging.info(f"--- Processing Video {index} Ended Successfully ---")
+        logging.info(
+            f"--- Processing Video {file_index} - {video_file_path} Ended Successfully ---"
+        )
 
     except Exception as e:
         logging.error(
@@ -168,11 +171,14 @@ def process_parallel_or_serial(
     to_create_folder_paths = find_folders_to_create(
         input_folder_path=input_folder_path, output_folder_path=output_folder_path
     )
-    if not to_create_folder_paths:
+    if not isinstance(to_create_folder_paths, list):
         return False
-
     if not create_folders(to_create_folder_paths):
         return False
+
+    logging.info(
+        "Folders Created :\n" + "\n".join(f"- {p}" for p in to_create_folder_paths)
+    )
 
     if video_file_names != []:
         video_file_paths = [
@@ -234,22 +240,32 @@ def process_parallel_or_serial(
 
 
 if __name__ == "__main__":
-    input_folder_path = "/work/long_lab/Mojtaba/augmented"
-    output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmentated_embedded"
+
+    input_folder_path, output_folder_path, max_workers = sys.argv[1], sys.argv[2], int(sys.argv[3])
+    # input_folder_path = "/work/long_lab/Mojtaba/augmented"
+    # output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmentated_embedded"
     # output_folder_path = "/home/mojtaba.kananisarche/Zh/temp/out/embedding/Facenet"
     # output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded"
+    # input_folder_path, output_folder_path, max_workers = (
+        # "/work/long_lab/Mojtaba/augmented/brightness_alpha0.8_beta-10",
+        # "/home/mojtaba.kananisarche/Zh/temp/out4",
+        # 2,
+    # )
 
     logging.info("Starting ...")
     process_parallel_or_serial(
         input_folder_path=input_folder_path,
         output_folder_path=output_folder_path,
-        # video_file_names=["brightness_alpha0.8_beta-10/1_06_5_30fps_brightness_alpha0.8_beta-10.mp4"],
+        # video_file_names=[
+        #     "1_06_5_30fps_brightness_alpha0.8_beta-10.mp4"
+        # ],
         video_file_names=[],
         parallel=True,
         start_second=0,
         end_second=1,
-        max_workers=15,
+        max_workers=max_workers,
         embedding_model="Facenet",
         embedding_normalization="Facenet",
         use_tqdm=False,
     )
+    # python -m Zh.src.process.find_video_embedding /work/long_lab/Mojtaba/augmented/cropped /work/long_lab/Mojtaba/data/UTA/1.3.2-augmentated_embedded/cropped 44
