@@ -15,7 +15,7 @@ from Zh.src.utils.video import get_video_info
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
-    format="[%(levelname)s] %(message)s",
+    format="[%(asctime)s][%(levelname)s] %(message)s",
 )
 
 
