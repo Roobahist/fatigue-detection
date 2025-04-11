@@ -20,12 +20,12 @@ if __name__ == "__main__":
         path_to_data=path_to_data,
         # file_names=["facenet_preprocessed_alternativemapping.csv"],
         file_names=["facenet_preprocessed_alternativemapping_croppedonly.csv"],
-        nrows=1000000,
+        # nrows=1000000,
     )
     # preprocessed_data, columns_to_drop = preprocess_data(data=unpreprocessed_data, mapping=mapping)
     columns_to_drop = [
         "file_name",
-        "file_name_1", #################
+        "file_name_1",
         "type",
         "frame",
         "fold",
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     ]
 
     m = Model(
-        units=[1],
+        units=[50, 50],
         dropout_ratio=0.3,
         kernel_regularizer_l2=0,
         kernel_regularizer_l1=0,
@@ -43,9 +43,9 @@ if __name__ == "__main__":
         beta_1=0.9,
         beta_2=0.999,
         epsilon=1e-7,
-        epochs=2,
-        patience=100,
-        max_slices=5000,
+        epochs=100,
+        patience=50,
+        max_slices=4500,
         mapping=mapping,
     )
 
@@ -57,5 +57,5 @@ if __name__ == "__main__":
         maxtasksperchild=1,
         use_tqdm=True,
         output_parent_dir="/home/mojtaba.kananisarche/Zh/outputs",
-        limit_folds=2,
+        limit_folds=1,
     )
