@@ -26,7 +26,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
 from tensorflow import keras
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 
 from Zh.src.utils.serialized_parallel import *
 
@@ -261,15 +261,6 @@ class Model:
             logging.info(
                 f"Saved results for Test subject {result['test']} to {result_file_path}"
             )
-        # Save the trained model as a pickle file
-        model_file_path = os.path.join(
-            output_folder_path, f'{result["test"]}_model.pkl'
-        )
-        with open(model_file_path, "wb") as model_file:
-            pickle.dump(model, model_file)
-            logging.info(
-                f"Saved model for Test subject {result['test']} to {model_file_path}"
-            )
 
     # First, define the train_single_fold function outside of the class
     def _train_single_fold(
@@ -373,7 +364,7 @@ class Model:
         logging.info(f"{index} - fitting model")
         # Train the model
 
-        epoch_end_logging_callback = EpochEndLoggingCallback(
+        epoch_end_logging = EpochEndLoggingCallback(
             X_train=X_train,
             y_train=y_train,
             X_val=X_val,
@@ -383,6 +374,17 @@ class Model:
             mapping=self.mapping,
             index=index,
         )
+        early_stop = EarlyStopping(
+            monitor="val_loss",
+            patience=self.patience,
+            restore_best_weights=True,
+        )
+        checkpoint = ModelCheckpoint(
+            os.path.join(output_folder_path, f"{test_subject_id}_best_model.h5"),
+            monitor="val_loss",
+            save_best_only=True,
+            save_weights_only=True,
+        )
 
         history: History = model.fit(
             X_train,
@@ -390,31 +392,8 @@ class Model:
             validation_data=(X_val, y_val),
             epochs=self.epochs,
             batch_size=self.batch_size,
-            callbacks=[
-                keras.callbacks.EarlyStopping(
-                    monitor="val_loss",
-                    patience=self.patience,
-                    restore_best_weights=True,
-                ),
-                epoch_end_logging_callback,
-            ],
+            callbacks=[early_stop, epoch_end_logging, checkpoint],
             verbose=0,
-            sample_weight=sample_weight,
-        )
-        history: History = model.fit(
-            X_train,
-            y_train,
-            validation_data=(X_val, y_val),
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            callbacks=[
-                keras.callbacks.EarlyStopping(
-                    monitor="val_loss",
-                    patience=self.patience,
-                    restore_best_weights=True,
-                )
-            ],
-            verbose=2,  # Reduced verbosity for parallel execution
             sample_weight=sample_weight,
         )
 
