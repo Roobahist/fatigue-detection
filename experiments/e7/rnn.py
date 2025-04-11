@@ -45,7 +45,7 @@ if __name__ == "__main__":
         epsilon=1e-7,
         epochs=100,
         patience=50,
-        max_slices=4500,
+        slice_size=4500,
         mapping=mapping,
     )
 

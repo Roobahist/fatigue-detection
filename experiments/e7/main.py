@@ -48,7 +48,7 @@ def set_seed(seed=42):
 def reshape_data_rnn(
     df: pd.DataFrame,
     feature_columns: List[str],
-    max_slices: int,
+    slice_size: int,
     step_size: Optional[int],
     groupby_column: str = "file_name",
     sortby_column: str = "frame",
@@ -61,7 +61,7 @@ def reshape_data_rnn(
     Args:
         df (pd.DataFrame)              : Input dataframe.
         feature_columns (List[str])    : List of feature column names.
-        max_slices (int)               : Maximum number of slices in each chunk.
+        slice_size (int)               : Maximum number of slices in each chunk.
         step_size (int)                : Step size for moving to the next chunk.
         groupby_column (str)           : Column to group by (e.g., video or file name).
         sortby_column (str)            : Column to sort within each group (e.g., frame index).
@@ -71,7 +71,7 @@ def reshape_data_rnn(
     Returns:
         Tuple[np.ndarray, np.ndarray]: Feature sequences (X) and corresponding labels (y).
     """
-    step_size = step_size or max_slices
+    step_size = step_size or slice_size
     X, y = [], []
 
     for _, group in df.groupby(groupby_column):
@@ -88,21 +88,21 @@ def reshape_data_rnn(
         slices = group[feature_columns].values.tolist()
         print(f"======{len(slices)}======")
         # Create chunks with the specified step size
-        for start_idx in range(0, len(slices) - max_slices + 1, step_size):
-            print(start_idx, start_idx + max_slices)
-            chunk = slices[start_idx : start_idx + max_slices]
+        for start_idx in range(0, len(slices) - slice_size + 1, step_size):
+            print(start_idx, start_idx + slice_size)
+            chunk = slices[start_idx : start_idx + slice_size]
             X.append(chunk)
             y.append(y_group)
 
-        discard_threshold_frame = int(discard_threshold_ratio * max_slices)
-        if len(slices) - (start_idx + max_slices) > discard_threshold_frame:
-            print(start_idx + max_slices, len(slices))
-            chunk = slices[start_idx + max_slices : len(slices)]
+        discard_threshold_frame = int(discard_threshold_ratio * slice_size)
+        if len(slices) - (start_idx + slice_size) > discard_threshold_frame:
+            print(start_idx + slice_size, len(slices))
+            chunk = slices[start_idx + slice_size : len(slices)]
             X.append(chunk)
             y.append(y_group)
 
     # Pad sequences to ensure uniform length
-    X_padded = pad_sequences(X, maxlen=max_slices, padding="post", dtype="float32")
+    X_padded = pad_sequences(X, maxlen=slice_size, padding="post", dtype="float32")
 
     return np.array(X_padded), np.array(y)
 
@@ -206,7 +206,7 @@ class Model:
         epsilon,
         epochs,
         patience,
-        max_slices,
+        slice_size,
         mapping,
     ):
         self.units = units
@@ -221,7 +221,7 @@ class Model:
         self.epsilon = epsilon
         self.epochs = epochs
         self.patience = patience
-        self.max_slices = max_slices
+        self.slice_size = slice_size
         self.mapping = mapping
 
     def _build_model(self, input_shape):
@@ -357,7 +357,7 @@ class Model:
         X_train, y_train = reshape_data_rnn(
             df=train,
             feature_columns=feature_columns,
-            max_slices=self.max_slices,
+            slice_size=self.slice_size,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
@@ -365,7 +365,7 @@ class Model:
         X_val, y_val = reshape_data_rnn(
             df=val,
             feature_columns=feature_columns,
-            max_slices=self.max_slices,
+            slice_size=self.slice_size,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
@@ -373,7 +373,7 @@ class Model:
         X_test, y_test = reshape_data_rnn(
             df=test,
             feature_columns=feature_columns,
-            max_slices=self.max_slices,
+            slice_size=self.slice_size,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
@@ -497,7 +497,7 @@ class Model:
                         "learning_rate": self.learning_rate,
                         "weight_decay": self.weight_decay,
                         "epochs": self.epochs,
-                        "max_slices": self.max_slices,
+                        "slice_size": self.slice_size,
                     }
                 },
                 file,
