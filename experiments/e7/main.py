@@ -1,18 +1,13 @@
-import concurrent.futures
 import json
 import logging
 import os
+import pickle
 import random
-import subprocess
-import sys
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime
-from multiprocessing import Pool
 from typing import List, Optional, Tuple
 
-import cv2
-import matplotlib.pyplot as plt
-import mediapipe as mp
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -31,6 +26,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
 from tensorflow import keras
+from tensorflow.keras.callbacks import Callback
 
 from Zh.src.utils.serialized_parallel import *
 
@@ -112,6 +108,61 @@ class NumpyEncoder(json.JSONEncoder):
                 for x in obj.tolist()
             ]
         return super(NumpyEncoder, self).default(obj)
+
+
+class EpochEndLoggingCallback(Callback):
+    def __init__(
+        self,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        X_test,
+        y_test,
+        mapping,
+        index,
+    ):
+        super().__init__()
+        self.X_train = X_train
+        self.y_train = y_train
+        self.X_val = X_val
+        self.y_val = y_val
+        self.X_test = X_test
+        self.y_test = y_test
+        self.mapping = mapping
+        self.index = index
+
+    def on_epoch_end(self, epoch, logs=None):
+        # print(f"Epoch {epoch+1} ended. Logs: {logs}")
+        trained_model = self.model
+
+        _, train_report = report(
+            model=trained_model,
+            x=self.X_train,
+            y_true=self.y_train,
+            unique_classes=list(self.mapping.values()),
+        )
+        _, val_report = report(
+            model=trained_model,
+            x=self.X_val,
+            y_true=self.y_val,
+            unique_classes=list(self.mapping.values()),
+        )
+        _, test_report = report(
+            model=trained_model,
+            x=self.X_test,
+            y_true=self.y_test,
+            unique_classes=list(self.mapping.values()),
+        )
+
+        logging.info("=============")
+        logging.info(
+            f"Epoch {epoch + 1} - Fold {self.index}\n"
+            f"Train Report: {train_report}\n"
+            f"Validation Report: {val_report}\n"
+            f"Test Report: {test_report}\n"
+            f"logs: {logs}"
+        )
 
 
 class Model:
@@ -201,13 +252,23 @@ class Model:
     def _save_result(
         self,
         result,
+        model,
         output_folder_path: Optional[str] = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
     ):
-        file_path = os.path.join(output_folder_path, f'{result["test"]}.json')
-        with open(file_path, "w") as file:
+        result_file_path = os.path.join(output_folder_path, f'{result["test"]}.json')
+        with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
             logging.info(
-                f"Saved results for Test subject {result['test']} to {file_path}"
+                f"Saved results for Test subject {result['test']} to {result_file_path}"
+            )
+        # Save the trained model as a pickle file
+        model_file_path = os.path.join(
+            output_folder_path, f'{result["test"]}_model.pkl'
+        )
+        with open(model_file_path, "wb") as model_file:
+            pickle.dump(model, model_file)
+            logging.info(
+                f"Saved model for Test subject {result['test']} to {model_file_path}"
             )
 
     # First, define the train_single_fold function outside of the class
@@ -227,7 +288,9 @@ class Model:
         Returns:
             Dictionary containing model, history, and reports
         """
-        logging.info(f"--- Processing Subject {index} - {test_subject_id} ---")
+        logging.info(
+            f"{index} ============= Processing Subject - {test_subject_id} ============="
+        )
 
         local_results = {}
 
@@ -245,7 +308,7 @@ class Model:
         )
 
         logging.info(
-            f"--- Starting {index} - Test {test_subject_id} & Validation {validation_subjects_id} ---"
+            f"{index} - Starting -> Test ID : {test_subject_id} & Validation IDs : {validation_subjects_id}"
         )
 
         train = data[
@@ -258,19 +321,22 @@ class Model:
             f"{index} - train {train.shape} & val {val.shape} & test {test.shape}"
         )
 
-        columns_to_drop = [
+        groupby_column, sortby_column, target_column = "file_name", "frame", "target"
+        columns_to_drop_1 = [
             column_name
             for column_name in columns_to_drop
-            if column_name not in ["frame", "file_name", "target"]
+            if column_name not in [groupby_column, sortby_column, target_column]
         ]
-        train = train.drop(columns=columns_to_drop)
-        val = val.drop(columns=columns_to_drop)
-        test = test.drop(columns=columns_to_drop)
+        train = train.drop(columns=columns_to_drop_1)
+        val = val.drop(columns=columns_to_drop_1)
+        test = test.drop(columns=columns_to_drop_1)
 
         feature_columns = [
-            column_name for column_name in train.columns if column_name != "target"
+            column_name
+            for column_name in train.columns
+            if column_name not in columns_to_drop
         ]
-        groupby_column, sortby_column, target_column = "file_name", "frame", "target"
+
         X_train, y_train = reshape_data_rnn(
             df=train,
             feature_columns=feature_columns,
@@ -306,6 +372,35 @@ class Model:
 
         logging.info(f"{index} - fitting model")
         # Train the model
+
+        epoch_end_logging_callback = EpochEndLoggingCallback(
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            X_test=X_test,
+            y_test=y_test,
+            mapping=self.mapping,
+            index=index,
+        )
+
+        history: History = model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_val, y_val),
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            callbacks=[
+                keras.callbacks.EarlyStopping(
+                    monitor="val_loss",
+                    patience=self.patience,
+                    restore_best_weights=True,
+                ),
+                epoch_end_logging_callback,
+            ],
+            verbose=0,
+            sample_weight=sample_weight,
+        )
         history: History = model.fit(
             X_train,
             y_train,
@@ -359,13 +454,17 @@ class Model:
             "y_test_pred": y_test_pred,
         }
 
-        logging.info(f"epoch : {len(history.history['val_loss'])}")
         logging.info(
-            f"Completed Test {test_subject_id} & Validation {validation_subjects_id}"
+            f"{index} - Ended -> Test ID : {test_subject_id} & Validation IDs : {validation_subjects_id}\n"
+            f"epochs : {len(history.history['val_loss'])}\n"
+            f"========================="
         )
-        logging.info("=======================================")
 
-        return {"result": local_results, "output_folder_path": output_folder_path}
+        return {
+            "result": local_results,
+            "model": model,
+            "output_folder_path": output_folder_path,
+        }
 
     def test_model(
         self,
@@ -376,6 +475,7 @@ class Model:
         maxtasksperchild: Optional[int] = 1,
         use_tqdm: bool = False,
         output_parent_dir: str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
+        limit_folds: Optional[int] = None,
     ):
 
         output_folder_name = datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET")
@@ -410,7 +510,7 @@ class Model:
                 "columns_to_drop": columns_to_drop,
                 "index": i,
             }
-            for i in range(len(unique_subject_id))
+            for i in range(min(len(unique_subject_id), max(0, limit_folds)))
         ]
         random.shuffle(args_list)
 
@@ -424,4 +524,4 @@ class Model:
             use_tqdm=use_tqdm,
         )
 
-        logging.info(f"Completed all {len(unique_subject_id)} test-validation pairs.")
+        logging.info(f"Completed all {len(args_list)} test-validation pairs.")
