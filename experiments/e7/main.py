@@ -47,38 +47,64 @@ def set_seed(seed=42):
 
 def reshape_data_rnn(
     df: pd.DataFrame,
-    feature_columns = [],
-    max_slices      = 30,
-    groupby_column  = "file_name",
-    sortby_column   = "frame",
-    target_column   = "target",
-):
+    feature_columns: List[str],
+    max_slices: int,
+    step_size: Optional[int],
+    groupby_column: str = "file_name",
+    sortby_column: str = "frame",
+    target_column: str = "target",
+    discard_threshold_ratio: float = 0.6,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Reshape data for RNN input by grouping, slicing, and padding sequences.
+
+    Args:
+        df (pd.DataFrame)              : Input dataframe.
+        feature_columns (List[str])    : List of feature column names.
+        max_slices (int)               : Maximum number of slices in each chunk.
+        step_size (int)                : Step size for moving to the next chunk.
+        groupby_column (str)           : Column to group by (e.g., video or file name).
+        sortby_column (str)            : Column to sort within each group (e.g., frame index).
+        target_column (str)            : Column containing target labels.
+        discard_threshold_ratio (float): Last slice in each video will be discarded if the number of its frames is less than
+                                         discard_threshold_ratio*max_slice and will be post padded with zero and kept otherwise.
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Feature sequences (X) and corresponding labels (y).
+    """
+    step_size = step_size or max_slices
     X, y = [], []
 
-    grouped = df.groupby(groupby_column)
-
-    for _, group in grouped:
-        # Sort by slice_index to maintain temporal order
+    for _, group in df.groupby(groupby_column):
+        # Sort by the specified column to maintain temporal order
         group = group.sort_values(by=sortby_column, ascending=True)
 
-        # Extract features
+        y_group = group[target_column].unique()
+        assert (
+            len(y_group) == 1
+        ), f"Expected one unique target value, but found {len(y_group)}"
+        y_group = y_group[0]
+
+        # Extract features as a list of lists
         slices = group[feature_columns].values.tolist()
-
-        # Split into chunks of max_slices
-        for i in range(0, len(slices), max_slices):
-            chunk = slices[i : i + max_slices]
+        print(f"======{len(slices)}======")
+        # Create chunks with the specified step size
+        for start_idx in range(0, len(slices) - max_slices + 1, step_size):
+            print(start_idx, start_idx + max_slices)
+            chunk = slices[start_idx : start_idx + max_slices]
             X.append(chunk)
-            y.append(
-                group[target_column].iloc[0]
-            )  # Same label for all chunks from the same video
+            y.append(y_group)
 
-    # Pad sequences to the max_slices length
+        discard_threshold_frame = int(discard_threshold_ratio * max_slices)
+        if len(slices) - (start_idx + max_slices) > discard_threshold_frame:
+            print(start_idx + max_slices, len(slices))
+            chunk = slices[start_idx + max_slices : len(slices)]
+            X.append(chunk)
+            y.append(y_group)
+
+    # Pad sequences to ensure uniform length
     X_padded = pad_sequences(X, maxlen=max_slices, padding="post", dtype="float32")
 
-    # Convert labels to numpy array
-    y = np.array(y)
-
-    return X_padded, y
+    return np.array(X_padded), np.array(y)
 
 
 def report(model, x, y_true, unique_classes):
@@ -125,34 +151,34 @@ class EpochEndLoggingCallback(Callback):
         super().__init__()
         self.X_train = X_train
         self.y_train = y_train
-        self.X_val   = X_val
-        self.y_val   = y_val
-        self.X_test  = X_test
-        self.y_test  = y_test
+        self.X_val = X_val
+        self.y_val = y_val
+        self.X_test = X_test
+        self.y_test = y_test
         self.mapping = mapping
-        self.index   = index
+        self.index = index
 
     def on_epoch_end(self, epoch, logs=None):
         # print(f"Epoch {epoch+1} ended. Logs: {logs}")
         trained_model = self.model
 
         _, train_report = report(
-            model          = trained_model,
-            x              = self.X_train,
-            y_true         = self.y_train,
-            unique_classes = list(self.mapping.values()),
+            model=trained_model,
+            x=self.X_train,
+            y_true=self.y_train,
+            unique_classes=list(self.mapping.values()),
         )
         _, val_report = report(
-            model          = trained_model,
-            x              = self.X_val,
-            y_true         = self.y_val,
-            unique_classes = list(self.mapping.values()),
+            model=trained_model,
+            x=self.X_val,
+            y_true=self.y_val,
+            unique_classes=list(self.mapping.values()),
         )
         _, test_report = report(
-            model          = trained_model,
-            x              = self.X_test,
-            y_true         = self.y_test,
-            unique_classes = list(self.mapping.values()),
+            model=trained_model,
+            x=self.X_test,
+            y_true=self.y_test,
+            unique_classes=list(self.mapping.values()),
         )
 
         logging.info("=============")
@@ -183,20 +209,20 @@ class Model:
         max_slices,
         mapping,
     ):
-        self.units                 = units
-        self.dropout_ratio         = dropout_ratio
+        self.units = units
+        self.dropout_ratio = dropout_ratio
         self.kernel_regularizer_l2 = kernel_regularizer_l2
         self.kernel_regularizer_l1 = kernel_regularizer_l1
-        self.batch_size            = batch_size
-        self.learning_rate         = learning_rate
-        self.weight_decay          = weight_decay
-        self.beta_1                = beta_1
-        self.beta_2                = beta_2
-        self.epsilon               = epsilon
-        self.epochs                = epochs
-        self.patience              = patience
-        self.max_slices            = max_slices
-        self.mapping               = mapping
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.beta_1 = beta_1
+        self.beta_2 = beta_2
+        self.epsilon = epsilon
+        self.epochs = epochs
+        self.patience = patience
+        self.max_slices = max_slices
+        self.mapping = mapping
 
     def _build_model(self, input_shape):
         model = keras.Sequential()
@@ -265,11 +291,11 @@ class Model:
     # First, define the train_single_fold function outside of the class
     def _train_single_fold(
         self,
-        data              : pd.DataFrame,
-        test_subject_id   : str,
+        data: pd.DataFrame,
+        test_subject_id: str,
         output_folder_path: str,
-        columns_to_drop   : Optional[List[str]] = [],
-        index             : Optional[int] = 0,
+        columns_to_drop: Optional[List[str]] = [],
+        index: Optional[int] = 0,
     ):
         """Helper function for parallel processing in test_model.
 
@@ -329,28 +355,28 @@ class Model:
         ]
 
         X_train, y_train = reshape_data_rnn(
-            df              = train,
-            feature_columns = feature_columns,
-            max_slices      = self.max_slices,
-            groupby_column  = groupby_column,
-            sortby_column   = sortby_column,
-            target_column   = target_column,
+            df=train,
+            feature_columns=feature_columns,
+            max_slices=self.max_slices,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
         )
         X_val, y_val = reshape_data_rnn(
-            df              = val,
-            feature_columns = feature_columns,
-            max_slices      = self.max_slices,
-            groupby_column  = groupby_column,
-            sortby_column   = sortby_column,
-            target_column   = target_column,
+            df=val,
+            feature_columns=feature_columns,
+            max_slices=self.max_slices,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
         )
         X_test, y_test = reshape_data_rnn(
-            df              = test,
-            feature_columns = feature_columns,
-            max_slices      = self.max_slices,
-            groupby_column  = groupby_column,
-            sortby_column   = sortby_column,
-            target_column   = target_column,
+            df=test,
+            feature_columns=feature_columns,
+            max_slices=self.max_slices,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
         )
         logging.info(
             f"{index} - X_train {X_train.shape} & X_val {X_val.shape} & X_test {X_test.shape}"
@@ -365,72 +391,72 @@ class Model:
         # Train the model
 
         epoch_end_logging = EpochEndLoggingCallback(
-            X_train = X_train,
-            y_train = y_train,
-            X_val   = X_val,
-            y_val   = y_val,
-            X_test  = X_test,
-            y_test  = y_test,
-            mapping = self.mapping,
-            index   = index,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            X_test=X_test,
+            y_test=y_test,
+            mapping=self.mapping,
+            index=index,
         )
         early_stop = EarlyStopping(
-            monitor              = "val_loss",
-            patience             = self.patience,
-            restore_best_weights = True,
+            monitor="val_loss",
+            patience=self.patience,
+            restore_best_weights=True,
         )
         checkpoint = ModelCheckpoint(
             os.path.join(output_folder_path, f"{test_subject_id}_best_model.h5"),
-            monitor           = "val_loss",
-            save_best_only    = True,
-            save_weights_only = True,
+            monitor="val_loss",
+            save_best_only=True,
+            save_weights_only=True,
         )
 
         history: History = model.fit(
             X_train,
             y_train,
-            validation_data = (X_val, y_val),
-            epochs          = self.epochs,
-            batch_size      = self.batch_size,
-            callbacks       = [early_stop, epoch_end_logging, checkpoint],
-            verbose         = 0,
-            sample_weight   = sample_weight,
+            validation_data=(X_val, y_val),
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            callbacks=[early_stop, epoch_end_logging, checkpoint],
+            verbose=0,
+            sample_weight=sample_weight,
         )
 
         logging.info(f"{index} - getting reports")
         y_train_pred, train_report = report(
-            model          = model,
-            x              = X_train,
-            y_true         = y_train,
-            unique_classes = list(self.mapping.values()),
+            model=model,
+            x=X_train,
+            y_true=y_train,
+            unique_classes=list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
-            model          = model,
-            x              = X_val,
-            y_true         = y_val,
-            unique_classes = list(self.mapping.values()),
+            model=model,
+            x=X_val,
+            y_true=y_val,
+            unique_classes=list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
-            model          = model,
-            x              = X_test,
-            y_true         = y_test,
-            unique_classes = list(self.mapping.values()),
+            model=model,
+            x=X_test,
+            y_true=y_test,
+            unique_classes=list(self.mapping.values()),
         )
 
         # Store results to return
         local_results = {
-            "test"        : test_subject_id,
-            "val"         : validation_subjects_id,
-            "history"     : history.history,
+            "test": test_subject_id,
+            "val": validation_subjects_id,
+            "history": history.history,
             "train_report": train_report,
-            "y_train"     : y_train,
+            "y_train": y_train,
             "y_train_pred": y_train_pred,
-            "val_report"  : val_report,
-            "y_val"       : y_val,
-            "y_val_pred"  : y_val_pred,
-            "test_report" : test_report,
-            "y_test"      : y_test,
-            "y_test_pred" : y_test_pred,
+            "val_report": val_report,
+            "y_val": y_val,
+            "y_val_pred": y_val_pred,
+            "test_report": test_report,
+            "y_test": y_test,
+            "y_test_pred": y_test_pred,
         }
 
         logging.info(
@@ -440,21 +466,21 @@ class Model:
         )
 
         return {
-            "result"            : local_results,
-            "model"             : model,
+            "result": local_results,
+            "model": model,
             "output_folder_path": output_folder_path,
         }
 
     def test_model(
         self,
-        data             : pd.DataFrame,
-        columns_to_drop  : Optional[List[str]] = [],
-        parallel         : bool = False,
-        max_workers      : Optional[int] = None,
-        maxtasksperchild : Optional[int] = 1,
-        use_tqdm         : bool = False,
+        data: pd.DataFrame,
+        columns_to_drop: Optional[List[str]] = [],
+        parallel: bool = False,
+        max_workers: Optional[int] = None,
+        maxtasksperchild: Optional[int] = 1,
+        use_tqdm: bool = False,
         output_parent_dir: str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
-        limit_folds      : Optional[int] = None,
+        limit_folds: Optional[int] = None,
     ):
 
         output_folder_name = datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET")
@@ -465,13 +491,13 @@ class Model:
             json.dump(
                 {
                     "general": {
-                        "units"        : self.units,
+                        "units": self.units,
                         "dropout_ratio": self.dropout_ratio,
-                        "batch_size"   : self.batch_size,
+                        "batch_size": self.batch_size,
                         "learning_rate": self.learning_rate,
-                        "weight_decay" : self.weight_decay,
-                        "epochs"       : self.epochs,
-                        "max_slices"   : self.max_slices,
+                        "weight_decay": self.weight_decay,
+                        "epochs": self.epochs,
+                        "max_slices": self.max_slices,
                     }
                 },
                 file,
@@ -483,24 +509,24 @@ class Model:
         # Prepare arguments for parallel processing
         args_list = [
             {
-                "data"              : data,
-                "test_subject_id"   : unique_subject_id[i],
+                "data": data,
+                "test_subject_id": unique_subject_id[i],
                 "output_folder_path": output_folder_path,
-                "columns_to_drop"   : columns_to_drop,
-                "index"             : i,
+                "columns_to_drop": columns_to_drop,
+                "index": i,
             }
             for i in range(min(len(unique_subject_id), max(0, limit_folds)))
         ]
         random.shuffle(args_list)
 
         results = process(
-            handler_function   = self._save_result,
-            worker_function    = self._train_single_fold,
-            worker_params_list = args_list,
-            parallel           = parallel,
-            max_workers        = max_workers,
-            maxtasksperchild   = maxtasksperchild,
-            use_tqdm           = use_tqdm,
+            handler_function=self._save_result,
+            worker_function=self._train_single_fold,
+            worker_params_list=args_list,
+            parallel=parallel,
+            max_workers=max_workers,
+            maxtasksperchild=maxtasksperchild,
+            use_tqdm=use_tqdm,
         )
 
         logging.info(f"Completed all {len(args_list)} test-validation pairs.")
