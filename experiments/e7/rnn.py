@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 import pandas as pd
 
@@ -9,9 +10,11 @@ from Zh.src.utils.load_data import load_data
 if __name__ == "__main__":
     logging.info("Starting ...")
 
+    mapping = {"10": 8.5, "5": 6.5, "0": 2}
+
     # path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded"
     path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.3-preprocessed"
-    mapping = {"10": 8.5, "5": 6.5, "0": 2}
+    
 
     logging.info("Loading Data ...")
     set_seed(42)
@@ -43,9 +46,11 @@ if __name__ == "__main__":
         beta_1=0.9,
         beta_2=0.999,
         epsilon=1e-7,
-        epochs=100,
+        epochs=150,
         patience=50,
         slice_size=4500,
+        step_size=3000,
+        discard_threshold_ratio=0.7,
         mapping=mapping,
     )
 
@@ -53,9 +58,9 @@ if __name__ == "__main__":
         data=preprocessed_data,
         columns_to_drop=columns_to_drop,
         parallel=False,
-        max_workers=15,
+        max_workers=5,
         maxtasksperchild=1,
         use_tqdm=True,
         output_parent_dir="/home/mojtaba.kananisarche/Zh/outputs",
-        limit_folds=1,
+        limit_folds=5,
     )

@@ -207,6 +207,8 @@ class Model:
         epochs,
         patience,
         slice_size,
+        step_size,
+        discard_threshold_ratio,
         mapping,
     ):
         self.units = units
@@ -222,6 +224,8 @@ class Model:
         self.epochs = epochs
         self.patience = patience
         self.slice_size = slice_size
+        self.step_size = step_size
+        self.discard_threshold_ratio=discard_threshold_ratio
         self.mapping = mapping
 
     def _build_model(self, input_shape):
@@ -355,28 +359,34 @@ class Model:
         ]
 
         X_train, y_train = reshape_data_rnn(
-            df=train,
-            feature_columns=feature_columns,
-            slice_size=self.slice_size,
-            groupby_column=groupby_column,
-            sortby_column=sortby_column,
-            target_column=target_column,
+            df                      = train,
+            feature_columns         = feature_columns,
+            slice_size              = self.slice_size,
+            step_size               = self.step_size,
+            discard_threshold_ratio = self.discard_threshold_ratio,
+            groupby_column          = groupby_column,
+            sortby_column           = sortby_column,
+            target_column           = target_column,
         )
         X_val, y_val = reshape_data_rnn(
-            df=val,
-            feature_columns=feature_columns,
-            slice_size=self.slice_size,
-            groupby_column=groupby_column,
-            sortby_column=sortby_column,
-            target_column=target_column,
+            df                      = val,
+            feature_columns         = feature_columns,
+            slice_size              = self.slice_size,
+            step_size               = self.step_size,
+            discard_threshold_ratio = self.discard_threshold_ratio,
+            groupby_column          = groupby_column,
+            sortby_column           = sortby_column,
+            target_column           = target_column,
         )
         X_test, y_test = reshape_data_rnn(
-            df=test,
-            feature_columns=feature_columns,
-            slice_size=self.slice_size,
-            groupby_column=groupby_column,
-            sortby_column=sortby_column,
-            target_column=target_column,
+            df                      = test,
+            feature_columns         = feature_columns,
+            slice_size              = self.slice_size,
+            step_size               = self.step_size,
+            discard_threshold_ratio = self.discard_threshold_ratio,
+            groupby_column          = groupby_column,
+            sortby_column           = sortby_column,
+            target_column           = target_column,
         )
         logging.info(
             f"{index} - X_train {X_train.shape} & X_val {X_val.shape} & X_test {X_test.shape}"
