@@ -547,10 +547,14 @@ class Model:
                 "index": idx,
             }
             for idx, test_id in enumerate(
-                unique_subject_id[fold_start_index:fold_end_index]
+                unique_subject_id[
+                    max(0, fold_start_index) : 
+                    min(len(unique_subject_id), fold_end_index)
+                ]
             )
         ]
         random.shuffle(args_list)
+
 
         results = process(
             handler_function=self._save_result,
