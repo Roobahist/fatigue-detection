@@ -31,7 +31,7 @@ def process(
             # Pass both the worker function and parameters to the pool
             tasks = [(worker_function, params) for params in worker_params_list]
             for result in tqdm(
-                pool.imap(wrapped_worker_function, tasks),
+                pool.imap_unordered(wrapped_worker_function, tasks),
                 total=len(worker_params_list),
                 disable=not use_tqdm,
             ):
