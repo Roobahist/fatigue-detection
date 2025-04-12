@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -86,17 +85,14 @@ def reshape_data_rnn(
 
         # Extract features as a list of lists
         slices = group[feature_columns].values.tolist()
-        print(f"======{len(slices)}======")
         # Create chunks with the specified step size
         for start_idx in range(0, len(slices) - slice_size + 1, step_size):
-            print(start_idx, start_idx + slice_size)
             chunk = slices[start_idx : start_idx + slice_size]
             X.append(chunk)
             y.append(y_group)
 
         discard_threshold_frame = int(discard_threshold_ratio * slice_size)
         if len(slices) - (start_idx + slice_size) > discard_threshold_frame:
-            print(start_idx + slice_size, len(slices))
             chunk = slices[start_idx + slice_size : len(slices)]
             X.append(chunk)
             y.append(y_group)
@@ -111,13 +107,32 @@ def report(model, x, y_true, unique_classes):
     y_true = np.array(y_true)
     y_pred = np.array(model.predict(x, verbose=0)).flatten()
     results = {}
+    thresholds = []
+
+    # Sort unique classes and calculate thresholds
+    unique_classes = sorted(unique_classes)
+    for i in range(len(unique_classes) - 1):
+        thresholds.append((unique_classes[i] + unique_classes[i + 1]) / 2)
+
+    # Classify predictions
+    y_pred_classified = np.digitize(y_pred, thresholds, right=False)
+    y_pred_classified = np.array([unique_classes[i] for i in y_pred_classified])
+
+    class_results = {}
     for cls in unique_classes:
         idx = y_true == cls
         if np.all(idx == False):
-            results[cls] = -1
+            class_results[cls] = {"mae": -1, "accuracy": -1}
             continue
         mae = mean_absolute_error(y_true[idx], y_pred[idx])
-        results[cls] = mae
+        accuracy = np.mean(y_pred_classified[idx] == y_true[idx])
+        class_results[cls] = {"mae": mae, "accuracy": accuracy}
+
+    results["classes"] = class_results
+    # Calculate overall metrics
+    overall_mae = mean_absolute_error(y_true, y_pred)
+    overall_accuracy = np.mean(y_pred_classified == y_true)
+    results["overall"] = {"mae": overall_mae, "accuracy": overall_accuracy}
 
     return y_pred, results
 
@@ -181,13 +196,15 @@ class EpochEndLoggingCallback(Callback):
             unique_classes=list(self.mapping.values()),
         )
 
-        logging.info("=============")
         logging.info(
-            f"Epoch {epoch + 1} - Fold {self.index}\n"
+            "\n"
+            "============================\n"
+            f"{self.index} - Epoch {epoch + 1}\n"
             f"Train Report: {train_report}\n"
             f"Validation Report: {val_report}\n"
             f"Test Report: {test_report}\n"
-            f"logs: {logs}"
+            f"logs: {logs}\n"
+            "============================"
         )
 
 
@@ -225,7 +242,7 @@ class Model:
         self.patience = patience
         self.slice_size = slice_size
         self.step_size = step_size
-        self.discard_threshold_ratio=discard_threshold_ratio
+        self.discard_threshold_ratio = discard_threshold_ratio
         self.mapping = mapping
 
     def _build_model(self, input_shape):
@@ -264,7 +281,6 @@ class Model:
         # Use a custom output layer to scale the output to 1-9
         # model.add(layers.Lambda(lambda x: x * 8 + 1))
         # model.add(layers.Lambda(lambda x: x * 10))
-
         model.compile(
             optimizer=keras.optimizers.AdamW(
                 learning_rate=self.learning_rate,
@@ -359,34 +375,34 @@ class Model:
         ]
 
         X_train, y_train = reshape_data_rnn(
-            df                      = train,
-            feature_columns         = feature_columns,
-            slice_size              = self.slice_size,
-            step_size               = self.step_size,
-            discard_threshold_ratio = self.discard_threshold_ratio,
-            groupby_column          = groupby_column,
-            sortby_column           = sortby_column,
-            target_column           = target_column,
+            df=train,
+            feature_columns=feature_columns,
+            slice_size=self.slice_size,
+            step_size=self.step_size,
+            discard_threshold_ratio=self.discard_threshold_ratio,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
         )
         X_val, y_val = reshape_data_rnn(
-            df                      = val,
-            feature_columns         = feature_columns,
-            slice_size              = self.slice_size,
-            step_size               = self.step_size,
-            discard_threshold_ratio = self.discard_threshold_ratio,
-            groupby_column          = groupby_column,
-            sortby_column           = sortby_column,
-            target_column           = target_column,
+            df=val,
+            feature_columns=feature_columns,
+            slice_size=self.slice_size,
+            step_size=self.step_size,
+            discard_threshold_ratio=self.discard_threshold_ratio,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
         )
         X_test, y_test = reshape_data_rnn(
-            df                      = test,
-            feature_columns         = feature_columns,
-            slice_size              = self.slice_size,
-            step_size               = self.step_size,
-            discard_threshold_ratio = self.discard_threshold_ratio,
-            groupby_column          = groupby_column,
-            sortby_column           = sortby_column,
-            target_column           = target_column,
+            df=test,
+            feature_columns=feature_columns,
+            slice_size=self.slice_size,
+            step_size=self.step_size,
+            discard_threshold_ratio=self.discard_threshold_ratio,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
         )
         logging.info(
             f"{index} - X_train {X_train.shape} & X_val {X_val.shape} & X_test {X_test.shape}"
@@ -416,10 +432,10 @@ class Model:
             restore_best_weights=True,
         )
         checkpoint = ModelCheckpoint(
-            os.path.join(output_folder_path, f"{test_subject_id}_best_model.h5"),
+            os.path.join(output_folder_path, f"{test_subject_id}_best_model.keras"),
             monitor="val_loss",
             save_best_only=True,
-            save_weights_only=True,
+            save_weights_only=False,
         )
 
         history: History = model.fit(
@@ -490,7 +506,8 @@ class Model:
         maxtasksperchild: Optional[int] = 1,
         use_tqdm: bool = False,
         output_parent_dir: str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
-        limit_folds: Optional[int] = None,
+        fold_start_index: Optional[int] = None,
+        fold_end_index: Optional[int] = None,
     ):
 
         output_folder_name = datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET")
@@ -508,6 +525,10 @@ class Model:
                         "weight_decay": self.weight_decay,
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
+                        "columns_to_drop": columns_to_drop,
+                        "output_folder_name": output_folder_name,
+                        "fold_start_index": fold_start_index,
+                        "fold_end_index": fold_end_index,
                     }
                 },
                 file,
@@ -520,12 +541,14 @@ class Model:
         args_list = [
             {
                 "data": data,
-                "test_subject_id": unique_subject_id[i],
+                "test_subject_id": test_id,
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
-                "index": i,
+                "index": idx,
             }
-            for i in range(min(len(unique_subject_id), max(0, limit_folds)))
+            for idx, test_id in enumerate(
+                unique_subject_id[fold_start_index:fold_end_index]
+            )
         ]
         random.shuffle(args_list)
 
