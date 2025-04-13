@@ -1,0 +1,1 @@
+{"general": {"units": [50, 50], "dropout_ratio": 0.3, "batch_size": 32, "learning_rate": 0.001, "weight_decay": 0.0001, "epochs": 150, "slice_size": 4500, "columns_to_drop": ["file_name", "file_name_1", "type", "frame", "fold", "subject_id"], "output_folder_name": "2025-04-13|02:05:43|RNN_FACENET", "fold_start_index": 0, "fold_end_index": 10}}
