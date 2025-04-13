@@ -556,6 +556,8 @@ class Model:
         ]
         random.shuffle(args_list)
 
+        logging.info(f"Processing {len(args_list)} valid test-validation pairs.")
+
 
         results = process(
             handler_function=self._save_result,
