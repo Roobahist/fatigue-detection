@@ -82,4 +82,5 @@ if __name__ == "__main__":
         output_parent_dir = "/home/mojtaba.kananisarche/Zh/outputs",
         fold_start_index  = fold_start_index,
         fold_end_index    = fold_end_index,
+        fold_values       = []
     )
