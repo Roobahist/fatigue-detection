@@ -508,6 +508,7 @@ class Model:
         output_parent_dir: str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
         fold_start_index: Optional[int] = None,
         fold_end_index: Optional[int] = None,
+        fold_values: Optional[List[int]] = None,
     ):
 
         output_folder_name = datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET")
@@ -534,7 +535,7 @@ class Model:
                 file,
             )
 
-        unique_subject_id = data["subject_id"].unique()
+        unique_subject_id = fold_values or data["subject_id"].unique()
         logging.info(f"Found {len(unique_subject_id)} valid test-validation pairs.")
 
         # Prepare arguments for parallel processing
