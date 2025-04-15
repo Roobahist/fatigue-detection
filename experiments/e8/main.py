@@ -143,10 +143,10 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, (np.integer)):
             return int(obj)
         elif isinstance(obj, (np.floating)):
-            return round(float(obj), 1)
+            return round(float(obj), 2)
         elif isinstance(obj, (np.ndarray)):
             return [
-                round(float(x), 1) if isinstance(x, (np.floating, float)) else x
+                round(float(x), 2) if isinstance(x, (np.floating, float)) else x
                 for x in obj.tolist()
             ]
         return super(NumpyEncoder, self).default(obj)
