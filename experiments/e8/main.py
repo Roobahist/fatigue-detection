@@ -27,6 +27,7 @@ from sklearn.utils.class_weight import compute_class_weight, compute_sample_weig
 from tensorflow import keras
 from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 
+from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.serialized_parallel import *
 
 logging.basicConfig(
@@ -300,8 +301,8 @@ class Model:
         logging.info(
             f"{result['index']} - ======================= Saving ======================="
         )
-
-        result_file_path = os.path.join(output_folder_path, f'{result["test"]}.json')
+        test_fold_id = result['test'][list(result['test'].keys())[0]]
+        result_file_path = os.path.join(output_folder_path, f'{test_fold_id}.json')
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
 
@@ -311,6 +312,7 @@ class Model:
         )
 
     def _get_train_val_test_indices(
+        self,
         columns_to_fold_by: pd.DataFrame,
         primary_column_name: str,
         secondary_column_name: Optional[str] = None,
@@ -528,8 +530,9 @@ class Model:
             patience=self.patience,
             restore_best_weights=True,
         )
+        test_fold_id = split_info['test'][list(split_info['test'].keys())[0]]
         checkpoint = ModelCheckpoint(
-            os.path.join(output_folder_path, f"{split_info['test']}_best_model.keras"),
+            os.path.join(output_folder_path, f"{test_fold_id}_best_model.keras"),
             monitor="val_loss",
             save_best_only=True,
             save_weights_only=False,
@@ -604,18 +607,18 @@ class Model:
         maxtasksperchild: Optional[int] = 1,
         use_tqdm: bool = False,
         output_parent_dir: str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
-        fold_by_primary_column_name: str = "subject_id",
-        fold_by_secondary_column_name: str = "fold",
+        fold_by_primary_column_name: str = None,
+        fold_by_secondary_column_name: str = None,
         fold_start_index: Optional[int] = None,
         fold_end_index: Optional[int] = None,
-        fold_values: Optional[List[int]] = None,
+        fold_indices: Optional[List[int]] = None,
     ):
 
         output_folder_name = datetime.now().strftime(
             "%Y-%m-%d|%H:%M:%S|RNN_FACENET_5CV"
         )
         output_folder_path = os.path.join(output_parent_dir, output_folder_name)
-        os.makedirs(output_folder_path, exist_ok=True)
+        create_folders(output_folder_path)
 
         with open(os.path.join(output_folder_path, "results.json"), "w") as file:
             json.dump(
@@ -628,6 +631,8 @@ class Model:
                         "weight_decay": self.weight_decay,
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
+                        "step_size": self.step_size,
+                        "discard_threshold_ratio" : self.discard_threshold_ratio,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
                         "fold_by_primary_column_name": fold_by_primary_column_name,
@@ -641,41 +646,42 @@ class Model:
 
         train_val_test_indices = self._get_train_val_test_indices(
             columns_to_fold_by=data[
-                (
-                    [fold_by_primary_column_name] + [fold_by_secondary_column_name]
-                    if fold_by_secondary_column_name
-                    else []
-                )
+                    [fold_by_primary_column_name]
+                    + (
+                        [fold_by_secondary_column_name]
+                        if fold_by_secondary_column_name
+                        else []
+                    )
             ],
             primary_column_name=fold_by_primary_column_name,
             secondary_column_name=fold_by_secondary_column_name,
         )
 
-        logging.info(
-            f"Found {len(train_val_test_indices)} valid test-validation pairs."
-        )
-
-        # Prepare arguments for parallel processing
         args_list = [
             {
                 "data": data,
-                "split_info": test_fold_value[idx]["info"],
-                "split_indices": test_fold_value[idx]["indices"],
+                "split_info": test_fold_value["info"],
+                "split_indices": test_fold_value["indices"],
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "index": idx,
             }
-            for idx, test_fold_value in enumerate(
-                train_val_test_indices[
-                    max(0, fold_start_index) : min(
-                        len(train_val_test_indices), fold_end_index
-                    )
-                ]
-            )
+            for idx, test_fold_value in enumerate(train_val_test_indices)
         ]
+
+        logging.info(f"Found {len(args_list)} valid test-validation pairs.")
+        logging.info(
+            "\n".join([f"{i['index']} - {i['split_info']}" for i in args_list])
+        )
+
         random.shuffle(args_list)
 
+        selected_indices = fold_indices or slice(fold_start_index, fold_end_index)
+        args_list = args_list[selected_indices]
         logging.info(f"Processing {len(args_list)} valid test-validation pairs.")
+        logging.info(
+            "\n".join([f"{i['index']} - {i['split_info']}" for i in args_list])
+        )
 
         results = process(
             handler_function=self._save_result,
