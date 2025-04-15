@@ -278,9 +278,6 @@ class Model:
         # Final output layer
         model.add(layers.Dense(1, activation="linear"))  # Use sigmoid activation
 
-        # Use a custom output layer to scale the output to 1-9
-        # model.add(layers.Lambda(lambda x: x * 8 + 1))
-        # model.add(layers.Lambda(lambda x: x * 10))
         model.compile(
             optimizer=keras.optimizers.AdamW(
                 learning_rate=self.learning_rate,
@@ -298,21 +295,26 @@ class Model:
     def _save_result(
         self,
         result,
-        model,
         output_folder_path: Optional[str] = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
     ):
+        logging.info(
+            f"{result['index']} - ======================= Saving ======================="
+        )
+
         result_file_path = os.path.join(output_folder_path, f'{result["test"]}.json')
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
-            logging.info(
-                f"Saved results for Test subject {result['test']} to {result_file_path}"
-            )
+
+        logging.info(
+            f"{result['index']} - {result_file_path}\n"
+            f"{result['index']} - ======================= Saved ======================="
+        )
 
     def _get_train_val_test_indices(
         columns_to_fold_by: pd.DataFrame,
         primary_column_name: str,
         secondary_column_name: Optional[str] = None,
-    ):
+    ) -> List[Dict]:
 
         train_val_test_indices = []
         unique_main_column_values = sorted(
@@ -329,11 +331,19 @@ class Model:
                 ), f"Multiple Unique Secondary Values Found For Main Column Value {main_column_value} - {corresponding_secondary_value}"
                 corresponding_secondary_value = corresponding_secondary_value[0]
 
-                fold_train_val_test_indices = {"info":{}, "indices":{}}
+                fold_train_val_test_indices = {"info": {}, "indices": {}}
 
-                test_split = columns_to_fold_by[columns_to_fold_by[primary_column_name] == main_column_value]
-                fold_train_val_test_indices["indices"]["test"] = test_split.index.to_list()
-                fold_train_val_test_indices["info"]["test"] = {f"{primary_column_name}":sorted(test_split[primary_column_name].unique())}
+                test_split = columns_to_fold_by[
+                    columns_to_fold_by[primary_column_name] == main_column_value
+                ]
+                fold_train_val_test_indices["indices"][
+                    "test"
+                ] = test_split.index.to_list()
+                fold_train_val_test_indices["info"]["test"] = {
+                    f"{primary_column_name}": sorted(
+                        test_split[primary_column_name].unique()
+                    )
+                }
 
                 val_split = columns_to_fold_by[
                     (columns_to_fold_by[primary_column_name] != main_column_value)
@@ -342,44 +352,84 @@ class Model:
                         == corresponding_secondary_value
                     )
                 ]
-                fold_train_val_test_indices["indices"]["val"] = val_split.index.to_list()
-                fold_train_val_test_indices["info"]["val"] = {f"{primary_column_name}":sorted(val_split[primary_column_name].unique())}
+                fold_train_val_test_indices["indices"][
+                    "val"
+                ] = val_split.index.to_list()
+                fold_train_val_test_indices["info"]["val"] = {
+                    f"{primary_column_name}": sorted(
+                        val_split[primary_column_name].unique()
+                    )
+                }
 
                 train_split = columns_to_fold_by[
                     columns_to_fold_by[secondary_column_name]
                     != corresponding_secondary_value
                 ]
-                fold_train_val_test_indices["indices"]["train"] = train_split.index.to_list()
-                fold_train_val_test_indices["info"]["train"] = {f"{primary_column_name}":sorted(train_split[primary_column_name].unique())}
+                fold_train_val_test_indices["indices"][
+                    "train"
+                ] = train_split.index.to_list()
+                fold_train_val_test_indices["info"]["train"] = {
+                    f"{primary_column_name}": sorted(
+                        train_split[primary_column_name].unique()
+                    )
+                }
                 train_val_test_indices.append(fold_train_val_test_indices)
 
         elif primary_column_name:
             for main_column_value_i in unique_main_column_values:
                 for main_column_value_j in unique_main_column_values:
                     if main_column_value_i != main_column_value_j:
-                        fold_train_val_test_indices = {"info":{}, "indices":{}}
+                        fold_train_val_test_indices = {"info": {}, "indices": {}}
 
-                        test_split = columns_to_fold_by[columns_to_fold_by[primary_column_name] == main_column_value_i]
-                        fold_train_val_test_indices["indices"]["test"] = test_split.index.to_list()
-                        fold_train_val_test_indices["info"]["test"] = {f"{primary_column_name}":sorted(test_split[primary_column_name].unique())}
+                        test_split = columns_to_fold_by[
+                            columns_to_fold_by[primary_column_name]
+                            == main_column_value_i
+                        ]
+                        fold_train_val_test_indices["indices"][
+                            "test"
+                        ] = test_split.index.to_list()
+                        fold_train_val_test_indices["info"]["test"] = {
+                            f"{primary_column_name}": sorted(
+                                test_split[primary_column_name].unique()
+                            )
+                        }
 
-                        val_split = columns_to_fold_by[columns_to_fold_by[primary_column_name] == main_column_value_j]
-                        fold_train_val_test_indices["indices"]["val"] = val_split.index.to_list()
-                        fold_train_val_test_indices["info"]["val"] = {f"{primary_column_name}":sorted(val_split[primary_column_name].unique())}
-                        
-                        train_split = columns_to_fold_by[~columns_to_fold_by[primary_column_name].isin([main_column_value_i, main_column_value_j])]
-                        fold_train_val_test_indices["indices"]["train"] = train_split.index.to_list()
-                        fold_train_val_test_indices["info"]["train"] = {f"{primary_column_name}":sorted(train_split[primary_column_name].unique())}
+                        val_split = columns_to_fold_by[
+                            columns_to_fold_by[primary_column_name]
+                            == main_column_value_j
+                        ]
+                        fold_train_val_test_indices["indices"][
+                            "val"
+                        ] = val_split.index.to_list()
+                        fold_train_val_test_indices["info"]["val"] = {
+                            f"{primary_column_name}": sorted(
+                                val_split[primary_column_name].unique()
+                            )
+                        }
+
+                        train_split = columns_to_fold_by[
+                            ~columns_to_fold_by[primary_column_name].isin(
+                                [main_column_value_i, main_column_value_j]
+                            )
+                        ]
+                        fold_train_val_test_indices["indices"][
+                            "train"
+                        ] = train_split.index.to_list()
+                        fold_train_val_test_indices["info"]["train"] = {
+                            f"{primary_column_name}": sorted(
+                                train_split[primary_column_name].unique()
+                            )
+                        }
 
                         train_val_test_indices.append(fold_train_val_test_indices)
 
-        
         return train_val_test_indices
 
     def _train_single_fold(
         self,
         data: pd.DataFrame,
-        test_subject_id: str,
+        split_info: Dict[str, str],
+        split_indices: Dict[str, List],
         output_folder_path: str,
         columns_to_drop: Optional[List[str]] = [],
         index: Optional[int] = 0,
@@ -393,36 +443,16 @@ class Model:
             Dictionary containing model, history, and reports
         """
         logging.info(
-            f"{index} ============= Processing Subject - {test_subject_id} ============="
+            f"{index} - ======================= Starting =======================\n"
+            f"{index} - {split_info}"
         )
 
-        local_results = {}
-
-        test_subject_fold = data[data["subject_id"] == test_subject_id]["fold"].values[
-            0
-        ]
-
-        validation_subjects_id = (
-            data[
-                (data["subject_id"] != test_subject_id)
-                & (data["fold"] == test_subject_fold)
-            ]["subject_id"]
-            .unique()
-            .tolist()
-        )
+        train = data.loc[split_indices["train"]]
+        val = data.loc[split_indices["val"]]
+        test = data.loc[split_indices["test"]]
 
         logging.info(
-            f"{index} - Starting -> Test ID : {test_subject_id} & Validation IDs : {validation_subjects_id}"
-        )
-
-        train = data[
-            ~data["subject_id"].isin(validation_subjects_id + [test_subject_id])
-        ]
-        val = data[data["subject_id"].isin(validation_subjects_id)]
-        test = data[data["subject_id"] == test_subject_id]
-
-        logging.info(
-            f"{index} - train {train.shape} & val {val.shape} & test {test.shape}"
+            f"{index} - train {train.shape} | val {val.shape} | test {test.shape}"
         )
 
         groupby_column, sortby_column, target_column = "file_name", "frame", "target"
@@ -472,7 +502,7 @@ class Model:
             target_column=target_column,
         )
         logging.info(
-            f"{index} - X_train {X_train.shape} & X_val {X_val.shape} & X_test {X_test.shape}"
+            f"{index} - X_train {X_train.shape} | X_val {X_val.shape} | X_test {X_test.shape}"
         )
 
         sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
@@ -499,7 +529,7 @@ class Model:
             restore_best_weights=True,
         )
         checkpoint = ModelCheckpoint(
-            os.path.join(output_folder_path, f"{test_subject_id}_best_model.keras"),
+            os.path.join(output_folder_path, f"{split_info['test']}_best_model.keras"),
             monitor="val_loss",
             save_best_only=True,
             save_weights_only=False,
@@ -538,8 +568,10 @@ class Model:
 
         # Store results to return
         local_results = {
-            "test": test_subject_id,
-            "val": validation_subjects_id,
+            "index": index,
+            "test": split_info["test"],
+            "val": split_info["val"],
+            "train": split_info["train"],
             "history": history.history,
             "train_report": train_report,
             "y_train": y_train,
@@ -553,14 +585,13 @@ class Model:
         }
 
         logging.info(
-            f"{index} - Ended -> Test ID : {test_subject_id} & Validation IDs : {validation_subjects_id}\n"
             f"epochs : {len(history.history['val_loss'])}\n"
-            f"========================="
+            f"{index} - {split_info}"
+            f"{index} - ======================= Ending =======================\n"
         )
 
         return {
             "result": local_results,
-            "model": model,
             "output_folder_path": output_folder_path,
         }
 
@@ -573,7 +604,8 @@ class Model:
         maxtasksperchild: Optional[int] = 1,
         use_tqdm: bool = False,
         output_parent_dir: str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
-        fold_by: str = "subject_id",
+        fold_by_primary_column_name: str = "subject_id",
+        fold_by_secondary_column_name: str = "fold",
         fold_start_index: Optional[int] = None,
         fold_end_index: Optional[int] = None,
         fold_values: Optional[List[int]] = None,
@@ -598,7 +630,8 @@ class Model:
                         "slice_size": self.slice_size,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
-                        "fold_by": fold_by,
+                        "fold_by_primary_column_name": fold_by_primary_column_name,
+                        "fold_by_secondary_column_name": fold_by_secondary_column_name,
                         "fold_start_index": fold_start_index,
                         "fold_end_index": fold_end_index,
                     }
@@ -606,22 +639,36 @@ class Model:
                 file,
             )
 
-        unique_fold_values = fold_values or data[fold_by].unique()
-        logging.info(f"Found {len(unique_fold_values)} valid test-validation pairs.")
+        train_val_test_indices = self._get_train_val_test_indices(
+            columns_to_fold_by=data[
+                (
+                    [fold_by_primary_column_name] + [fold_by_secondary_column_name]
+                    if fold_by_secondary_column_name
+                    else []
+                )
+            ],
+            primary_column_name=fold_by_primary_column_name,
+            secondary_column_name=fold_by_secondary_column_name,
+        )
+
+        logging.info(
+            f"Found {len(train_val_test_indices)} valid test-validation pairs."
+        )
 
         # Prepare arguments for parallel processing
         args_list = [
             {
                 "data": data,
-                "test_fold_value": test_fold_value,
+                "split_info": test_fold_value[idx]["info"],
+                "split_indices": test_fold_value[idx]["indices"],
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "index": idx,
             }
             for idx, test_fold_value in enumerate(
-                unique_fold_values[
+                train_val_test_indices[
                     max(0, fold_start_index) : min(
-                        len(unique_fold_values), fold_end_index
+                        len(train_val_test_indices), fold_end_index
                     )
                 ]
             )
