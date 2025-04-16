@@ -137,108 +137,27 @@ def load_data(
     return data
 
 
-# import logging
-# import os
-# from typing import List, Optional
+def csv_to_parquet(file_path: str):
+    """
+    Convert a CSV file to a Parquet file.
 
-# import pandas as pd
+    Args:
+        file_path (str): Path to the CSV file.
 
-# # Configure logging
-# logging.basicConfig(
-#     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-# )
+    Returns:
+        str: Path to the generated Parquet file.
+    """
+    if not file_path.endswith(".csv"):
+        raise ValueError("The input file must be a CSV file.")
 
-
-# def load_data(
-#     path_to_data: str,
-#     file_names: Optional[List[str]] = [],
-#     nrows: Optional[int] = None,
-#     skiprows: Optional[int] = None,
-# ):
-#     data = pd.DataFrame()
-#     headers = None
-#     is_numeric_headers = None
-
-#     def get_headers(file_path: str):
-#         """Helper function to extract headers from the first row of the file."""
-#         first_row = pd.read_csv(file_path, nrows=1, header=None)
-#         return (
-#             first_row.iloc[0].tolist()
-#             if first_row.iloc[0].dtype == "object"
-#             else [f"f_{i}" for i in range(first_row.shape[1])]
-#         )
-
-#     # Check if the path is a file
-#     if os.path.isfile(path_to_data):
-#         if path_to_data.endswith(".csv") and (
-#             not file_names or os.path.basename(path_to_data) in file_names
-#         ):
-#             headers = get_headers(path_to_data)
-#             is_numeric_headers = headers is None
-
-#             temp_data = pd.read_csv(
-#                 path_to_data, nrows=nrows, skiprows=skiprows, header=None
-#             )
-#             if is_numeric_headers:
-#                 temp_data.columns = [f"f_{i}" for i in range(temp_data.shape[1])]
-#             else:
-#                 temp_data.columns = headers
-#             column_name = "file_name"
-#             i = 1
-#             while column_name in temp_data.columns:
-#                 column_name = f"file_name_{i}"
-#                 i += 1
-#             temp_data[column_name] = os.path.basename(path_to_data)
-#             data = temp_data
-#             logging.info(f"Loaded file: {path_to_data}, data shape: {data.shape}")
-#     # If the path is a directory
-
-#     elif os.path.isdir(path_to_data):
-#         for root, _, files in os.walk(path_to_data):
-#             for file in files:
-#                 if file.endswith(".csv") and (not file_names or file in file_names):
-#                     file_path = os.path.join(root, file)
-#                     temp_headers = get_headers(file_path)
-#                     temp_is_numeric_headers = temp_headers is None
-
-#                     if headers is None:
-#                         headers = temp_headers
-#                         is_numeric_headers = temp_is_numeric_headers
-
-#                     if is_numeric_headers != temp_is_numeric_headers:
-#                         raise ValueError(
-#                             "Mixed header conditions detected. Some files have headers while others do not."
-#                         )
-
-#                     temp_data = pd.read_csv(
-#                         file_path, nrows=nrows, skiprows=skiprows, header=None
-#                     )
-#                     if is_numeric_headers:
-#                         if temp_data.shape[1] != len(headers):
-#                             raise ValueError(
-#                                 "Files do not have the same number of columns."
-#                             )
-#                         temp_data.columns = headers
-#                     else:
-#                         if temp_headers != headers:
-#                             raise ValueError("Files do not have the same headers.")
-#                         temp_data.columns = headers
-#                         temp_data = temp_data.iloc[1:].reset_index(drop=True)
-#                     column_name = "file_name"
-#                     i = 1
-#                     while column_name in temp_data.columns:
-#                         column_name = f"file_name_{i}"
-#                         i += 1
-#                     temp_data[column_name] = file
-#                     data = pd.concat([data, temp_data], ignore_index=True)
-#                     logging.info(
-#                         f"Concatenated file: {file}, current data shape: {data.shape}"
-#                     )
-#     # Move the column named column_name to the first column
-#     if not data.empty and column_name in data.columns:
-#         columns = [column_name] + [col for col in data.columns if col != column_name]
-#         data = data[columns]
-#     else:
-#         raise ValueError(f"Invalid path: {path_to_data}")
-
-#     return data
+    parquet_file_path = file_path.replace(".csv", ".parquet")
+    try:
+        logging.info(f"Reading CSV {file_path} ...")
+        df = pd.read_csv(file_path)
+        logging.info(f"Parqueting ...")
+        df.to_parquet(parquet_file_path, index=False)
+        logging.info(f"Converted {file_path} to {parquet_file_path}")
+        return parquet_file_path
+    except Exception as e:
+        logging.error(f"Failed to convert {file_path} to Parquet: {e}")
+        raise
