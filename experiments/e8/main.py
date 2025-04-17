@@ -301,11 +301,9 @@ class Model:
         logging.info(
             f"{result['index']} - ======================= Saving ======================="
         )
-        test_fold_id = result['test'][list(result['test'].keys())[0]]
-        result_file_path = os.path.join(output_folder_path, f'{test_fold_id}.json')
+        result_file_path = os.path.join(output_folder_path, f"{result['index']}.json")
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
-
         logging.info(
             f"{result['index']} - {result_file_path}\n"
             f"{result['index']} - ======================= Saved ======================="
@@ -530,9 +528,9 @@ class Model:
             patience=self.patience,
             restore_best_weights=True,
         )
-        test_fold_id = split_info['test'][list(split_info['test'].keys())[0]]
+
         checkpoint = ModelCheckpoint(
-            os.path.join(output_folder_path, f"{test_fold_id}_best_model.keras"),
+            os.path.join(output_folder_path, f"{index}_best_model.keras"),
             monitor="val_loss",
             save_best_only=True,
             save_weights_only=False,
