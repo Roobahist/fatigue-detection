@@ -3,6 +3,7 @@ import sys
 
 from Zh.experiments.e8.main import *
 from Zh.src.utils.load_data import load_data
+from Zh.src.utils.common import set_seed
 
 if __name__ == "__main__":
     logging.info("Starting ...")
