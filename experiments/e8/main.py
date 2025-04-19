@@ -630,7 +630,7 @@ class Model:
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
                         "step_size": self.step_size,
-                        "discard_threshold_ratio" : self.discard_threshold_ratio,
+                        "discard_threshold_ratio": self.discard_threshold_ratio,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
                         "fold_by_primary_column_name": fold_by_primary_column_name,
