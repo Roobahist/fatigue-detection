@@ -4,7 +4,7 @@ import os
 import pickle
 import random
 from datetime import datetime
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Dict
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
@@ -12,8 +12,8 @@ import pandas as pd
 import tensorflow as tf
 from keras import backend as K
 from keras import layers, losses
-from keras.layers import Lambda
-from keras.preprocessing.sequence import pad_sequences
+from keras.src.layers import Lambda
+from keras.src.utils import pad_sequences
 from keras.src.callbacks import History
 from sklearn.decomposition import PCA
 from sklearn.metrics import (  # , root_mean_squared_error
@@ -25,10 +25,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
 from tensorflow import keras
-from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
+from keras.src.callbacks import Callback, EarlyStopping, ModelCheckpoint
 
 from Zh.src.utils.file_folder import create_folders
-from Zh.src.utils.serialized_parallel import *
+from Zh.src.utils.serialized_parallel import process
+from Zh.src.preprocess.reshape import reshape_data_rnn
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -43,65 +44,6 @@ def set_seed(seed=42):
     np.random.seed(seed)
     tf.random.set_seed(seed)
     tf.config.experimental.enable_op_determinism()
-
-
-def reshape_data_rnn(
-    df: pd.DataFrame,
-    feature_columns: List[str],
-    slice_size: int,
-    step_size: Optional[int],
-    groupby_column: str = "file_name",
-    sortby_column: str = "frame",
-    target_column: str = "target",
-    discard_threshold_ratio: float = 0.6,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Reshape data for RNN input by grouping, slicing, and padding sequences.
-
-    Args:
-        df (pd.DataFrame)              : Input dataframe.
-        feature_columns (List[str])    : List of feature column names.
-        slice_size (int)               : Maximum number of slices in each chunk.
-        step_size (int)                : Step size for moving to the next chunk.
-        groupby_column (str)           : Column to group by (e.g., video or file name).
-        sortby_column (str)            : Column to sort within each group (e.g., frame index).
-        target_column (str)            : Column containing target labels.
-        discard_threshold_ratio (float): Last slice in each video will be discarded if the number of its frames is less than
-                                         discard_threshold_ratio*max_slice and will be post padded with zero and kept otherwise.
-    Returns:
-        Tuple[np.ndarray, np.ndarray]: Feature sequences (X) and corresponding labels (y).
-    """
-    step_size = step_size or slice_size
-    X, y = [], []
-
-    for _, group in df.groupby(groupby_column):
-        # Sort by the specified column to maintain temporal order
-        group = group.sort_values(by=sortby_column, ascending=True)
-
-        y_group = group[target_column].unique()
-        assert (
-            len(y_group) == 1
-        ), f"Expected one unique target value, but found {len(y_group)}"
-        y_group = y_group[0]
-
-        # Extract features as a list of lists
-        slices = group[feature_columns].values.tolist()
-        # Create chunks with the specified step size
-        for start_idx in range(0, len(slices) - slice_size + 1, step_size):
-            chunk = slices[start_idx : start_idx + slice_size]
-            X.append(chunk)
-            y.append(y_group)
-
-        discard_threshold_frame = int(discard_threshold_ratio * slice_size)
-        if len(slices) - (start_idx + slice_size) > discard_threshold_frame:
-            chunk = slices[start_idx + slice_size : len(slices)]
-            X.append(chunk)
-            y.append(y_group)
-
-    # Pad sequences to ensure uniform length
-    X_padded = pad_sequences(X, maxlen=slice_size, padding="post", dtype="float32")
-
-    return np.array(X_padded), np.array(y)
 
 
 def report(model, x, y_true, unique_classes):
@@ -301,8 +243,8 @@ class Model:
         logging.info(
             f"{result['index']} - ======================= Saving ======================="
         )
-        test_fold_id = result['test'][list(result['test'].keys())[0]]
-        result_file_path = os.path.join(output_folder_path, f'{test_fold_id}.json')
+        test_fold_id = result["test"][list(result["test"].keys())[0]]
+        result_file_path = os.path.join(output_folder_path, f"{test_fold_id}.json")
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
 
@@ -427,6 +369,22 @@ class Model:
 
         return train_val_test_indices
 
+    class DataGenerator(Sequence):
+        def __init__(self):
+            pass
+
+        def __len__(self):
+            pass
+
+        def __get_item__(self):
+            pass
+
+        def _load_data(self):
+            pass
+
+        def on_epoch_end(self):
+            pass
+
     def _train_single_fold(
         self,
         data: pd.DataFrame,
@@ -473,7 +431,7 @@ class Model:
             if column_name not in columns_to_drop
         ]
 
-        X_train, y_train = reshape_data_rnn(
+        X_train, y_train, group_identifiers_train = reshape_data_rnn(
             df=train,
             feature_columns=feature_columns,
             slice_size=self.slice_size,
@@ -483,7 +441,7 @@ class Model:
             sortby_column=sortby_column,
             target_column=target_column,
         )
-        X_val, y_val = reshape_data_rnn(
+        X_val, y_val, group_identifiers_val = reshape_data_rnn(
             df=val,
             feature_columns=feature_columns,
             slice_size=self.slice_size,
@@ -493,7 +451,7 @@ class Model:
             sortby_column=sortby_column,
             target_column=target_column,
         )
-        X_test, y_test = reshape_data_rnn(
+        X_test, y_test, group_identifiers_test = reshape_data_rnn(
             df=test,
             feature_columns=feature_columns,
             slice_size=self.slice_size,
@@ -530,7 +488,7 @@ class Model:
             patience=self.patience,
             restore_best_weights=True,
         )
-        test_fold_id = split_info['test'][list(split_info['test'].keys())[0]]
+        test_fold_id = split_info["test"][list(split_info["test"].keys())[0]]
         checkpoint = ModelCheckpoint(
             os.path.join(output_folder_path, f"{test_fold_id}_best_model.keras"),
             monitor="val_loss",
@@ -576,12 +534,15 @@ class Model:
             "val": split_info["val"],
             "train": split_info["train"],
             "history": history.history,
+            "group_identifiers_train": group_identifiers_train,
             "train_report": train_report,
             "y_train": y_train,
             "y_train_pred": y_train_pred,
+            "group_identifiers_val": group_identifiers_val,
             "val_report": val_report,
             "y_val": y_val,
             "y_val_pred": y_val_pred,
+            "group_identifiers_test": group_identifiers_test,
             "test_report": test_report,
             "y_test": y_test,
             "y_test_pred": y_test_pred,
@@ -632,7 +593,7 @@ class Model:
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
                         "step_size": self.step_size,
-                        "discard_threshold_ratio" : self.discard_threshold_ratio,
+                        "discard_threshold_ratio": self.discard_threshold_ratio,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
                         "fold_by_primary_column_name": fold_by_primary_column_name,
@@ -646,12 +607,12 @@ class Model:
 
         train_val_test_indices = self._get_train_val_test_indices(
             columns_to_fold_by=data[
-                    [fold_by_primary_column_name]
-                    + (
-                        [fold_by_secondary_column_name]
-                        if fold_by_secondary_column_name
-                        else []
-                    )
+                [fold_by_primary_column_name]
+                + (
+                    [fold_by_secondary_column_name]
+                    if fold_by_secondary_column_name
+                    else []
+                )
             ],
             primary_column_name=fold_by_primary_column_name,
             secondary_column_name=fold_by_secondary_column_name,
