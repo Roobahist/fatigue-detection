@@ -11,7 +11,6 @@ def set_seed(seed=42):
 
 
 def flatten(lst) -> list:
-    from collections.abc import Iterable
     flat = []
     for item in lst:
         if isinstance(item, list):
