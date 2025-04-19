@@ -16,6 +16,17 @@ maximum_tries          : Optional[int] = 5,
 )->None: 
     
     KEYS_TO_COLLECT       = ['index', 'test', 'val', 'train_report', 'val_report', 'test_report']
+    COLORS                = ['Accent','Blues','BrBG','BuGn','BuPu','CMRmap','Dark2','GnBu','Greens',
+                             'Greys','OrRd','Oranges','PRGn','Paired','Pastel1','Pastel2','PiYG',
+                             'PuBuGn','PuBu','PuOr','PuRd','Purples','RdBu','RdGy','RdPu','RdYlBu',
+                             'RdYlGn','Reds','Set1','Set2','Set3','Spectral','Wistia','YlGnBu','YlGn',
+                             'YlOrBr','YlOrRd','afmhot','autumn','binary','bone','brg','bwr','cividis',
+                             'cool','coolwarm','copper','cubehelix','flag','gist_earth','gist_gray',
+                             'gist_heat','gist_ncar','gist','gist_rainbow','gist_stern','gist_yarg',
+                             'gnuplot2','gnuplot','gray','hot','hsv','inferno','jet','magma','nipy_spectral'
+                             ,'ocean','pink','plasma','prism','rainbow','seismic','spring','summer','tab10',
+                             'tab20','tab20b','tab20c','terrain','turbo','twilight','twilight_shifted','viridis','winter']
+
     output_directory_path = output_directory_path or results_directory_path
     create_folders(output_directory_path)
     output_file_name = None
@@ -129,5 +140,7 @@ maximum_tries          : Optional[int] = 5,
             print(f"Try Number {i} Failed.")
 
 
-if __name__ == "__main__":
-    asyncio.run(table_results(results_directory_path = '/home/mojtaba.kananisarche/Zh/outputs/2025-04-15|23:45:55|RNN_FACENET_5CV', reverse_cmap=False, cmap="coolwarm"))
+# if __name__ == "__main__":
+#     asyncio.run(table_results(results_directory_path = '/home/mojtaba.kananisarche/Zh/outputs/2025-04-15|23:45:55|RNN_FACENET_5CV', 
+#                               reverse_cmap=False, 
+#                               cmap="coolwarm"))
