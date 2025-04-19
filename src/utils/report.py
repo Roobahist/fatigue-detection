@@ -6,9 +6,9 @@ from sklearn.metrics import (
 )
 
 
-def report(y_pred, y_true, unique_classes):
+def report(model, x, y_true, unique_classes):
     y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
+    y_pred = np.array(model.predict(x, verbose=0)).flatten()
     thresholds = []
 
     # Sort unique classes and calculate thresholds
