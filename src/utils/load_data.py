@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 
-def extract_headers(file_path: str) -> List[str]:
+def _extract_headers(file_path: str) -> List[str]:
     """Extract headers from the first row of the file."""
     first_row = pd.read_csv(file_path, nrows=1, header=None)
     if first_row.iloc[0].dtype == "object":
@@ -18,7 +18,7 @@ def extract_headers(file_path: str) -> List[str]:
     return [f"f_{i}" for i in range(first_row.shape[1])]
 
 
-def find_identifier_column_name(
+def _find_identifier_column_name(
     column_names: List[str], identifier_column_prefix: Optional[str] = "file_name"
 ) -> str:
     identifier_column_name = identifier_column_prefix
@@ -29,7 +29,7 @@ def find_identifier_column_name(
     return identifier_column_name
 
 
-def load_single_file(
+def _load_single_file(
     file_path: str,
     headers: Optional[List[str]],
     is_numeric_headers: bool,
@@ -49,7 +49,7 @@ def load_single_file(
     else:
         temp_data.columns = headers
         temp_data = temp_data.iloc[1:].reset_index(drop=True)
-    identifier_column_name = find_identifier_column_name(
+    identifier_column_name = _find_identifier_column_name(
         column_names=temp_data.columns,
         identifier_column_prefix=identifier_column_prefix,
     )
@@ -57,7 +57,7 @@ def load_single_file(
     return temp_data, identifier_column_name
 
 
-def validate_headers(
+def _validate_headers(
     headers: Optional[List[str]],
     temp_headers: List[str],
     is_numeric_headers: bool,
@@ -91,9 +91,9 @@ def load_data(
         if path_to_data.endswith(".csv") and (
             not file_names or os.path.basename(path_to_data) in file_names
         ):
-            headers = extract_headers(path_to_data)
+            headers = _extract_headers(path_to_data)
             is_numeric_headers = headers is None
-            data, identifier_column_name = load_single_file(
+            data, identifier_column_name = _load_single_file(
                 path_to_data,
                 headers,
                 is_numeric_headers,
@@ -107,15 +107,15 @@ def load_data(
             for file in files:
                 if file.endswith(".csv") and (not file_names or file in file_names):
                     file_path = os.path.join(root, file)
-                    temp_headers = extract_headers(file_path)
+                    temp_headers = _extract_headers(file_path)
                     temp_is_numeric_headers = temp_headers is None
-                    headers, is_numeric_headers = validate_headers(
+                    headers, is_numeric_headers = _validate_headers(
                         headers,
                         temp_headers,
                         is_numeric_headers,
                         temp_is_numeric_headers,
                     )
-                    temp_data, identifier_column_name = load_single_file(
+                    temp_data, identifier_column_name = _load_single_file(
                         file_path,
                         headers,
                         is_numeric_headers,
@@ -131,7 +131,9 @@ def load_data(
         raise ValueError(f"Invalid path: {path_to_data}")
 
     if not data.empty:
-        columns = [identifier_column_name] + [col for col in data.columns if col != identifier_column_name]
+        columns = [identifier_column_name] + [
+            col for col in data.columns if col != identifier_column_name
+        ]
         data = data[columns]
 
     return data
