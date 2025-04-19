@@ -16,68 +16,21 @@ from keras.src.layers import Lambda
 from keras.src.utils import pad_sequences
 from keras.src.callbacks import History
 from sklearn.decomposition import PCA
-from sklearn.metrics import (  # , root_mean_squared_error
-    classification_report,
-    confusion_matrix,
-    mean_absolute_error,
-)
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
+
+
+from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow import keras
 from keras.src.callbacks import Callback, EarlyStopping, ModelCheckpoint
 
 from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.preprocess.reshape import reshape_data_rnn
+from Zh.src.utils.report import report
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
     format="[%(asctime)s][%(levelname)s] %(message)s",
 )
-
-
-# Function to set the random seed
-def set_seed(seed=42):
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    tf.config.experimental.enable_op_determinism()
-
-
-def report(model, x, y_true, unique_classes):
-    y_true = np.array(y_true)
-    y_pred = np.array(model.predict(x, verbose=0)).flatten()
-    results = {}
-    thresholds = []
-
-    # Sort unique classes and calculate thresholds
-    unique_classes = sorted(unique_classes)
-    for i in range(len(unique_classes) - 1):
-        thresholds.append((unique_classes[i] + unique_classes[i + 1]) / 2)
-
-    # Classify predictions
-    y_pred_classified = np.digitize(y_pred, thresholds, right=False)
-    y_pred_classified = np.array([unique_classes[i] for i in y_pred_classified])
-
-    class_results = {}
-    for cls in unique_classes:
-        idx = y_true == cls
-        if np.all(idx == False):
-            class_results[cls] = {"mae": -1, "accuracy": -1}
-            continue
-        mae = mean_absolute_error(y_true[idx], y_pred[idx])
-        accuracy = np.mean(y_pred_classified[idx] == y_true[idx])
-        class_results[cls] = {"mae": mae, "accuracy": accuracy}
-
-    results["classes"] = class_results
-    # Calculate overall metrics
-    overall_mae = mean_absolute_error(y_true, y_pred)
-    overall_accuracy = np.mean(y_pred_classified == y_true)
-    results["overall"] = {"mae": overall_mae, "accuracy": overall_accuracy}
-
-    return y_pred, results
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -369,21 +322,21 @@ class Model:
 
         return train_val_test_indices
 
-    class DataGenerator(Sequence):
-        def __init__(self):
-            pass
+    # class DataGenerator(Sequence):
+    #     def __init__(self):
+    #         pass
 
-        def __len__(self):
-            pass
+    #     def __len__(self):
+    #         pass
 
-        def __get_item__(self):
-            pass
+    #     def __get_item__(self):
+    #         pass
 
-        def _load_data(self):
-            pass
+    #     def _load_data(self):
+    #         pass
 
-        def on_epoch_end(self):
-            pass
+    #     def on_epoch_end(self):
+    #         pass
 
     def _train_single_fold(
         self,
