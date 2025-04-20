@@ -4,7 +4,7 @@ import os
 import pickle
 import random
 from datetime import datetime
-from typing import List, Optional, Tuple, Union, Dict
+from typing import Dict, List, Optional, Tuple, Union
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
@@ -12,20 +12,16 @@ import pandas as pd
 import tensorflow as tf
 from keras import backend as K
 from keras import layers, losses
+from keras.src.callbacks import Callback, EarlyStopping, History, ModelCheckpoint
 from keras.src.layers import Lambda
-from keras.src.utils import pad_sequences
-from keras.src.callbacks import History
 from sklearn.decomposition import PCA
-
-
 from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow import keras
-from keras.src.callbacks import Callback, EarlyStopping, ModelCheckpoint
 
-from Zh.src.utils.file_folder import create_folders
-from Zh.src.utils.serialized_parallel import process
 from Zh.src.preprocess.reshape import reshape_data_rnn
+from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.report import report
+from Zh.src.utils.serialized_parallel import process
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -52,20 +48,31 @@ class EpochEndLoggingCallback(Callback):
         self,
         X_train,
         y_train,
+        group_identifiers_train,
         X_val,
         y_val,
+        group_identifiers_val,
         X_test,
         y_test,
+        group_identifiers_test,
         mapping,
         index,
     ):
+
         super().__init__()
+
         self.X_train = X_train
         self.y_train = y_train
+        self.group_identifiers_train = group_identifiers_train
+
         self.X_val = X_val
         self.y_val = y_val
+        self.group_identifiers_val = group_identifiers_val
+
         self.X_test = X_test
         self.y_test = y_test
+        self.group_identifiers_test = group_identifiers_test
+
         self.mapping = mapping
         self.index = index
 
@@ -77,18 +84,21 @@ class EpochEndLoggingCallback(Callback):
             model=trained_model,
             x=self.X_train,
             y_true=self.y_train,
+            group_identifiers=self.group_identifiers_train,
             unique_classes=list(self.mapping.values()),
         )
         _, val_report = report(
             model=trained_model,
             x=self.X_val,
             y_true=self.y_val,
+            group_identifie=self.group_identifiers_val,
             unique_classes=list(self.mapping.values()),
         )
         _, test_report = report(
             model=trained_model,
             x=self.X_test,
             y_true=self.y_test,
+            group_identifier=self.group_identifiers_test,
             unique_classes=list(self.mapping.values()),
         )
 
@@ -96,9 +106,9 @@ class EpochEndLoggingCallback(Callback):
             "\n"
             "============================\n"
             f"{self.index} - Epoch {epoch + 1}\n"
-            f"Train Report: {train_report}\n"
-            f"Validation Report: {val_report}\n"
-            f"Test Report: {test_report}\n"
+            f"Train Report: {train_report['accuracy']}\n"
+            f"Validation Report: {val_report['accuracy']}\n"
+            f"Test Report: {test_report['accuracy']}\n"
             f"logs: {logs}\n"
             "============================"
         )
@@ -429,10 +439,13 @@ class Model:
         epoch_end_logging = EpochEndLoggingCallback(
             X_train=X_train,
             y_train=y_train,
+            group_identifiers_train=group_identifiers_train,
             X_val=X_val,
             y_val=y_val,
+            group_identifiers_val=group_identifiers_val,
             X_test=X_test,
             y_test=y_test,
+            group_identifiers_test=group_identifiers_test,
             mapping=self.mapping,
             index=index,
         )
@@ -465,18 +478,21 @@ class Model:
             model=model,
             x=X_train,
             y_true=y_train,
+            group_identifiers=group_identifiers_train,
             unique_classes=list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
             model=model,
             x=X_val,
             y_true=y_val,
+            group_identifiers=group_identifiers_val,
             unique_classes=list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
             model=model,
             x=X_test,
             y_true=y_test,
+            group_identifiers=group_identifiers_test,
             unique_classes=list(self.mapping.values()),
         )
 
