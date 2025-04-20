@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, mean_absolute_error
 
-from Zh.src.utils.common import matches_pattern, order_dict_by_key_list
+from Zh.src.utils.common import has_multiple_mappings, order_dict_by_key_list
 
 
 def report(model, 
@@ -17,7 +17,7 @@ def report(model,
     for i in y_true:
         if i not in unique_classes:
             raise ValueError(f"Not all classes are mentioned in unique_classes. --{i}--")
-    if not matches_pattern(y_true, group_identifiers):
+    if has_multiple_mappings(y_true, group_identifiers):
         raise ValueError("Groups don't match with Targets.")
     if not len(y_true) == len(y_pred) == len(group_identifiers):
         raise ValueError("Inputs y_true, y_pred, and group_identifiers must have the same length.")

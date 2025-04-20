@@ -37,3 +37,32 @@ def matches_pattern(list1, list2):
     # print(matches_pattern(a, c))  # False
     
     return pattern(list1) == pattern(list2)
+
+
+def has_multiple_mappings(list1, list2):
+    """
+    Checks if any unique element in list2 corresponds to more than one unique element in list1.
+
+    Args:
+        list1 (list): The first list.
+        list2 (list): The second list.
+
+    Returns:
+        bool: True if any unique element in list2 maps to more than one unique element in list1, False otherwise.
+
+    list1 = [1, 2, 3, 3, 2, 1]
+    list2 = ['x', 'y', 'z', 'z', 'y', 'x']
+    print(has_multiple_mappings(list1, list2))  # False
+
+    list1 = [1, 2, 3, 4, 2, 1]
+    list2 = ['x', 'y', 'z', 'z', 'y', 'x']
+    print(has_multiple_mappings(list1, list2))  # True
+    """
+    mapping = {}
+    for a, b in zip(list1, list2):
+        if b not in mapping:
+            mapping[b] = set()
+        mapping[b].add(a)
+    
+    # Check if any element in list2 maps to more than one unique element in list1
+    return any(len(values) > 1 for values in mapping.values())
