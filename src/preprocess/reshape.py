@@ -1,49 +1,50 @@
 import numpy as np
 import pandas as pd
 from typing import List, Optional, Tuple
+from keras.src.utils import pad_sequences
 
 
-def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncating='pre', value=0):
-    """
-    Pads sequences to the same length.
+# def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncating='pre', value=0):
+#     """
+#     Pads sequences to the same length.
 
-    Args:
-        sequences: List of sequences (lists or arrays of varying lengths).
-        maxlen: Maximum length of all sequences after padding. If None, it uses the length of the longest sequence.
-        dtype: Type of the output sequences.
-        padding: 'pre' or 'post', pad either before or after each sequence.
-        truncating: 'pre' or 'post', remove values from sequences longer than maxlen at the beginning or end.
-        value: Padding value.
+#     Args:
+#         sequences: List of sequences (lists or arrays of varying lengths).
+#         maxlen: Maximum length of all sequences after padding. If None, it uses the length of the longest sequence.
+#         dtype: Type of the output sequences.
+#         padding: 'pre' or 'post', pad either before or after each sequence.
+#         truncating: 'pre' or 'post', remove values from sequences longer than maxlen at the beginning or end.
+#         value: Padding value.
 
-    Returns:
-        A numpy array of shape (number_of_sequences, maxlen)
-    """
-    lengths = [len(s) for s in sequences]
+#     Returns:
+#         A numpy array of shape (number_of_sequences, maxlen)
+#     """
+#     lengths = [len(s) for s in sequences]
 
-    if maxlen is None:
-        maxlen = max(lengths)
+#     if maxlen is None:
+#         maxlen = max(lengths)
 
-    padded_sequences = np.full((len(sequences), maxlen), value, dtype=dtype)
+#     padded_sequences = np.full((len(sequences), maxlen), value, dtype=dtype)
 
-    for idx, seq in enumerate(sequences):
-        if len(seq) > maxlen:
-            if truncating == 'pre':
-                trunc = seq[-maxlen:]
-            elif truncating == 'post':
-                trunc = seq[:maxlen]
-            else:
-                raise ValueError("truncating must be 'pre' or 'post'")
-        else:
-            trunc = seq
+#     for idx, seq in enumerate(sequences):
+#         if len(seq) > maxlen:
+#             if truncating == 'pre':
+#                 trunc = seq[-maxlen:]
+#             elif truncating == 'post':
+#                 trunc = seq[:maxlen]
+#             else:
+#                 raise ValueError("truncating must be 'pre' or 'post'")
+#         else:
+#             trunc = seq
 
-        if padding == 'pre':
-            padded_sequences[idx, -len(trunc):] = trunc
-        elif padding == 'post':
-            padded_sequences[idx, :len(trunc)] = trunc
-        else:
-            raise ValueError("padding must be 'pre' or 'post'")
+#         if padding == 'pre':
+#             padded_sequences[idx, -len(trunc):] = trunc
+#         elif padding == 'post':
+#             padded_sequences[idx, :len(trunc)] = trunc
+#         else:
+#             raise ValueError("padding must be 'pre' or 'post'")
 
-    return padded_sequences
+#     return padded_sequences
 
 
 def reshape_data_rnn(
