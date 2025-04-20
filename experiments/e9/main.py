@@ -149,7 +149,7 @@ class Model:
         self.slice_size = slice_size
         self.step_size = step_size
         self.discard_threshold_ratio = discard_threshold_ratio
-        self.mapping = mapping
+        self.mapping = sorted(mapping)
 
     def _build_model(self, input_shape):
         model = keras.Sequential()
@@ -573,6 +573,7 @@ class Model:
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
                         "step_size": self.step_size,
+                        "mapping" : self.mapping,
                         "discard_threshold_ratio": self.discard_threshold_ratio,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
