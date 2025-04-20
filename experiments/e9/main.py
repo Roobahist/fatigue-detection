@@ -149,7 +149,7 @@ class Model:
         self.slice_size = slice_size
         self.step_size = step_size
         self.discard_threshold_ratio = discard_threshold_ratio
-        self.mapping = sorted(mapping)
+        self.mapping = mapping
 
     def _build_model(self, input_shape):
         model = keras.Sequential()

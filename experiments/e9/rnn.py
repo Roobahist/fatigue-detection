@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from Zh.experiments.e8.main import *
+from Zh.experiments.e9.main import *
 from Zh.src.utils.load_data import load_data
 from Zh.src.utils.common import set_seed
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
         path_to_data=path_to_data,
         # file_names=["facenet_preprocessed_alternativemapping.csv"],
         file_names=["facenet_preprocessed_alternativemapping_croppedonly.csv"],
-        # nrows=1000000,
+        # nrows=100000,
     )
 
     # unpreprocessed_data = load_data(path_to_data=path_to_data, file_names=[])
