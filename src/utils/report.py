@@ -66,9 +66,14 @@ def report(model,
             y_true = y_true, 
             y_pred = y_pred, 
             labels=unique_classes)
+        
+        results['mae'] = mean_absolute_error(
+            y_true = y_true,
+            y_pred = y_pred
+        )
 
         results = order_dict_by_key_list(results, 
-                                         unique_classes + ['accuracy', 'macro avg', 'weighted avg', 'confusion matrix'])
+                                         unique_classes + ['accuracy', 'mae', 'macro avg', 'weighted avg', 'confusion matrix'])
         return results
 
     #Calculating classification metrics for slices
