@@ -91,14 +91,14 @@ class EpochEndLoggingCallback(Callback):
             model=trained_model,
             x=self.X_val,
             y_true=self.y_val,
-            group_identifie=self.group_identifiers_val,
+            group_identifiers=self.group_identifiers_val,
             unique_classes=list(self.mapping.values()),
         )
         _, test_report = report(
             model=trained_model,
             x=self.X_test,
             y_true=self.y_test,
-            group_identifier=self.group_identifiers_test,
+            group_identifiers=self.group_identifiers_test,
             unique_classes=list(self.mapping.values()),
         )
 
@@ -106,9 +106,9 @@ class EpochEndLoggingCallback(Callback):
             "\n"
             "============================\n"
             f"{self.index} - Epoch {epoch + 1}\n"
-            f"Train Report: {train_report['accuracy']}\n"
-            f"Validation Report: {val_report['accuracy']}\n"
-            f"Test Report: {test_report['accuracy']}\n"
+            f"Train Report: {train_report['slice']['accuracy']}\n"
+            f"Validation Report: {val_report['slice']['accuracy']}\n"
+            f"Test Report: {test_report['slice']['accuracy']}\n"
             f"logs: {logs}\n"
             "============================"
         )
@@ -204,16 +204,16 @@ class Model:
         output_folder_path: Optional[str] = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
     ):
         logging.info(
-            f"{result['index']} - ======================= Saving ======================="
+            f"{result['split_info']['index']} - ======================= Saving ======================="
         )
-        test_fold_id = result["test"][list(result["test"].keys())[0]]
+        test_fold_id = result['split_info']["test"][list(result['split_info']["test"].keys())[0]]
         result_file_path = os.path.join(output_folder_path, f"{test_fold_id}.json")
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
 
         logging.info(
-            f"{result['index']} - {result_file_path}\n"
-            f"{result['index']} - ======================= Saved ======================="
+            f"{result['split_info']['index']} - {result_file_path}\n"
+            f"{result['split_info']['index']} - ======================= Saved ======================="
         )
 
     def _get_train_val_test_indices(
@@ -248,7 +248,7 @@ class Model:
                 ] = test_split.index.to_list()
                 fold_train_val_test_indices["info"]["test"] = {
                     f"{primary_column_name}": sorted(
-                        test_split[primary_column_name].unique()
+                        test_split[primary_column_name].unique().tolist()
                     )
                 }
 
@@ -264,7 +264,7 @@ class Model:
                 ] = val_split.index.to_list()
                 fold_train_val_test_indices["info"]["val"] = {
                     f"{primary_column_name}": sorted(
-                        val_split[primary_column_name].unique()
+                        val_split[primary_column_name].unique().tolist()
                     )
                 }
 
@@ -277,7 +277,7 @@ class Model:
                 ] = train_split.index.to_list()
                 fold_train_val_test_indices["info"]["train"] = {
                     f"{primary_column_name}": sorted(
-                        train_split[primary_column_name].unique()
+                        train_split[primary_column_name].unique().tolist()
                     )
                 }
                 train_val_test_indices.append(fold_train_val_test_indices)
@@ -297,7 +297,7 @@ class Model:
                         ] = test_split.index.to_list()
                         fold_train_val_test_indices["info"]["test"] = {
                             f"{primary_column_name}": sorted(
-                                test_split[primary_column_name].unique()
+                                test_split[primary_column_name].unique().tolist()
                             )
                         }
 
@@ -310,7 +310,7 @@ class Model:
                         ] = val_split.index.to_list()
                         fold_train_val_test_indices["info"]["val"] = {
                             f"{primary_column_name}": sorted(
-                                val_split[primary_column_name].unique()
+                                val_split[primary_column_name].unique().tolist()
                             )
                         }
 
@@ -324,7 +324,7 @@ class Model:
                         ] = train_split.index.to_list()
                         fold_train_val_test_indices["info"]["train"] = {
                             f"{primary_column_name}": sorted(
-                                train_split[primary_column_name].unique()
+                                train_split[primary_column_name].unique().tolist()
                             )
                         }
 
