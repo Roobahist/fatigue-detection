@@ -498,23 +498,35 @@ class Model:
 
         # Store results to return
         local_results = {
-            "index": index,
-            "test": split_info["test"],
-            "val": split_info["val"],
-            "train": split_info["train"],
-            "history": history.history,
-            "group_identifiers_train": group_identifiers_train,
-            "train_report": train_report,
-            "y_train": y_train,
-            "y_train_pred": y_train_pred,
-            "group_identifiers_val": group_identifiers_val,
-            "val_report": val_report,
-            "y_val": y_val,
-            "y_val_pred": y_val_pred,
-            "group_identifiers_test": group_identifiers_test,
-            "test_report": test_report,
-            "y_test": y_test,
-            "y_test_pred": y_test_pred,
+            "split_info": {
+                "index": index,
+                "test": split_info["test"],
+                "val": split_info["val"],
+                "train": split_info["train"],
+            },
+            "evaluation": {
+                "train": {
+                    "metrics": train_report,
+                    "group_identifiers": group_identifiers_train,
+                    "y_true": y_train,
+                    "y_pred": y_train_pred,
+                },
+                "validation": {
+                    "metrics": val_report,
+                    "group_identifiers": group_identifiers_val,
+                    "y_true": y_val,
+                    "y_pred": y_val_pred,
+                },
+                "test": {
+                    "metrics": test_report,
+                    "group_identifiers": group_identifiers_test,
+                    "y_true": y_test,
+                    "y_pred": y_test_pred,
+                },
+            },
+            "training_history": {
+                "history": history.history,
+            },
         }
 
         logging.info(
