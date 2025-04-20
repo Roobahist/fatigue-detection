@@ -359,6 +359,8 @@ def confusion_matrix_results(
     unique_classes: list[float],
     output_directory_path: Optional[str] = None,
     output_file_name_prefix: Optional[str] = "results",
+    slice_or_video: Optional[str] = "slice",  # slice, video
+    video_voting_method: Optional[str] = "average",  # majority, class_average, average
     index: Optional[int] = -1,  # positive for any index and negative for all
     split: Optional[str] = "all",  # train, val, test, all
     cmap: Optional[str] = "Greys",
@@ -380,29 +382,10 @@ def confusion_matrix_results(
     for i in range(len(unique_classes) - 1):
         thresholds.append((unique_classes[i] + unique_classes[i + 1]) / 2)
 
-    KEYS_TO_COLLECT = [
-        "index",
-        "test",
-        "val",
-        "y_train",
-        "y_train_pred",
-        "y_val",
-        "y_val_pred",
-        "y_test",
-        "y_test_pred",
-    ]
+    KEYS_TO_COLLECT = ["split_info", "evaluation"]
 
     output_directory_path = output_directory_path or results_directory_path
     create_folders(output_directory_path)
-    output_file_name = None
-    i = 0
-    while output_file_name is None:
-        i += 1
-        if not os.path.exists(
-            os.path.join(output_directory_path, f"{output_file_name_prefix}_{i}.png")
-        ):
-            output_file_name = f"{output_file_name_prefix}_{i}.png"
-    output_file_path = os.path.join(output_directory_path, output_file_name)
 
     data = []
     for file_name in os.listdir(results_directory_path):
@@ -417,15 +400,11 @@ def confusion_matrix_results(
                     continue
 
     data = pd.DataFrame(data=data).dropna(how="all")
-    try:
-        data.index = data["index"].astype(int).values
-        data = data.sort_index()
-        data = data.drop("index", axis=1)
-    except:
-        print("No Index")
-        pass
 
-    folded_by_column = list(data["test"][0].keys())[0]
+    folded_by_column = list(data["split_info"].iloc[0]["test"].keys())[0]
+
+    data.index = data["split_info"].apply(lambda x: x["index"]).astype(int).tolist()
+    data = data.sort_index()
 
     def style(confusion_matrix_df):
 
@@ -535,39 +514,42 @@ def confusion_matrix_results(
     if index > 0:
         split = ["train", "test", "val"] if split == "all" else [split]
         for s in split:
-            y_true = [str(float(yt)) for yt in data[f"y_{s}"][index]]
-            y_pred = [
-                str(float(unique_classes[np.digitize(x, thresholds, right=False)]))
-                for x in data[f"y_{s}_pred"][index]
-            ]
-            confusion_matrix_df = pd.DataFrame(
-                data=confusion_matrix(y_true=y_true, y_pred=y_pred)
-            )
-            styled_df = style(confusion_matrix_df)
+            if slice_or_video == "slice":
+                confusion_matrix_df = data["evaluation"][index][s]["metrics"][
+                    slice_or_video
+                ]
+            if slice_or_video == "video":
+                confusion_matrix_df = data["evaluation"][index][s]["metrics"][
+                    slice_or_video
+                ][video_voting_method]
+            styled_df = style(pd.DataFrame(confusion_matrix_df))
             styled_dfs[f"{s}"] = styled_df
 
     else:
         index = "combined"
         split = ["train", "test", "val"] if split == "all" else [split]
         for s in split:
-            y_true = [str(float(yt)) for yt in flatten(list(data[f"y_{s}"]))]
-            y_pred = [
-                str(float(yp))
-                for yp in flatten(
-                    list(
-                        data[f"y_{s}_pred"].apply(
-                            lambda x: [
-                                unique_classes[np.digitize(i, thresholds, right=False)]
-                                for i in x
-                            ]
-                        )
+            if slice_or_video == "slice":
+                confusion_matrix_df = np.sum(
+                    data["evaluation"]
+                    .apply(
+                        lambda x: x[s]["metrics"][slice_or_video]["confusion matrix"]
                     )
+                    .tolist(),
+                    axis=0,
                 )
-            ]
-            confusion_matrix_df = pd.DataFrame(
-                data=confusion_matrix(y_true=y_true, y_pred=y_pred)
-            )
-            styled_df = style(confusion_matrix_df)
+            if slice_or_video == "video":
+                confusion_matrix_df = np.sum(
+                    data["evaluation"]
+                    .apply(
+                        lambda x: x[s]["metrics"][slice_or_video][video_voting_method][
+                            "confusion matrix"
+                        ]
+                    )
+                    .tolist(),
+                    axis=0,
+                )
+            styled_df = style(pd.DataFrame(confusion_matrix_df))
             styled_dfs[f"{s}"] = styled_df
 
     for s, styled_df in styled_dfs.items():
@@ -591,22 +573,40 @@ def confusion_matrix_results(
 
 
 # if __name__ == "__main__":
-#     table_results(results_directory_path = '/home/mojtaba.kananisarche/Zh/outputs/2025-04-15|23:45:55|RNN_FACENET_5CV',
-#                               reverse_cmap=False,
-#                               cmap="coolwarm")
-# data =table_results(
-# results_directory_path  = '/home/mojtaba.kananisarche/Zh/outputs/2025-04-20|06:42:10|RNN_FACENET_5CV',
-# output_directory_path   = None,
-# output_file_path_prefix = 'results',
-# cmap                    = "Blues",
-# reverse_cmap            = False,
-# header_1_bg_color       = 'silver',
-# header_1_text_color     = 'black',
-# header_2_bg_color       = 'darkgrey',
-# header_2_text_color     = 'black',
-# maximum_tries           = 1,
-# slice_or_video          = 'slice', #slice, video
-# video_voting_method     = 'average', #majority, class_average, average
-# height                  = 2,
-# width                   = 5,
-# )
+#     data = table_results(
+#         results_directory_path="/home/mojtaba.kananisarche/Zh/outputs/2025-04-20|06:42:10|RNN_FACENET_5CV",
+#         output_directory_path=None,
+#         output_file_path_prefix="results",
+#         cmap="Blues",
+#         reverse_cmap=False,
+#         header_1_bg_color="silver",
+#         header_1_text_color="black",
+#         header_2_bg_color="darkgrey",
+#         header_2_text_color="black",
+#         maximum_tries=1,
+#         slice_or_video="slice",  # slice, video
+#         video_voting_method="average",  # majority, class_average, average
+#         height=2,
+#         width=5,
+#     )
+
+#     data = confusion_matrix_results(
+#         results_directory_path="/home/mojtaba.kananisarche/Zh/outputs/2025-04-20|06:42:10|RNN_FACENET_5CV",
+#         unique_classes=[2, 6.5, 8.5],
+#         output_directory_path=None,
+#         output_file_name_prefix="results",
+#         slice_or_video="slice",  # slice,    video
+#         video_voting_method="average",  # majority, class_average, average
+#         index=-1,  # positive for any index and negative for all
+#         split="all",  # train,   val,           test, all
+#         cmap="Greys",
+#         maximum_tries=5,
+#         corner_text_color="white",
+#         corner_bg_color="IndianRed",
+#         pred_true_text_color="black",
+#         pred_true_bg_color="silver",
+#         labels_bg_color="beige",
+#         labels_text_color="black",
+#         height=5,
+#         width=None,
+#     )
