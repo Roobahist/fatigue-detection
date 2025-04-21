@@ -66,3 +66,19 @@ def has_multiple_mappings(list1, list2):
     
     # Check if any element in list2 maps to more than one unique element in list1
     return any(len(values) > 1 for values in mapping.values())
+
+
+def get_csv_length(file_path: str, skip_header: bool = False):
+    import os
+    import csv
+
+    assert os.path.exists(file_path), "File does not exist."
+    assert file_path.lower().endswith('.csv'), "This is not a CSV file."
+
+    with open(file_path, 'r', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        if skip_header:
+            next(reader, None)  # Skip header
+        row_count = sum(1 for row in reader if row)
+
+    return row_count
