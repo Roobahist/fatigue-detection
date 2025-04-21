@@ -19,7 +19,7 @@ from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow import keras
 
 from Zh.src.preprocess.reshape import reshape_data_rnn
-from Zh.src.utils.file_folder import create_folders
+from Zh.src.utils.file_folder import create_folders, get_file_paths
 from Zh.src.utils.report import report
 from Zh.src.utils.serialized_parallel import process
 
@@ -206,7 +206,9 @@ class Model:
         logging.info(
             f"{result['split_info']['index']} - ======================= Saving ======================="
         )
-        result_file_path = os.path.join(output_folder_path, f"{result['split_info']['index']}.json")
+        result_file_path = os.path.join(
+            output_folder_path, f"{result['split_info']['index']}.json"
+        )
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
 
@@ -215,14 +217,35 @@ class Model:
             f"{result['split_info']['index']} - ======================= Saved ======================="
         )
 
-    def _get_train_val_test_indices(
-        self,
-        columns_to_fold_by: pd.DataFrame,
+    def _get_train_val_test_file_paths(
+        input_path: str,
         primary_column_name: str,
         secondary_column_name: Optional[str] = None,
     ) -> List[Dict]:
 
-        train_val_test_indices = []
+        file_paths = get_file_paths(folder_path=input_path, depth=2, EXT_LIST=[".csv"])
+        data = pd.DataFrame()
+        data["path"] = file_paths
+        data["fold"] = (
+            data["path"]
+            .apply(lambda x: os.path.basename(x).split("_")[0])
+            .astype(int)
+            .astype(str)
+        )
+        data["subject_id"] = (
+            data["path"]
+            .apply(lambda x: os.path.basename(x).split("_")[1])
+            .astype(int)
+            .astype(str)
+        )
+        data = data.sort_values(["fold", "subject_id"]).reset_index(drop=True)
+
+        columns_to_fold_by = data[
+            [primary_column_name]
+            + ([secondary_column_name] if secondary_column_name else [])
+        ]
+
+        train_val_test_file_paths = []
         unique_main_column_values = sorted(
             columns_to_fold_by[primary_column_name].unique()
         )
@@ -237,15 +260,15 @@ class Model:
                 ), f"Multiple Unique Secondary Values Found For Main Column Value {main_column_value} - {corresponding_secondary_value}"
                 corresponding_secondary_value = corresponding_secondary_value[0]
 
-                fold_train_val_test_indices = {"info": {}, "indices": {}}
+                fold_train_val_test_file_paths = {"info": {}, "indices": {}}
 
                 test_split = columns_to_fold_by[
                     columns_to_fold_by[primary_column_name] == main_column_value
                 ]
-                fold_train_val_test_indices["indices"][
-                    "test"
-                ] = test_split.index.to_list()
-                fold_train_val_test_indices["info"]["test"] = {
+                fold_train_val_test_file_paths["indices"]["test"] = data.loc[
+                    test_split.index.to_list()
+                ]["path"].to_list()
+                fold_train_val_test_file_paths["info"]["test"] = {
                     f"{primary_column_name}": sorted(
                         test_split[primary_column_name].unique().tolist()
                     )
@@ -258,10 +281,10 @@ class Model:
                         == corresponding_secondary_value
                     )
                 ]
-                fold_train_val_test_indices["indices"][
-                    "val"
-                ] = val_split.index.to_list()
-                fold_train_val_test_indices["info"]["val"] = {
+                fold_train_val_test_file_paths["indices"]["val"] = data.loc[
+                    val_split.index.to_list()
+                ]["path"].to_list()
+                fold_train_val_test_file_paths["info"]["val"] = {
                     f"{primary_column_name}": sorted(
                         val_split[primary_column_name].unique().tolist()
                     )
@@ -271,30 +294,30 @@ class Model:
                     columns_to_fold_by[secondary_column_name]
                     != corresponding_secondary_value
                 ]
-                fold_train_val_test_indices["indices"][
-                    "train"
-                ] = train_split.index.to_list()
-                fold_train_val_test_indices["info"]["train"] = {
+                fold_train_val_test_file_paths["indices"]["train"] = data.loc[
+                    train_split.index.to_list()
+                ]["path"].to_list()
+                fold_train_val_test_file_paths["info"]["train"] = {
                     f"{primary_column_name}": sorted(
                         train_split[primary_column_name].unique().tolist()
                     )
                 }
-                train_val_test_indices.append(fold_train_val_test_indices)
+                train_val_test_file_paths.append(fold_train_val_test_file_paths)
 
         elif primary_column_name:
             for main_column_value_i in unique_main_column_values:
                 for main_column_value_j in unique_main_column_values:
                     if main_column_value_i != main_column_value_j:
-                        fold_train_val_test_indices = {"info": {}, "indices": {}}
+                        fold_train_val_test_file_paths = {"info": {}, "indices": {}}
 
                         test_split = columns_to_fold_by[
                             columns_to_fold_by[primary_column_name]
                             == main_column_value_i
                         ]
-                        fold_train_val_test_indices["indices"][
-                            "test"
-                        ] = test_split.index.to_list()
-                        fold_train_val_test_indices["info"]["test"] = {
+                        fold_train_val_test_file_paths["indices"]["test"] = data.loc[
+                            test_split.index.to_list()
+                        ]["path"].to_list()
+                        fold_train_val_test_file_paths["info"]["test"] = {
                             f"{primary_column_name}": sorted(
                                 test_split[primary_column_name].unique().tolist()
                             )
@@ -304,10 +327,10 @@ class Model:
                             columns_to_fold_by[primary_column_name]
                             == main_column_value_j
                         ]
-                        fold_train_val_test_indices["indices"][
-                            "val"
-                        ] = val_split.index.to_list()
-                        fold_train_val_test_indices["info"]["val"] = {
+                        fold_train_val_test_file_paths["indices"]["val"] = data.loc[
+                            val_split.index.to_list()
+                        ]["path"].to_list()
+                        fold_train_val_test_file_paths["info"]["val"] = {
                             f"{primary_column_name}": sorted(
                                 val_split[primary_column_name].unique().tolist()
                             )
@@ -318,18 +341,18 @@ class Model:
                                 [main_column_value_i, main_column_value_j]
                             )
                         ]
-                        fold_train_val_test_indices["indices"][
-                            "train"
-                        ] = train_split.index.to_list()
-                        fold_train_val_test_indices["info"]["train"] = {
+                        fold_train_val_test_file_paths["indices"]["train"] = data.loc[
+                            train_split.index.to_list()
+                        ]["path"].to_list()
+                        fold_train_val_test_file_paths["info"]["train"] = {
                             f"{primary_column_name}": sorted(
                                 train_split[primary_column_name].unique().tolist()
                             )
                         }
 
-                        train_val_test_indices.append(fold_train_val_test_indices)
+                        train_val_test_file_paths.append(fold_train_val_test_file_paths)
 
-        return train_val_test_indices
+        return train_val_test_file_paths
 
     # class DataGenerator(Sequence):
     #     def __init__(self):
@@ -541,7 +564,7 @@ class Model:
 
     def test_model(
         self,
-        data: pd.DataFrame,
+        input_directory_path: str,
         columns_to_drop: Optional[List[str]] = [],
         parallel: bool = False,
         max_workers: Optional[int] = None,
@@ -573,7 +596,7 @@ class Model:
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
                         "step_size": self.step_size,
-                        "mapping" : self.mapping,
+                        "mapping": self.mapping,
                         "discard_threshold_ratio": self.discard_threshold_ratio,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
@@ -586,22 +609,14 @@ class Model:
                 file,
             )
 
-        train_val_test_indices = self._get_train_val_test_indices(
-            columns_to_fold_by=data[
-                [fold_by_primary_column_name]
-                + (
-                    [fold_by_secondary_column_name]
-                    if fold_by_secondary_column_name
-                    else []
-                )
-            ],
+        train_val_test_indices = self._get_train_val_test_file_paths(
+            input_path=input_directory_path,
             primary_column_name=fold_by_primary_column_name,
             secondary_column_name=fold_by_secondary_column_name,
         )
 
         args_list = [
             {
-                "data": data,
                 "split_info": test_fold_value["info"],
                 "split_indices": test_fold_value["indices"],
                 "output_folder_path": output_folder_path,
