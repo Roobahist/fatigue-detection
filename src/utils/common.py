@@ -1,3 +1,5 @@
+from typing import Union, List
+
 def set_seed(seed=42):
     import os
     import random
@@ -82,3 +84,43 @@ def get_csv_length(file_path: str, skip_header: bool = False):
         row_count = sum(1 for row in reader if row)
 
     return row_count
+
+
+def find_new_file_name(output_directory_path: str, 
+                       file_name_prefix: str, 
+                       file_name_extension: Union[str, None] = None) -> str:
+    """
+    Finds a new file name in the specified directory by appending a numeric suffix to the file name prefix.
+
+    Args:
+        output_directory_path (str): The directory where the file will be saved.
+        file_name_prefix (str): The prefix of the file name.
+        file_name_extension (str | None): The file extension (e.g., 'txt', 'csv'). If None, no extension is added.
+
+    Returns:
+        str: A new file name with a numeric suffix that does not already exist in the directory.
+
+    Example:
+        find_new_file_name('/path/to/dir', 'file', 'txt')
+        # Returns something like 'file_1.txt' if 'file_1.txt' does not exist.
+    """
+    import os
+    from Zh.src.utils.file_folder import create_folders
+
+    # Ensure the directory exists
+    create_folders(output_directory_path)
+
+    # Initialize the suffix counter
+    counter = 1
+
+    # Construct the file name with the optional extension
+    while True:
+        file_name = f"{file_name_prefix}_{counter}"
+        if file_name_extension:
+            file_name += f".{file_name_extension}"
+        file_path = os.path.join(output_directory_path, file_name)
+
+        # Check if the file already exists
+        if not os.path.exists(file_path):
+            return file_name
+        counter += 1
