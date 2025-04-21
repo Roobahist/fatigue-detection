@@ -70,8 +70,8 @@ if __name__ == "__main__":
         maxtasksperchild              = 1,
         use_tqdm                      = False,
         output_parent_dir             = "/home/mojtaba.kananisarche/Zh/outputs",
-        fold_by_primary_column_name   = "fold",
-        fold_by_secondary_column_name = None,
+        fold_by_primary_column_name   = "subject_id",
+        fold_by_secondary_column_name = "fold",
         fold_start_index              = fold_start_index,
         fold_end_index                = fold_end_index,
         fold_indices                  = []
