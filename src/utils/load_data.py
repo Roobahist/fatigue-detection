@@ -76,7 +76,7 @@ def _validate_headers(
 
 
 def load_data(
-    path_to_data: str,
+    input_path: str,
     file_names: Optional[List[str]] = None,
     nrows: Optional[int] = None,
     skiprows: Optional[int] = 0,
@@ -87,23 +87,23 @@ def load_data(
     data = pd.DataFrame()
     headers, is_numeric_headers = None, None
 
-    if os.path.isfile(path_to_data):
-        if path_to_data.endswith(".csv") and (
-            not file_names or os.path.basename(path_to_data) in file_names
+    if os.path.isfile(input_path):
+        if input_path.endswith(".csv") and (
+            not file_names or os.path.basename(input_path) in file_names
         ):
-            headers = _extract_headers(path_to_data)
+            headers = _extract_headers(input_path)
             is_numeric_headers = headers is None
             data, identifier_column_name = _load_single_file(
-                path_to_data,
+                input_path,
                 headers,
                 is_numeric_headers,
                 nrows,
                 skiprows,
                 identifier_column_prefix,
             )
-            logging.info(f"Loaded file: {path_to_data}, data shape: {data.shape}")
-    elif os.path.isdir(path_to_data):
-        for root, _, files in os.walk(path_to_data):
+            logging.info(f"Loaded file: {input_path}, data shape: {data.shape}")
+    elif os.path.isdir(input_path):
+        for root, _, files in os.walk(input_path):
             for file in files:
                 if file.endswith(".csv") and (not file_names or file in file_names):
                     file_path = os.path.join(root, file)
@@ -128,7 +128,7 @@ def load_data(
                         f"Concatenated file: {file}, current data shape: {data.shape}"
                     )
     else:
-        raise ValueError(f"Invalid path: {path_to_data}")
+        raise ValueError(f"Invalid path: {input_path}")
 
     if not data.empty:
         columns = [identifier_column_name] + [
