@@ -18,7 +18,7 @@ from sklearn.decomposition import PCA
 from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow import keras
 
-from Zh.src.preprocess.reshape import reshape_data_rnn
+from Zh.src.preprocess.reshape import count_slices_per_video, reshape_data_rnn
 from Zh.src.utils.file_folder import create_folders, get_file_paths
 from Zh.src.utils.report import report
 from Zh.src.utils.serialized_parallel import process
@@ -354,21 +354,66 @@ class Model:
 
         return train_val_test_file_paths
 
-    # class DataGenerator(Sequence):
-    #     def __init__(self):
-    #         pass
+    class MyDataGenerator(keras.utils.Sequence):
+        """
+        Custom data generator for Keras.
+        """
 
-    #     def __len__(self):
-    #         pass
+        def __init__(
+            self,
+            paths: List[str],
+            batch_size: int = 32,
+            slice_size: int = 3000,
+            step_size: int = 3000,
+            discard_threshold_ratio: float = 0.6,
+        ):
+            """
+            Initialization function.  This is where you set up the basic parameters
+            of your data generator.
+            """
+            self.paths = paths
+            self.batch_size = batch_size
+            self.slice_size = slice_size
+            self.step_size = step_size
+            self.discard_threshold_ratio = discard_threshold_ratio
 
-    #     def __get_item__(self):
-    #         pass
+            self.on_epoch_end()
 
-    #     def _load_data(self):
-    #         pass
+        def __len__(self):
+            """
+            Returns the number of batches per epoch.  Keras uses this to know how many
+            times to call `__getitem__` in one epoch.
+            """
+            video_info = pd.read_csv(os.path.join(input_path, "video_info_1.csv"))
+            file_lengths = video_info[video_info["path"].isin(self.paths)][
+                "total_frames"
+            ].to_list()
+            num_slices = count_slices_per_video(
+                file_lengths,
+                slice_size=self.slice_size,
+                step_size=self.step_size,
+                discard_threshold_ratio=self.discard_threshold_ratio,
+            )
+            return np.ceil(sum(num_slices) / self.batch_size)
 
-    #     def on_epoch_end(self):
-    #         pass
+        def __getitem__(self, index):
+            """
+            Generates one batch of data.  The core of the data generator.
+            """
+            pass  # Replace with your code
+
+        def on_epoch_end(self):
+            """
+            Called at the end of each epoch.  Use this to re-shuffle the data if needed.
+            """
+            pass  # Replace with your code
+
+        def __data_generation(self, list_IDs_temp):
+            """
+            Generates data containing batch_size samples. This is where the actual data
+            loading and preprocessing happens.
+            """
+            pass  # Replace with your code
 
     def _train_single_fold(
         self,
