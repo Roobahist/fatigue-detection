@@ -125,9 +125,12 @@ def table_results(
     while output_file_name is None:
         i += 1
         if not os.path.exists(
-            os.path.join(output_directory_path, f"{output_file_path_prefix}_{i}.png")
+            os.path.join(
+                output_directory_path,
+                f"{output_file_path_prefix}_{slice_or_video}_{video_voting_method}_{i}.png",
+            )
         ):
-            output_file_name = f"{output_file_path_prefix}_{i}.png"
+            output_file_name = f"{output_file_path_prefix}_{slice_or_video}_{video_voting_method}_{i}.png"
 
     output_file_path = os.path.join(output_directory_path, output_file_name)
 
