@@ -12,7 +12,7 @@ if __name__ == "__main__":
     fold_start_index  = int(sys.argv[4]) if len(sys.argv) > 4 else None
     fold_end_index    = int(sys.argv[5]) if len(sys.argv) > 5 else None
     mapping           = {"10": 8.5, "5": 6.5, "0": 2}
-    
+
     logging.info(f"max workers {max_workers}")
     logging.info(f"working_directory : {working_directory} & job_id : {job_id}")
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded"
     path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.3-preprocessed"
     preprocessed_data = load_data(
-        path_to_data=path_to_data,
+        input_path=path_to_data,
         file_names=["facenet_preprocessed_alternativemapping.csv"],
         # file_names=["facenet_preprocessed_alternativemapping_croppedonly.csv"],
         # nrows=1000000,

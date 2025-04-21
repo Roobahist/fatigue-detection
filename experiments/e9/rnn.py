@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded"
     path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.3-preprocessed"
     preprocessed_data = load_data(
-        path_to_data=path_to_data,
+        input_path=path_to_data,
         # file_names=["facenet_preprocessed_alternativemapping.csv"],
         file_names=["facenet_preprocessed_alternativemapping_croppedonly.csv"],
         # nrows=100000,

@@ -35,7 +35,7 @@ if __name__ == "__main__":
     set_seed(42)
     # unpreprocessed_data = load_data(path_to_data=path_to_data, file_names=[])
     preprocessed_data = load_data(
-        path_to_data=path_to_data,
+        input_path=path_to_data,
         # file_names=["facenet_preprocessed_alternativemapping.csv"],
         file_names=["facenet_preprocessed_alternativemapping_croppedonly.csv"],
         # nrows=1000000,
