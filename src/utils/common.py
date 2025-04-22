@@ -124,3 +124,40 @@ def find_new_file_name(output_directory_path: str,
         if not os.path.exists(file_path):
             return file_name
         counter += 1
+
+
+def pop_row(df, idx, reset_index=False):
+    """
+    Pops one or more rows from a DataFrame based on index or slice.
+
+    Parameters:
+    - df: pandas DataFrame
+    - idx: int, label, list of labels/ints, or slice
+    - reset_index: bool, whether to reset the index of the returned DataFrame
+
+    Returns:
+    - popped_rows: pd.Series or pd.DataFrame (depending on the input)
+    - updated_df: pd.DataFrame (without the popped row(s))
+    """
+    import pandas as pd
+    
+    if isinstance(idx, slice):
+        popped = df.iloc[idx]
+        remaining = df.drop(popped.index)
+    elif isinstance(idx, (int, str)):
+        popped = df.loc[idx]
+        remaining = df.drop(idx)
+    elif isinstance(idx, (list, tuple, pd.Index)):
+        popped = df.loc[idx]
+        remaining = df.drop(idx)
+    else:
+        raise ValueError("Unsupported index type: must be int, str, slice, or list")
+
+    if reset_index:
+        if isinstance(popped, pd.Series):
+            popped = popped.to_frame().T.reset_index(drop=True).squeeze()
+        else:
+            popped = popped.reset_index(drop=True)
+        remaining = remaining.reset_index(drop=True)
+
+    return popped, remaining
