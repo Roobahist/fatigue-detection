@@ -1,3 +1,4 @@
+import random
 from typing import List
 
 import numpy as np
@@ -75,6 +76,8 @@ class MyDataGenerator(PyDataset):
         """
         self.pointer = 0
         assert len(self.stash) != 0, f"Stash is not emptied properly! Length of stash : {len(self.stash)}"
+        self.data  = pd.DataFrame(columns = ('X', 'y', 'g')) #TODO fill data only once as it keeps doing the same thing over different epochs
+        self.stash = pd.DataFrame(columns = ('X', 'y', 'g'))
 
         if not self.num_slices:
             video_info = pd.read_csv(self.video_info_csv_path)
@@ -111,8 +114,8 @@ class MyDataGenerator(PyDataset):
         """
         Called at the end of each epoch.  Use this to re-shuffle the data if needed.
         """
-        if self.shuffle:
-            self.stash = self.stash.sample(len(self.stash))
+        if False:  #TODO implement proper shuffling
+            self.paths = random.sample(self.paths, len(self.paths))
 
     def __data_generation(self):
         """
@@ -134,6 +137,7 @@ class MyDataGenerator(PyDataset):
     def __getitem__(self, index):
         """
         Generates one batch of data.  The core of the data generator.
+        #TODO Calculate class weights based on the name of files and num_slices and return
         """
         self.__data_generation()
         popped = self._pop_from_stash()        
