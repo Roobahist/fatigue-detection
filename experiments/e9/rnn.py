@@ -16,20 +16,7 @@ if __name__ == "__main__":
 
     logging.info(f"working_directory : {working_directory} & job_id : {job_id}")
 
-    logging.info("Loading Data ...")
-    # path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded"
-    path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.3-preprocessed"
-    preprocessed_data = load_data(
-        input_path=path_to_data,
-        # file_names=["facenet_preprocessed_alternativemapping.csv"],
-        file_names=["facenet_preprocessed_alternativemapping_croppedonly.csv"],
-        # nrows=100000,
-    )
-
-    # unpreprocessed_data = load_data(path_to_data=path_to_data, file_names=[])
-    # preprocessed_data, columns_to_drop = preprocess_data(data=unpreprocessed_data, mapping=mapping)
-
-    logging.info("Creating Model ...")
+    input_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
 
     columns_to_drop = [
         "file_name",
@@ -41,6 +28,8 @@ if __name__ == "__main__":
     ]
 
     set_seed(42)
+
+    logging.info("Creating Model ...")
 
     m = Model(
         units                   = [50, 50],
@@ -63,7 +52,8 @@ if __name__ == "__main__":
 
     logging.info("Testing Model ...")
     m.test_model(
-        data                          = preprocessed_data,
+        input_directory_path          = input_directory_path,
+        video_info_csv_path           = os.path.join(input_directory_path,'video_info_1.csv'),
         columns_to_drop               = columns_to_drop,
         parallel                      = True,
         max_workers                   = max_workers,

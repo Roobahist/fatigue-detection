@@ -4,6 +4,7 @@ import os
 import pickle
 import random
 from datetime import datetime
+from locale import strcoll
 from typing import Dict, List, Optional, Tuple, Union
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -14,6 +15,7 @@ from keras import backend as K
 from keras import layers, losses
 from keras.src.callbacks import Callback, EarlyStopping, History, ModelCheckpoint
 from keras.src.layers import Lambda
+from keras.src.models.sequential import Sequential
 from sklearn.decomposition import PCA
 from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow import keras
@@ -21,7 +23,7 @@ from tensorflow import keras
 from Zh.src.preprocess.reshape import count_slices_per_video, reshape_data_rnn
 from Zh.src.utils.file_folder import create_folders, get_file_paths
 from Zh.src.utils.report import report
-from Zh.src.utils.serialized_parallel import process
+from Zh.src.utils.serialized_parallel import MyDataGenerator, process
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -151,8 +153,8 @@ class Model:
         self.discard_threshold_ratio = discard_threshold_ratio
         self.mapping = mapping
 
-    def _build_model(self, input_shape):
-        model = keras.Sequential()
+    def _build_model(self, input_shape) -> Sequential:
+        model = Sequential()
         model.add(layers.Input(shape=(input_shape[0], input_shape[1])))
 
         # Add LSTM layers
@@ -195,7 +197,6 @@ class Model:
             loss="mse",
             metrics=["mae"],
         )
-
         return model
 
     def _save_result(
@@ -260,12 +261,12 @@ class Model:
                 ), f"Multiple Unique Secondary Values Found For Main Column Value {main_column_value} - {corresponding_secondary_value}"
                 corresponding_secondary_value = corresponding_secondary_value[0]
 
-                fold_train_val_test_file_paths = {"info": {}, "indices": {}}
+                fold_train_val_test_file_paths = {"info": {}, "paths": {}}
 
                 test_split = columns_to_fold_by[
                     columns_to_fold_by[primary_column_name] == main_column_value
                 ]
-                fold_train_val_test_file_paths["indices"]["test"] = data.loc[
+                fold_train_val_test_file_paths["paths"]["test"] = data.loc[
                     test_split.index.to_list()
                 ]["path"].to_list()
                 fold_train_val_test_file_paths["info"]["test"] = {
@@ -281,7 +282,7 @@ class Model:
                         == corresponding_secondary_value
                     )
                 ]
-                fold_train_val_test_file_paths["indices"]["val"] = data.loc[
+                fold_train_val_test_file_paths["paths"]["val"] = data.loc[
                     val_split.index.to_list()
                 ]["path"].to_list()
                 fold_train_val_test_file_paths["info"]["val"] = {
@@ -294,7 +295,7 @@ class Model:
                     columns_to_fold_by[secondary_column_name]
                     != corresponding_secondary_value
                 ]
-                fold_train_val_test_file_paths["indices"]["train"] = data.loc[
+                fold_train_val_test_file_paths["paths"]["train"] = data.loc[
                     train_split.index.to_list()
                 ]["path"].to_list()
                 fold_train_val_test_file_paths["info"]["train"] = {
@@ -308,13 +309,13 @@ class Model:
             for main_column_value_i in unique_main_column_values:
                 for main_column_value_j in unique_main_column_values:
                     if main_column_value_i != main_column_value_j:
-                        fold_train_val_test_file_paths = {"info": {}, "indices": {}}
+                        fold_train_val_test_file_paths = {"info": {}, "paths": {}}
 
                         test_split = columns_to_fold_by[
                             columns_to_fold_by[primary_column_name]
                             == main_column_value_i
                         ]
-                        fold_train_val_test_file_paths["indices"]["test"] = data.loc[
+                        fold_train_val_test_file_paths["paths"]["test"] = data.loc[
                             test_split.index.to_list()
                         ]["path"].to_list()
                         fold_train_val_test_file_paths["info"]["test"] = {
@@ -327,7 +328,7 @@ class Model:
                             columns_to_fold_by[primary_column_name]
                             == main_column_value_j
                         ]
-                        fold_train_val_test_file_paths["indices"]["val"] = data.loc[
+                        fold_train_val_test_file_paths["paths"]["val"] = data.loc[
                             val_split.index.to_list()
                         ]["path"].to_list()
                         fold_train_val_test_file_paths["info"]["val"] = {
@@ -341,7 +342,7 @@ class Model:
                                 [main_column_value_i, main_column_value_j]
                             )
                         ]
-                        fold_train_val_test_file_paths["indices"]["train"] = data.loc[
+                        fold_train_val_test_file_paths["paths"]["train"] = data.loc[
                             train_split.index.to_list()
                         ]["path"].to_list()
                         fold_train_val_test_file_paths["info"]["train"] = {
@@ -354,72 +355,11 @@ class Model:
 
         return train_val_test_file_paths
 
-    class MyDataGenerator(keras.utils.Sequence):
-        """
-        Custom data generator for Keras.
-        """
-
-        def __init__(
-            self,
-            paths: List[str],
-            batch_size: int = 32,
-            slice_size: int = 3000,
-            step_size: int = 3000,
-            discard_threshold_ratio: float = 0.6,
-        ):
-            """
-            Initialization function.  This is where you set up the basic parameters
-            of your data generator.
-            """
-            self.paths = paths
-            self.batch_size = batch_size
-            self.slice_size = slice_size
-            self.step_size = step_size
-            self.discard_threshold_ratio = discard_threshold_ratio
-
-            self.on_epoch_end()
-
-        def __len__(self):
-            """
-            Returns the number of batches per epoch.  Keras uses this to know how many
-            times to call `__getitem__` in one epoch.
-            """
-            video_info = pd.read_csv(os.path.join(input_path, "video_info_1.csv"))
-            file_lengths = video_info[video_info["path"].isin(self.paths)][
-                "total_frames"
-            ].to_list()
-            num_slices = count_slices_per_video(
-                file_lengths,
-                slice_size=self.slice_size,
-                step_size=self.step_size,
-                discard_threshold_ratio=self.discard_threshold_ratio,
-            )
-            return np.ceil(sum(num_slices) / self.batch_size)
-
-        def __getitem__(self, index):
-            """
-            Generates one batch of data.  The core of the data generator.
-            """
-            pass  # Replace with your code
-
-        def on_epoch_end(self):
-            """
-            Called at the end of each epoch.  Use this to re-shuffle the data if needed.
-            """
-            pass  # Replace with your code
-
-        def __data_generation(self, list_IDs_temp):
-            """
-            Generates data containing batch_size samples. This is where the actual data
-            loading and preprocessing happens.
-            """
-            pass  # Replace with your code
-
     def _train_single_fold(
         self,
-        data: pd.DataFrame,
-        split_info: Dict[str, str],
-        split_indices: Dict[str, List],
+        split_info: Dict[str, Dict[str, List[str]]],
+        split_paths: Dict[str, List[str]],
+        video_info_csv_path: str,
         output_folder_path: str,
         columns_to_drop: Optional[List[str]] = [],
         index: Optional[int] = 0,
@@ -437,85 +377,74 @@ class Model:
             f"{index} - {split_info}"
         )
 
-        train = data.loc[split_indices["train"]]
-        val = data.loc[split_indices["val"]]
-        test = data.loc[split_indices["test"]]
-
-        logging.info(
-            f"{index} - train {train.shape} | val {val.shape} | test {test.shape}"
-        )
-
         groupby_column, sortby_column, target_column = "file_name", "frame", "target"
-        columns_to_drop_1 = [
-            column_name
-            for column_name in columns_to_drop
-            if column_name not in [groupby_column, sortby_column, target_column]
-        ]
-        train = train.drop(columns=columns_to_drop_1)
-        val = val.drop(columns=columns_to_drop_1)
-        test = test.drop(columns=columns_to_drop_1)
 
-        feature_columns = [
-            column_name
-            for column_name in train.columns
-            if column_name not in columns_to_drop
-        ]
-
-        X_train, y_train, group_identifiers_train = reshape_data_rnn(
-            df=train,
-            feature_columns=feature_columns,
-            slice_size=self.slice_size,
-            step_size=self.step_size,
-            discard_threshold_ratio=self.discard_threshold_ratio,
+        train_data_gen = MyDataGenerator(
+            paths=split_paths["train"],
+            video_info_csv_path=video_info_csv_path,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
-        )
-        X_val, y_val, group_identifiers_val = reshape_data_rnn(
-            df=val,
-            feature_columns=feature_columns,
+            columns_to_drop=columns_to_drop,
+            batch_size=self.batch_size,
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            groupby_column=groupby_column,
-            sortby_column=sortby_column,
-            target_column=target_column,
-        )
-        X_test, y_test, group_identifiers_test = reshape_data_rnn(
-            df=test,
-            feature_columns=feature_columns,
-            slice_size=self.slice_size,
-            step_size=self.step_size,
-            discard_threshold_ratio=self.discard_threshold_ratio,
-            groupby_column=groupby_column,
-            sortby_column=sortby_column,
-            target_column=target_column,
-        )
-        logging.info(
-            f"{index} - X_train {X_train.shape} | X_val {X_val.shape} | X_test {X_test.shape}"
+            shuffle=True,
         )
 
-        sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
+        val_data_gen = MyDataGenerator(
+            paths=split_paths["val"],
+            video_info_csv_path=video_info_csv_path,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
+            columns_to_drop=columns_to_drop,
+            batch_size=self.batch_size,
+            slice_size=self.slice_size,
+            step_size=self.step_size,
+            discard_threshold_ratio=self.discard_threshold_ratio,
+            shuffle=True,
+        )
+
+        test_data_gen = MyDataGenerator(
+            paths=split_paths["test"],
+            video_info_csv_path=video_info_csv_path,
+            groupby_column=groupby_column,
+            sortby_column=sortby_column,
+            target_column=target_column,
+            columns_to_drop=columns_to_drop,
+            batch_size=self.batch_size,
+            slice_size=self.slice_size,
+            step_size=self.step_size,
+            discard_threshold_ratio=self.discard_threshold_ratio,
+            shuffle=True,
+        )
+
+        # sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
 
         logging.info(f"{index} - building model")
-        model = self._build_model((X_train.shape[1], X_train.shape[2]))
+        model = self._build_model(
+            (self.slice_size, len(train_data_gen.feature_columns))
+        )
 
         logging.info(f"{index} - fitting model")
         # Train the model
 
-        epoch_end_logging = EpochEndLoggingCallback(
-            X_train=X_train,
-            y_train=y_train,
-            group_identifiers_train=group_identifiers_train,
-            X_val=X_val,
-            y_val=y_val,
-            group_identifiers_val=group_identifiers_val,
-            X_test=X_test,
-            y_test=y_test,
-            group_identifiers_test=group_identifiers_test,
-            mapping=self.mapping,
-            index=index,
-        )
+        # epoch_end_logging = EpochEndLoggingCallback(
+        #     X_train=X_train,
+        #     y_train=y_train,
+        #     group_identifiers_train=group_identifiers_train,
+        #     X_val=X_val,
+        #     y_val=y_val,
+        #     group_identifiers_val=group_identifiers_val,
+        #     X_test=X_test,
+        #     y_test=y_test,
+        #     group_identifiers_test=group_identifiers_test,
+        #     mapping=self.mapping,
+        #     index=index,
+        # )
+
         early_stop = EarlyStopping(
             monitor="val_loss",
             patience=self.patience,
@@ -529,37 +458,38 @@ class Model:
             save_weights_only=False,
         )
 
-        history: History = model.fit(
-            X_train,
-            y_train,
-            validation_data=(X_val, y_val),
+        model.fit()
+        history = model.fit(
+            x=train_data_gen,
+            validation_data=val_data_gen,
             epochs=self.epochs,
             batch_size=self.batch_size,
-            callbacks=[early_stop, epoch_end_logging, checkpoint],
+            callbacks=[early_stop, checkpoint],  # TODO Add epoch_end_logging
             verbose=0,
             sample_weight=sample_weight,
         )
 
         logging.info(f"{index} - getting reports")
+
         y_train_pred, train_report = report(
             model=model,
-            x=X_train,
-            y_true=y_train,
-            group_identifiers=group_identifiers_train,
+            x=train_data_gen,
+            y=train_data_gen.data["y"].to_list(),
+            group_identifiers=train_data_gen.data["g"].to_list(),
             unique_classes=list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
             model=model,
-            x=X_val,
-            y_true=y_val,
-            group_identifiers=group_identifiers_val,
+            x=val_data_gen,
+            y=val_data_gen.data["y"].to_list(),
+            group_identifiers=val_data_gen.data["g"].to_list(),
             unique_classes=list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
             model=model,
-            x=X_test,
-            y_true=y_test,
-            group_identifiers=group_identifiers_test,
+            x=test_data_gen,
+            y=test_data_gen.data["y"].to_list(),
+            group_identifiers=test_data_gen.data["g"].to_list(),
             unique_classes=list(self.mapping.values()),
         )
 
@@ -574,20 +504,20 @@ class Model:
             "evaluation": {
                 "train": {
                     "metrics": train_report,
-                    "group_identifiers": group_identifiers_train,
-                    "y_true": y_train,
+                    "group_identifiers": train_data_gen.data["g"],
+                    "y_true": train_data_gen.data["y"],
                     "y_pred": y_train_pred,
                 },
                 "val": {
                     "metrics": val_report,
-                    "group_identifiers": group_identifiers_val,
-                    "y_true": y_val,
+                    "group_identifiers": val_data_gen.data["g"],
+                    "y_true": train_data_gen.data["y"],
                     "y_pred": y_val_pred,
                 },
                 "test": {
                     "metrics": test_report,
-                    "group_identifiers": group_identifiers_test,
-                    "y_true": y_test,
+                    "group_identifiers": test_data_gen.data["g"],
+                    "y_true": train_data_gen.data["y"],
                     "y_pred": y_test_pred,
                 },
             },
@@ -610,6 +540,7 @@ class Model:
     def test_model(
         self,
         input_directory_path: str,
+        video_info_csv_path: str,
         columns_to_drop: Optional[List[str]] = [],
         parallel: bool = False,
         max_workers: Optional[int] = None,
@@ -643,6 +574,8 @@ class Model:
                         "step_size": self.step_size,
                         "mapping": self.mapping,
                         "discard_threshold_ratio": self.discard_threshold_ratio,
+                        "input_directory_path": input_directory_path,
+                        "video_info_csv_path": video_info_csv_path,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
                         "fold_by_primary_column_name": fold_by_primary_column_name,
@@ -662,13 +595,14 @@ class Model:
 
         args_list = [
             {
-                "split_info": test_fold_value["info"],
-                "split_indices": test_fold_value["indices"],
+                "split_info": split["info"],
+                "split_paths": split["paths"],
+                "video_info_csv_path": video_info_csv_path,
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "index": idx,
             }
-            for idx, test_fold_value in enumerate(train_val_test_indices)
+            for idx, split in enumerate(train_val_test_indices)
         ]
 
         logging.info(f"Found {len(args_list)} valid test-validation pairs.")
@@ -686,8 +620,8 @@ class Model:
         )
 
         results = process(
-            handler_function=self._save_result,
             worker_function=self._train_single_fold,
+            handler_function=self._save_result,
             worker_params_list=args_list,
             parallel=parallel,
             max_workers=max_workers,
