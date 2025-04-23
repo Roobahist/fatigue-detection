@@ -386,7 +386,7 @@ class Model:
         feature_columns = [
             column_name
             for column_name in train.columns
-            if column_name not in columns_to_drop
+            if column_name not in columns_to_drop + [target_column]
         ]
 
         X_train, y_train, group_identifiers_train = reshape_data_rnn(
@@ -456,6 +456,8 @@ class Model:
             save_best_only=True,
             save_weights_only=False,
         )
+
+        
 
         history: History = model.fit(
             X_train,

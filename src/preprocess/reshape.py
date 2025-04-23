@@ -85,7 +85,8 @@ def reshape_data_rnn(
             len(y_group) == 1
         ), f"Expected one unique target value, but found {len(y_group)}"
         y_group = y_group[0]
-
+        assert (target_column not in feature_columns), "Target Column Appeared in the features"
+        assert (groupby_column not in feature_columns), "GroupBy Column Appeared in the features"
         # Extract features as a list of lists
         slices = group[feature_columns].values.tolist()
         # Create chunks with the specified step size

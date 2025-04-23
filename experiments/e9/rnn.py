@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     logging.info("Loading Data ...")
     # path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded"
-    path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.3-preprocessed"
+    path_to_data = "/work/long_lab/Mojtaba/data/UTA/1.3.3-preprocessed_merged"
     preprocessed_data = load_data(
         input_path=path_to_data,
         # file_names=["facenet_preprocessed_alternativemapping.csv"],
