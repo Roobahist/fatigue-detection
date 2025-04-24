@@ -1,6 +1,8 @@
+from typing import Union, List, Dict, Any, Tuple, Optional
+from src.utils.file_folder import create_folders
+from src.utils.common import save_obj
+import numpy as np
 import os
-from typing import List, Optional, Tuple
-
 import pandas as pd
 
 
@@ -44,3 +46,77 @@ def fix_columns(
     ]
 
     return data, columns_to_drop
+
+
+def fit_normalizer_one_file(train_val_test_file_path, output_directory_path,
+                            chunk_size, feature_columns):
+
+    import pandas as pd
+    from sklearn.preprocessing import StandardScaler
+    index = train_val_test_file_path['index']
+    directory_path = os.path.join(output_directory_path, str(index))
+    create_folders(directory_path)
+
+    output_file_path = os.path.join(directory_path, str(index) + "_normalizer.pkl")
+
+    scaler = StandardScaler()
+    for file_path in train_val_test_file_path['paths']['train']:
+        print(f"{index} - {file_path}")
+        for chunk in pd.read_csv(file_path, chunksize=chunk_size):
+            chunk = chunk[feature_columns]
+            scaler.partial_fit(chunk)
+    return {'obj': scaler, 'output_path': output_file_path, 'file_type': 'pickle'}
+
+
+def fit_normalizer(train_val_test_file_paths: List[Dict],
+                   output_directory_path: str,
+                   chunk_size: 1000,
+                   feature_columns: List[str],
+                   parallel: bool = True,
+                   max_workers: int = 10,
+                   maxtasksperchild: int = 1,
+                   use_tqdm: bool = True):
+
+    from src.utils.serialized_parallel import process
+
+    save_obj(obj=train_val_test_file_paths,
+             output_path=os.path.join(output_directory_path, 'info.json'),
+             file_type='json')
+
+    create_folders(output_directory_path)
+
+    args_list = [{
+        "train_val_test_file_path": train_val_test_file_path,
+        "output_directory_path": output_directory_path,
+        "chunk_size": chunk_size,
+        "feature_columns": feature_columns,
+    } for train_val_test_file_path in train_val_test_file_paths]
+
+    process(
+        worker_function=fit_normalizer_one_file,
+        handler_function=save_obj,
+        worker_params_list=args_list,
+        parallel=parallel,
+        max_workers=max_workers,
+        maxtasksperchild=maxtasksperchild,
+        use_tqdm=use_tqdm,
+    )
+
+
+if __name__ == "__main__":
+    from src.utils.split_files import _get_train_val_test_file_paths
+
+    train_val_test_file_paths = _get_train_val_test_file_paths(
+        input_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed",
+        primary_column_name = "fold",
+        secondary_column_name = None
+    )
+
+    fit_normalizer(train_val_test_file_paths = train_val_test_file_paths,
+                    output_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized",
+                    chunk_size = 1000,
+                    feature_columns = [f"f_{i}" for i in range(128)],
+                    parallel = True,
+                    max_workers = 10,
+                    maxtasksperchild = 1,
+                    use_tqdm = True)
