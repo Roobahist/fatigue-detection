@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     m = Model(
         units                   = [50, 50],
-        dropout_ratio           = 0.3,
+        dropout_ratio           = 0.4,
         kernel_regularizer_l2   = 0,
         kernel_regularizer_l1   = 0,
         batch_size              = 32,
@@ -55,8 +55,8 @@ if __name__ == "__main__":
         epsilon                 = 1e-7,
         epochs                  = 250,
         patience                = 50,
-        slice_size              = 4500,
-        step_size               = 2000,
+        slice_size              = 5000,
+        step_size               = 1000,
         discard_threshold_ratio = 0.7,
         mapping                 = mapping,
     )
@@ -70,8 +70,8 @@ if __name__ == "__main__":
         maxtasksperchild              = 1,
         use_tqdm                      = False,
         output_parent_dir             = "/home/mojtaba.kananisarche/Zh/outputs",
-        fold_by_primary_column_name   = "subject_id",
-        fold_by_secondary_column_name = "fold",
+        fold_by_primary_column_name   = "fold",
+        fold_by_secondary_column_name = None,
         fold_start_index              = fold_start_index,
         fold_end_index                = fold_end_index,
         fold_indices                  = []

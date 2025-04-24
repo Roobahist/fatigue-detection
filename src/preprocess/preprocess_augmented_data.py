@@ -1,7 +1,7 @@
 import logging
 import os
 
-from Zh.src.preprocess.preprocessing import preprocess_data
+from Zh.src.preprocess.preprocessing import fix_columns
 from Zh.src.utils.file_folder import create_folders, get_file_paths
 from Zh.src.utils.load_data import load_data
 
@@ -14,7 +14,9 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
 
     input_path = "/work/long_lab/Mojtaba/data/UTA/1.3.1-augmented_embedded"
-    output_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
+    output_path = (
+        "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
+    )
     mapping = {"10": 8.5, "5": 6.5, "0": 2}
 
     logger.info("Starting preprocessing of augmented data.")
@@ -30,7 +32,7 @@ if __name__ == "__main__":
 
     for file_path in file_paths:
         unpreprocessed_data = load_data(input_path=file_path, file_names=[])
-        preprocessed_data, columns_to_drop = preprocess_data(
+        preprocessed_data, columns_to_drop = fix_columns(
             data=unpreprocessed_data, mapping=mapping
         )
 

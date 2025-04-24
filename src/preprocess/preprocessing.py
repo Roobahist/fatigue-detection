@@ -3,8 +3,9 @@ from typing import List, Optional, Tuple
 
 import pandas as pd
 
-#e7
-def preprocess_data(
+
+# e7
+def fix_columns(
     data: pd.DataFrame, mapping: Optional[dict] = None
 ) -> Tuple[pd.DataFrame, List[str]]:
     # Ensure the 'file_name' column exists
