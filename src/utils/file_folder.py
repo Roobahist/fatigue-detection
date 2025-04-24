@@ -18,7 +18,7 @@ def create_folders(to_create_folder_paths: Union[str, List[str]]) -> bool:
 
 
 def get_file_paths(
-    folder_path: str, depth: int = 1, EXT_LIST: List[str] = []
+    input_path: str, depth: int = 1, EXT_LIST: List[str] = []
 ) -> List[str]:
     EXT_LIST = [
         ext.lower() if ext.startswith(".") else "." + ext.lower() for ext in EXT_LIST
@@ -28,8 +28,8 @@ def get_file_paths(
         depth = 1
 
     file_paths = []
-    for dirpath, _, file_names in os.walk(folder_path):
-        if dirpath[len(folder_path) :].count(os.sep) < depth:
+    for dirpath, _, file_names in os.walk(input_path):
+        if dirpath[len(input_path) :].count(os.sep) < depth:
             file_paths.extend(
                 [
                     os.path.join(dirpath, file_name)

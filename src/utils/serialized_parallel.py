@@ -12,8 +12,8 @@ def wrapped_worker_function(params_and_worker):
 
 
 def process(
-    handler_function: Callable[[Any], Any],
     worker_function: Callable,
+    handler_function: Callable[[Any], Any],
     worker_params_list: List[Dict],
     parallel: bool = True,
     max_workers: Optional[int] = None,

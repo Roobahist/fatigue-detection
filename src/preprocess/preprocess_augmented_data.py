@@ -22,7 +22,7 @@ if __name__ == "__main__":
     logger.info("Starting preprocessing of augmented data.")
     logger.info(f"Mapping used for preprocessing: {mapping}")
 
-    file_paths = get_file_paths(folder_path=input_path, depth=3, EXT_LIST=[".csv"])
+    file_paths = get_file_paths(input_path=input_path, depth=3, EXT_LIST=[".csv"])
 
     input_directory_folders = list(set([os.path.dirname(i) for i in file_paths]))
     folders_to_create = [
