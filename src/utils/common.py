@@ -66,3 +66,22 @@ def has_multiple_mappings(list1, list2):
     
     # Check if any element in list2 maps to more than one unique element in list1
     return any(len(values) > 1 for values in mapping.values())
+
+
+def save_obj(obj, output_path, file_type):
+    """
+    Save an object to a file using pickle.
+
+    Args:
+        obj (Any): The object to be pickled.
+        output_path (str): The path where the pickled file will be saved.
+    """
+    if file_type == "pickle":
+        import pickle
+        with open(output_path, 'wb') as file:
+            pickle.dump(obj, file)
+
+    if file_type == "json":
+        import json
+        with open(output_path, 'w') as f:
+            json.dump(obj, f, indent=4)
