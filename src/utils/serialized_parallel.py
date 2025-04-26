@@ -13,8 +13,8 @@ def wrapped_worker_function(params_and_worker):
 
 def process(
     worker_function: Callable,
-    handler_function: Callable[[Any], Any],
     worker_params_list: List[Dict],
+    handler_function: Optional[Callable[[Any], Any]] = None,
     parallel: bool = True,
     max_workers: Optional[int] = None,
     maxtasksperchild: Optional[int] = 1,
@@ -28,21 +28,27 @@ def process(
         with multiprocessing.Pool(
             processes=max_workers, maxtasksperchild=maxtasksperchild
         ) as pool:
-            # Pass both the worker function and parameters to the pool
             tasks = [(worker_function, params) for params in worker_params_list]
             for result in tqdm(
                 pool.imap_unordered(wrapped_worker_function, tasks),
                 total=len(worker_params_list),
                 disable=not use_tqdm,
-            ):
-                processed_result = handler_function(**result)
-                if processed_result is not None:
-                    results.append(processed_result)
+            ):  
+                if handler_function:
+                    processed_result = handler_function(**result)
+                    if processed_result is not None:
+                        results.append(processed_result)
+                else:
+                    results.append(results)
     else:
         logging.info("Processing in Serialized Mode ...")
         for params in tqdm(worker_params_list, disable=not use_tqdm):
             result = worker_function(**params)
-            processed_result = handler_function(**result)
-            if processed_result is not None:
-                results.append(processed_result)
+            if handler_function:
+                processed_result = handler_function(**result)
+                if processed_result is not None:
+                    results.append(processed_result)
+            else:
+                results.append(results)
+
     return results
