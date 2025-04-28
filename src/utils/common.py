@@ -161,3 +161,22 @@ def pop_row(df, idx, reset_index=False):
         remaining = remaining.reset_index(drop=True)
 
     return popped, remaining
+
+
+def merge_intervals(intervals):
+    intervals = sorted(intervals, key=lambda x: x[0])
+    
+    merged = []
+    for interval in intervals:
+        if not merged:
+            merged.append(interval)
+        else:
+            last = merged[-1]
+            if interval[0] < last[1]:  # real intersection (not just touching)
+                print(f"Warning: intervals {last} and {interval} overlap!")
+                merged[-1] = (last[0], max(last[1], interval[1]))
+            elif interval[0] == last[1]:  # touching, safe to merge
+                merged[-1] = (last[0], interval[1])
+            else:
+                merged.append(interval)
+    return merged
