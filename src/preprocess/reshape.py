@@ -85,10 +85,13 @@ def reshape_data_rnn(
             len(y_group) == 1
         ), f"Expected one unique target value, but found {len(y_group)}"
         y_group = y_group[0]
-
+        assert (target_column not in feature_columns), "Target Column Appeared in the features"
+        assert (groupby_column not in feature_columns), "GroupBy Column Appeared in the features"
         # Extract features as a list of lists
         slices = group[feature_columns].values.tolist()
         # Create chunks with the specified step size
+
+        start_idx = 0
         for start_idx in range(0, len(slices) - slice_size + 1, step_size):
             chunk = slices[start_idx : start_idx + slice_size]
             X.append(chunk)
@@ -108,62 +111,62 @@ def reshape_data_rnn(
     return np.array(X_padded), np.array(y), np.array(g)
 
 
-@overload
-def count_slices_per_video(
-    df_or_lengths: pd.DataFrame,
-    slice_size: int,
-    step_size: Optional[int],
-    groupby_column: str = ...,
-    discard_threshold_ratio: float = ...
-) -> List[int]:    ...
+# @overload
+# def count_slices_per_video(
+#     df_or_lengths: pd.DataFrame,
+#     slice_size: int,
+#     step_size: Optional[int],
+#     groupby_column: str = ...,
+#     discard_threshold_ratio: float = ...
+# ) -> List[int]:    ...
 
-@overload
-def count_slices_per_video(
-    df_or_lengths: List[int],
-    slice_size: int,
-    step_size: Optional[int],
-    discard_threshold_ratio: float = ...
-) -> List[int]:    ...
+# @overload
+# def count_slices_per_video(
+#     df_or_lengths: List[int],
+#     slice_size: int,
+#     step_size: Optional[int],
+#     discard_threshold_ratio: float = ...
+# ) -> List[int]:    ...
 
 
-def count_slices_per_video(df_or_lengths: Union[pd.DataFrame, List[int]],
-                           slice_size: int,
-                           step_size: Optional[int],
-                           groupby_column: str = "file_name",
-                           discard_threshold_ratio: float = 0.6) -> List[int]:
-    """
-    Calculate the total number of slices for each video.
+# def count_slices_per_video(df_or_lengths: Union[pd.DataFrame, List[int]],
+#                            slice_size: int,
+#                            step_size: Optional[int],
+#                            groupby_column: str = "file_name",
+#                            discard_threshold_ratio: float = 0.6) -> List[int]:
+#     """
+#     Calculate the total number of slices for each video.
 
-    Args:
-        df_or_lengths (pd.DataFrame or List[int]): Input dataframe OR list of video lengths.
-        slice_size (int): Slice size.
-        step_size (int): Step between slices.
-        groupby_column (str): Column name to group by (only if using DataFrame).
-        discard_threshold_ratio (float): Minimum portion to keep the last slice.
+#     Args:
+#         df_or_lengths (pd.DataFrame or List[int]): Input dataframe OR list of video lengths.
+#         slice_size (int): Slice size.
+#         step_size (int): Step between slices.
+#         groupby_column (str): Column name to group by (only if using DataFrame).
+#         discard_threshold_ratio (float): Minimum portion to keep the last slice.
 
-    Returns:
-        int: Total number of slices.
-    """
-    step_size = step_size or slice_size
+#     Returns:
+#         int: Total number of slices.
+#     """
+#     step_size = step_size or slice_size
 
-    if isinstance(df_or_lengths, pd.DataFrame):
-        video_lengths = [
-            len(group) for _, group in df_or_lengths.groupby(groupby_column)
-        ]
-    else:
-        video_lengths = df_or_lengths
+#     if isinstance(df_or_lengths, pd.DataFrame):
+#         video_lengths = [
+#             len(group) for _, group in df_or_lengths.groupby(groupby_column)
+#         ]
+#     else:
+#         video_lengths = df_or_lengths
 
-    num_slices = []
-    for num_frames in video_lengths:
-        video_num_slices = 0
-        num_full_slices = max(0, (num_frames - slice_size) // step_size + 1)
-        video_num_slices += num_full_slices
+#     num_slices = []
+#     for num_frames in video_lengths:
+#         video_num_slices = 0
+#         num_full_slices = max(0, (num_frames - slice_size) // step_size + 1)
+#         video_num_slices += num_full_slices
 
-        remaining_frames = num_frames - (num_full_slices * step_size +
-                                         slice_size - step_size)
-        discard_threshold_frame = int(discard_threshold_ratio * slice_size)
-        if remaining_frames >= discard_threshold_frame:
-            video_num_slices += 1
-        num_slices.append(video_num_slices)
+#         remaining_frames = num_frames - (num_full_slices * step_size +
+#                                          slice_size - step_size)
+#         discard_threshold_frame = int(discard_threshold_ratio * slice_size)
+#         if remaining_frames >= discard_threshold_frame:
+#             video_num_slices += 1
+#         num_slices.append(video_num_slices)
 
-    return num_slices
+#     return num_slices
