@@ -1,8 +1,10 @@
-from typing import Union, List
+from typing import List, Union
+
 
 def set_seed(seed=42):
     import os
     import random
+
     import numpy as np
     import tensorflow as tf
     os.environ["PYTHONHASHSEED"] = str(seed)
@@ -71,8 +73,8 @@ def has_multiple_mappings(list1, list2):
 
 
 def get_csv_length(file_path: str, skip_header: bool = False):
-    import os
     import csv
+    import os
 
     assert os.path.exists(file_path), "File does not exist."
     assert file_path.lower().endswith('.csv'), "This is not a CSV file."
@@ -105,6 +107,7 @@ def find_new_file_name(output_directory_path: str,
         # Returns something like 'file_1.txt' if 'file_1.txt' does not exist.
     """
     import os
+
     from Zh.src.utils.file_folder import create_folders
 
     # Ensure the directory exists
