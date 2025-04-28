@@ -48,7 +48,7 @@ def _load_single_file(
         temp_data.columns = [f"f_{i}" for i in range(temp_data.shape[1])]
     else:
         temp_data.columns = headers
-        temp_data = temp_data.iloc[1:].reset_index(drop=True)
+        temp_data = temp_data.reset_index(drop=True)
     identifier_column_name = _find_identifier_column_name(
         column_names=temp_data.columns,
         identifier_column_prefix=identifier_column_prefix,
