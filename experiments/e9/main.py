@@ -21,9 +21,10 @@ from sklearn.utils.class_weight import compute_sample_weight
 from tensorflow import keras
 
 from Zh.src.preprocess.reshape import count_slices_per_video, reshape_data_rnn
+from Zh.src.utils.datagenerator import MyDataGenerator
 from Zh.src.utils.file_folder import create_folders, get_file_paths
 from Zh.src.utils.report import report
-from Zh.src.utils.serialized_parallel import MyDataGenerator, process
+from Zh.src.utils.serialized_parallel import process
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -362,6 +363,7 @@ class Model:
         video_info_csv_path: str,
         output_folder_path: str,
         columns_to_drop: Optional[List[str]] = [],
+        workers: Optional[int] = 1,
         index: Optional[int] = 0,
     ):
         """Helper function for parallel processing in test_model.
@@ -390,7 +392,9 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            shuffle=True,
+            shuffle=False, #Not connected currently. will be deleted probably as it is not needed
+            workers                 = workers,
+            use_multiprocessing     = True,
         )
 
         val_data_gen = MyDataGenerator(
@@ -404,7 +408,9 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            shuffle=True,
+            shuffle=False, #Not connected currently. will be deleted probably as it is not needed
+            workers                 = workers,
+            use_multiprocessing     = True,
         )
 
         test_data_gen = MyDataGenerator(
@@ -418,7 +424,9 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            shuffle=True,
+            shuffle=False, #Not connected currently. will be deleted probably as it is not needed
+            workers                 = workers,
+            use_multiprocessing     = True,
         )
 
         # sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
@@ -465,8 +473,7 @@ class Model:
             epochs=self.epochs,
             batch_size=self.batch_size,
             callbacks=[early_stop, checkpoint],  # TODO Add epoch_end_logging
-            verbose=0,
-            sample_weight=sample_weight,
+            verbose=1,
         )
 
         logging.info(f"{index} - getting reports")
@@ -552,6 +559,7 @@ class Model:
         fold_start_index: Optional[int] = None,
         fold_end_index: Optional[int] = None,
         fold_indices: Optional[List[int]] = None,
+        workers: Optional[int] = 1,
     ):
 
         output_folder_name = datetime.now().strftime(
@@ -600,6 +608,7 @@ class Model:
                 "video_info_csv_path": video_info_csv_path,
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
+                "workers": workers,
                 "index": idx,
             }
             for idx, split in enumerate(train_val_test_indices)

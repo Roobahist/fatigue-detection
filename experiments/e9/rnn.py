@@ -64,5 +64,6 @@ if __name__ == "__main__":
         fold_by_secondary_column_name = None,
         fold_start_index              = fold_start_index,
         fold_end_index                = fold_end_index,
-        fold_indices                  = []
+        fold_indices                  = [],
+        workers                       = 1
     )
