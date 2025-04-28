@@ -1,5 +1,5 @@
 import random
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 from unittest import skip
 
 import numpy as np
@@ -138,6 +138,13 @@ class MyDataGenerator(PyDataset):
 
         return info
     
+    def on_epoch_end(self):
+        """
+        Called at the end of each epoch.
+        #TODO implement proper shuffling. probably not needed as the batch indices are accessed without order
+        """
+        pass
+
     def __len__(self):
         """
         Returns the number of batches per epoch.  Keras uses this to know how many
@@ -158,13 +165,6 @@ class MyDataGenerator(PyDataset):
                                    target_column           = self.target_column,
                                    discard_threshold_ratio = self.discard_threshold_ratio)
         return X, y, g
-    
-    def on_epoch_end(self):
-        """
-        Called at the end of each epoch.
-        #TODO implement proper shuffling. probably not needed as the batch indices are accessed without order
-        """
-        pass
 
     def __data_generation(self, index):
         """
