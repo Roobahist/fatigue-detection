@@ -1,11 +1,12 @@
 import random
-from typing import List
+from typing import List, Optional, Dict
+from unittest import skip
 
 import numpy as np
 import pandas as pd
 from keras.src.trainers.data_adapters.py_dataset_adapter import PyDataset
 from src.preprocess.reshape import count_slices_per_video, reshape_data_rnn
-from src.utils.common import get_csv_length, pop_row
+from src.utils.common import merge_intervals, pop_row
 from src.utils.load_data import _extract_headers, load_data
 
 
@@ -40,16 +41,25 @@ class MyDataGenerator(PyDataset):
         self.sortby_column           = sortby_column
         self.target_column           = target_column
         self.columns_to_drop         = columns_to_drop
-        self.columns_to_drop_1       = self._get_columns_to_drop_1()
-        self.feature_columns         = self._get_feature_columns()
         self.batch_size              = batch_size
         self.slice_size              = slice_size
         self.step_size               = step_size
         self.discard_threshold_ratio = discard_threshold_ratio
         self.shuffle                 = shuffle
+        
+        self.columns_to_drop_1       = self._get_columns_to_drop_1()
+        self.feature_columns         = self._get_feature_columns()
+        self.batch_info              = self._get_batch_info(
+            video_info_csv_path     = self.video_info_csv_path,
+            batch_size              = self.batch_size,
+            slice_size              = self.slice_size,
+            step_size               = self.step_size,
+            groupby_column          = 'path',
+            groupby_column_filter   = self.paths,
+            counts_column           = 'total_frames',
+            discard_threshold_ratio = self.discard_threshold_ratio)
+
         self.num_slices              = []
-        self.data                    = pd.DataFrame(columns = ('X', 'y', 'g'))
-        self.stash                   = pd.DataFrame(columns = ('X', 'y', 'g'))
 
         self.on_epoch_end()
 
@@ -66,30 +76,76 @@ class MyDataGenerator(PyDataset):
         return [
             column_name
             for column_name in _extract_headers(self.paths[0])
-            if column_name not in self.columns_to_drop
+            if column_name not in 
+            self.columns_to_drop + [self.target_column, 
+                                    self.sortby_column, 
+                                    self.groupby_column]
         ]
+
+    def _get_batch_info(
+        self,
+        video_info_csv_path : str,
+        batch_size : int,
+        slice_size: int,
+        step_size: Optional[int],
+        groupby_column : str = 'path',
+        groupby_column_filter : List[str] = [],
+        counts_column : str = 'total_frames',
+        discard_threshold_ratio: float = 0.6) -> Dict[str, List]:
+
+        info = {
+            'counts' : [],
+            'batches': [],
+        }
+
+        video_info = load_data(video_info_csv_path)
+        groupby_column_filter = groupby_column_filter or video_info[groupby_column].unique()
+        video_info = video_info[video_info[groupby_column].isin(groupby_column_filter)]
+        
+        new_rows = []
+        for _, row in video_info.iterrows():
+            total = row[counts_column]
+            start_frame = 0
+            while start_frame < total:
+                end_frame = min(start_frame + slice_size, total)
+                current_slice_size = end_frame - start_frame
+                if current_slice_size >= discard_threshold_ratio * slice_size:
+                    new_row = row.copy()  # Create a copy to avoid modifying the original row
+                    new_row['start_frame'] = start_frame
+                    new_row['end_frame'] = end_frame
+                    new_rows.append(new_row)
+                start_frame += step_size
+
+        video_info_processed = pd.DataFrame(new_rows).reset_index(drop=True)
+
+        for group_identifier, group in video_info_processed.groupby(groupby_column):
+            info['counts'].append({groupby_column : group_identifier, 
+                                'count' : len(group)})
+
+        for i in range(int(np.ceil(len(video_info_processed)/batch_size))):
+            start_index = i * batch_size
+            end_index   = min((i+1) * batch_size, len(video_info_processed))
+            current_batch_info  = []
+            for group_identifier, group in video_info_processed[start_index: end_index].groupby(groupby_column):
+                current_batch_info.append(
+                    {
+                        groupby_column : group_identifier,
+                        'raw_intervals' : list(zip(group['start_frame'], group['end_frame'])),
+                        'merged_intervals' : merge_intervals(list(zip(group['start_frame'], group['end_frame'])))
+                    }
+                )
+            info['batches'].append(current_batch_info)
+
+        return info
     
     def __len__(self):
         """
         Returns the number of batches per epoch.  Keras uses this to know how many
         times to call `__getitem__` in one epoch.
         """
-        self.pointer = 0
-        assert len(self.stash) != 0, f"Stash is not emptied properly! Length of stash : {len(self.stash)}"
-        self.data  = pd.DataFrame(columns = ('X', 'y', 'g')) #TODO fill data only once as it keeps doing the same thing over different epochs
-        self.stash = pd.DataFrame(columns = ('X', 'y', 'g'))
+        assert len(self.batch_info['counts']) == len(self.paths), f"num_slices not calculated properly for all paths. num_slices : {len(self.batch_info['counts'])}, paths : {len(self.paths)}"
 
-        if not self.num_slices:
-            video_info = pd.read_csv(self.video_info_csv_path)
-            file_lengths = video_info[video_info['path'].isin(self.paths)]['total_frames'].to_list()
-            num_slices = count_slices_per_video(df_or_lengths           = file_lengths, 
-                                                slice_size              = self.slice_size,
-                                                step_size               = self.step_size,
-                                                discard_threshold_ratio = self.discard_threshold_ratio)
-            self.num_slices = num_slices
-        assert self.num_slices != len(self.paths), f"num_slices not calculated properly for all paths. num_slices : {len(self.num_slices)}, paths : {len(self.paths)}"
-
-        return np.ceil(sum(self.num_slices)/self.batch_size)
+        return int(np.ceil(sum([file['count'] for file in self.batch_info['counts']])/self.batch_size))
     
     def _preprocess_data(self, file_data):
         file_data = file_data.drop(self.columns_to_drop_1, axis=1)
@@ -103,42 +159,39 @@ class MyDataGenerator(PyDataset):
                                    discard_threshold_ratio = self.discard_threshold_ratio)
         return X, y, g
     
-    def _update_generator_memory(self, X_file, y_file, g_file):
-        for (X, y, g) in zip(X_file, y_file, g_file):
-            record_index = len(self.data)
-
-            self.data.loc[record_index]  = {'X':'-', 'y':y, 'g':g}
-            self.stash.loc[record_index] = {'X':X  , 'y':y, 'g':g}
-    
     def on_epoch_end(self):
         """
-        Called at the end of each epoch.  Use this to re-shuffle the data if needed.
+        Called at the end of each epoch.
+        #TODO implement proper shuffling. probably not needed as the batch indices are accessed without order
         """
-        if False:  #TODO implement proper shuffling
-            self.paths = random.sample(self.paths, len(self.paths))
+        pass
 
-    def __data_generation(self):
+    def __data_generation(self, index):
         """
         Generates data containing batch_size samples. This is where the actual data
         loading and preprocessing happens.
         """
-        while len(self.stash) < self.batch_size:
-            file_data = load_data(input_path = self.paths[self.pointer])
-            X_file, y_file, g_file = self._preprocess_data(file_data = file_data)
-            self._update_generator_memory(X_file, y_file, g_file)
-            self.pointer += 1
+        current_batch_info = self.batch_info['batches'][index]
+        X, y, g = [], [], []
 
-    def _pop_from_stash(self):
-        popped, self.stash = pop_row(df = self.stash, 
-                                     idx = slice(0,self.batch_size), 
-                                     reset_index=False)
-        return popped
+        for file in current_batch_info:
+            file_data = load_data(input_path=file['path'], 
+                      skiprows=file['merged_intervals'][0][0],
+                      nrows=file['merged_intervals'][0][1] - file['merged_intervals'][0][0])
+            X_file, y_file, g_file = self._preprocess_data(file_data=file_data)
+            
+            # Concatenate to the parent arrays
+            X.extend(X_file)
+            y.extend(y_file)
+            g.extend(g_file)
+
+        return {'X': np.array(X), 'y': np.array(y), 'g': np.array(g)}
 
     def __getitem__(self, index):
         """
         Generates one batch of data.  The core of the data generator.
         #TODO Calculate class weights based on the name of files and num_slices and return
         """
-        self.__data_generation()
-        popped = self._pop_from_stash()        
-        return (np.stack(popped['X']), np.stack(popped['y']))
+        print(f"index {index}")
+        batch = self.__data_generation(index)
+        return (batch['X'], batch['y'])
