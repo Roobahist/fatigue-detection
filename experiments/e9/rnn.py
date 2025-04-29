@@ -53,7 +53,7 @@ if __name__ == "__main__":
     logging.info("Testing Model ...")
     m.test_model(
         input_directory_path          = input_directory_path,
-        video_info_csv_path           = os.path.join(input_directory_path,'video_info_1.csv'),
+        split_info_csv_path           = os.path.join(input_directory_path,'split_info.csv'),
         columns_to_drop               = columns_to_drop,
         parallel                      = True,
         max_workers                   = max_workers,
