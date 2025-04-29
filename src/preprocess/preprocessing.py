@@ -82,7 +82,7 @@ def fit_normalizer(train_val_test_file_paths: List[Dict],
     from src.utils.serialized_parallel import process
 
     save_obj(obj=train_val_test_file_paths,
-             output_path=os.path.join(output_directory_path, 'info.json'),
+             output_path=os.path.join(output_directory_path, 'split_info.json'),
              file_type='json')
 
     create_folders(output_directory_path)
@@ -148,7 +148,7 @@ def apply_normalizer(input_directory_path : str,
 
     from src.utils.serialized_parallel import process
     
-    with open(os.path.join(input_directory_path, "info.json"), "r") as file:
+    with open(os.path.join(input_directory_path, "split_info.json"), "r") as file:
         train_val_test_file_paths = json.load(file)
 
     args_list = [{
