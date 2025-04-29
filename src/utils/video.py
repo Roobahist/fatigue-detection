@@ -69,8 +69,21 @@ def get_video_info_from_csv(
     return data
 
 
-# if __name__ == "__main__":
-#     from Zh.src.utils.file_folder import get_file_paths
+if __name__ == "__main__":
+    from Zh.src.utils.file_folder import get_file_paths
+    import os
+
+    root_dir = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized"
+    for subdir in os.listdir(root_dir):
+        full_path = os.path.join(root_dir, subdir)
+        if os.path.isdir(full_path):
+            file_paths = get_file_paths(folder_path=full_path, 
+                                        depth=2, 
+                                        EXT_LIST=[".csv"])
+                                        
+            _ = get_video_info_from_csv(file_paths=file_paths, 
+                                        output_directory_path=full_path, 
+                                        output_file_prefix="video_info")
 
 #     input_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
 #     file_paths = get_file_paths(folder_path=input_path, depth=3, EXT_LIST=[".csv"])
