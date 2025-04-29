@@ -104,7 +104,7 @@ def find_new_file_name(output_directory_path: str,
 
     Example:
         find_new_file_name('/path/to/dir', 'file', 'txt')
-        # Returns something like 'file_1.txt' if 'file_1.txt' does not exist.
+        # Returns something like 'file.txt' 'file_1.txt' if 'file_1.txt' does not exist.
     """
     import os
 
@@ -113,9 +113,14 @@ def find_new_file_name(output_directory_path: str,
     # Ensure the directory exists
     create_folders(output_directory_path)
 
+    # Trying without counter 
+    file_name = f"{file_name_prefix}.{file_name_extension}" if file_name_extension else file_name_prefix
+    file_path = os.path.join(output_directory_path, file_name)
+    if not os.path.exists(file_path):
+        return file_name
+
     # Initialize the suffix counter
     counter = 1
-
     # Construct the file name with the optional extension
     while True:
         file_name = f"{file_name_prefix}_{counter}"
