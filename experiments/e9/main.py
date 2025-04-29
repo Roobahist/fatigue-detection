@@ -5,7 +5,8 @@ import pickle
 import random
 from datetime import datetime
 from locale import strcoll
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
+from xml.dom import xmlbuilder
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
@@ -49,9 +50,6 @@ class NumpyEncoder(json.JSONEncoder):
 class EpochEndLoggingCallback(Callback):
     def __init__(
         self,
-        train_data_gen : MyDataGenerator,
-        val_data_gen : MyDataGenerator,
-        test_data_gen : MyDataGenerator,
         mapping : Dict,
         index : int,
 
