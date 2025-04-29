@@ -54,6 +54,18 @@ class EpochEndLoggingCallback(Callback):
         test_data_gen : MyDataGenerator,
         mapping : Dict,
         index : int,
+
+        X_train: Union[np.ndarray, MyDataGenerator],
+        X_val  : Union[np.ndarray, MyDataGenerator],
+        X_test : Union[np.ndarray, MyDataGenerator],
+
+        y_train : Union[np.ndarray, None] = None,
+        y_val   : Union[np.ndarray, None] = None,
+        y_test  : Union[np.ndarray, None] = None,
+
+        group_identifiers_train : Union[np.ndarray, None] = None,
+        group_identifiers_val   : Union[np.ndarray, None] = None,
+        group_identifiers_test  : Union[np.ndarray, None] = None,
     ):
         """
         Callback to log metrics at the end of each epoch using data generators.
@@ -75,29 +87,54 @@ class EpochEndLoggingCallback(Callback):
         self.test_data_gen  = test_data_gen
         self.mapping        = mapping
         self.index          = index
+        
+        self.X_train = X_train
+        if isinstance(self.X_train, MyDataGenerator):
+            self.y_train                 = self.X_train.true_labels['y']
+            self.group_identifiers_train = self.X_train.true_labels['g']
+        else:
+            self.y_train                 = y_train
+            self.group_identifiers_train = group_identifiers_train
+
+        self.X_val = X_val
+        if isinstance(self.X_val, MyDataGenerator):
+            self.y_val                 = self.X_val.true_labels['y']
+            self.group_identifiers_val = self.X_val.true_labels['g']
+        else:
+            self.y_val                 = y_val
+            self.group_identifiers_val = group_identifiers_val
+
+        self.X_test = X_test
+        if isinstance(self.X_test, MyDataGenerator):
+            self.y_test                 = self.X_test.true_labels['y']
+            self.group_identifiers_test = self.X_test.true_labels['g']
+        else:
+            self.y_test                 = y_test
+            self.group_identifiers_test = group_identifiers_test
+
 
     def on_epoch_end(self, epoch, logs=None):
         """Called at the end of an epoch to log metrics for each dataset."""
         
         _, train_report = report(
             model             = self.model,
-            x                 = self.train_data_gen,
-            y                 = self.train_data_gen.true_labels['y'],
-            group_identifiers = self.train_data_gen.true_labels['g'],
+            x                 = self.X_train,
+            y                 = self.y_train,
+            group_identifiers = self.group_identifiers_train,
             unique_classes    = list(self.mapping.values()),
         )
         _, val_report = report(
             model             = self.model,
-            x                 = self.val_data_gen,
-            y                 = self.val_data_gen.true_labels['y'],
-            group_identifiers = self.val_data_gen.true_labels['g'],
+            x                 = self.X_val,
+            y                 = self.y_val,
+            group_identifiers = self.group_identifiers_val,
             unique_classes    = list(self.mapping.values()),
         )
         _, test_report = report(
             model             = self.model,
-            x                 = self.test_data_gen,
-            y                 = self.test_data_gen.true_labels['y'],
-            group_identifiers = self.test_data_gen.true_labels['g'],
+            x                 = self.X_test,
+            y                 = self.y_test,
+            group_identifiers = self.group_identifiers_test,
             unique_classes    = list(self.mapping.values()),
         )
 
