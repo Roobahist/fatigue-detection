@@ -1,18 +1,24 @@
+from typing import Union
+
 import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, mean_absolute_error
 
 from src.utils.common import has_multiple_mappings, order_dict_by_key_list
-
+from src.utils.datagenerator import MyDataGenerator
 
 def report(model, 
-           x, 
+           x : Union[np.ndarray, MyDataGenerator], 
            y_true, 
            group_identifiers, 
            unique_classes):
 
-    y_true = np.array(y_true)
     y_pred = np.array(model.predict(x, verbose=0)).flatten()
+    if type(x) == MyDataGenerator:
+        y_true = x.true_labels['y']
+        group_identifiers = x.true_labels['g']
+    else:    
+        y_true = np.array(y_true)
 
     for i in y_true:
         if i not in unique_classes:
