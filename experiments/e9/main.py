@@ -49,59 +49,56 @@ class NumpyEncoder(json.JSONEncoder):
 class EpochEndLoggingCallback(Callback):
     def __init__(
         self,
-        X_train,
-        y_train,
-        group_identifiers_train,
-        X_val,
-        y_val,
-        group_identifiers_val,
-        X_test,
-        y_test,
-        group_identifiers_test,
-        mapping,
-        index,
+        train_data_gen : MyDataGenerator,
+        val_data_gen : MyDataGenerator,
+        test_data_gen : MyDataGenerator,
+        mapping : Dict,
+        index : int,
     ):
-
+        """
+        Callback to log metrics at the end of each epoch using data generators.
+        
+        Args:
+            train_generator: Generator for training data
+            val_generator: Generator for validation data
+            test_generator: Generator for test data
+            mapping: Dictionary mapping class indices to class names
+            index: Index identifier for logging
+            steps_per_epoch: Number of batches per epoch for training (optional)
+            validation_steps: Number of batches for validation (optional)
+            test_steps: Number of batches for testing (optional)
+        """
         super().__init__()
 
-        self.X_train = X_train
-        self.y_train = y_train
-        self.group_identifiers_train = group_identifiers_train
-
-        self.X_val = X_val
-        self.y_val = y_val
-        self.group_identifiers_val = group_identifiers_val
-
-        self.X_test = X_test
-        self.y_test = y_test
-        self.group_identifiers_test = group_identifiers_test
-
-        self.mapping = mapping
-        self.index = index
+        self.train_data_gen = train_data_gen
+        self.val_data_gen   = val_data_gen
+        self.test_data_gen  = test_data_gen
+        self.mapping        = mapping
+        self.index          = index
 
     def on_epoch_end(self, epoch, logs=None):
-        # print(f"Epoch {epoch+1} ended. Logs: {logs}")
-
+        """Called at the end of an epoch to log metrics for each dataset."""
+        
         _, train_report = report(
-            model=self.model,
-            x=self.X_train,
-            y_true=self.y_train,
-            group_identifiers=self.group_identifiers_train,
-            unique_classes=list(self.mapping.values()),
+            model             = self.model,
+            x                 = self.train_data_gen,
+            y                 = self.train_data_gen.true_labels['y'],
+            group_identifiers = self.train_data_gen.true_labels['g'],
+            unique_classes    = list(self.mapping.values()),
         )
         _, val_report = report(
-            model=self.model,
-            x=self.X_val,
-            y_true=self.y_val,
-            group_identifiers=self.group_identifiers_val,
-            unique_classes=list(self.mapping.values()),
+            model             = self.model,
+            x                 = self.val_data_gen,
+            y                 = self.val_data_gen.true_labels['y'],
+            group_identifiers = self.val_data_gen.true_labels['g'],
+            unique_classes    = list(self.mapping.values()),
         )
         _, test_report = report(
-            model=self.model,
-            x=self.X_test,
-            y_true=self.y_test,
-            group_identifiers=self.group_identifiers_test,
-            unique_classes=list(self.mapping.values()),
+            model             = self.model,
+            x                 = self.test_data_gen,
+            y                 = self.test_data_gen.true_labels['y'],
+            group_identifiers = self.test_data_gen.true_labels['g'],
+            unique_classes    = list(self.mapping.values()),
         )
 
         logging.info(
