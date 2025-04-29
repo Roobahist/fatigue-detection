@@ -383,6 +383,7 @@ class Model:
         train_data_gen = MyDataGenerator(
             paths=split_paths["train"],
             video_info_csv_path=video_info_csv_path,
+            mapping=self.mapping,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
@@ -399,6 +400,7 @@ class Model:
         val_data_gen = MyDataGenerator(
             paths=split_paths["val"],
             video_info_csv_path=video_info_csv_path,
+            mapping=self.mapping,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
@@ -415,6 +417,7 @@ class Model:
         test_data_gen = MyDataGenerator(
             paths=split_paths["test"],
             video_info_csv_path=video_info_csv_path,
+            mapping=self.mapping,
             groupby_column=groupby_column,
             sortby_column=sortby_column,
             target_column=target_column,
@@ -465,7 +468,6 @@ class Model:
             save_weights_only=False,
         )
 
-        model.fit()
         history = model.fit(
             x=train_data_gen,
             validation_data=val_data_gen,
@@ -480,21 +482,21 @@ class Model:
         y_train_pred, train_report = report(
             model=model,
             x=train_data_gen,
-            y=train_data_gen.true_labels['y'].map(self.mapping).astype(float),
+            y=train_data_gen.true_labels['y'],
             group_identifiers=train_data_gen.true_labels['g'],
             unique_classes=list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
             model=model,
             x=val_data_gen,
-            y=val_data_gen.true_labels['y'].map(self.mapping).astype(float),
+            y=val_data_gen.true_labels['y'],
             group_identifiers=val_data_gen.true_labels['g'],
             unique_classes=list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
             model=model,
             x=test_data_gen,
-            y=test_data_gen.true_labels['y'].map(self.mapping).astype(float),
+            y=test_data_gen.true_labels['y'],
             group_identifiers=test_data_gen.true_labels['g'],
             unique_classes=list(self.mapping.values()),
         )
@@ -546,7 +548,7 @@ class Model:
     def test_model(
         self,
         input_directory_path: str,
-        video_info_csv_path: str,
+        split_info_csv_path: str,
         columns_to_drop: Optional[List[str]] = [],
         parallel: bool = False,
         max_workers: Optional[int] = None,
@@ -593,24 +595,29 @@ class Model:
                 },
                 file,
             )
+        with open(split_info_csv_path, 'r') as json_file:
+            train_val_test_indices = json.load(json_file)
 
-        train_val_test_indices = self._get_train_val_test_file_paths(
-            input_path=input_directory_path,
-            primary_column_name=fold_by_primary_column_name,
-            secondary_column_name=fold_by_secondary_column_name,
-        )
+        # train_val_test_indices = self._get_train_val_test_file_paths(
+        #     input_path=input_directory_path,
+        #     primary_column_name=fold_by_primary_column_name,
+        #     secondary_column_name=fold_by_secondary_column_name,
+        # )
 
         args_list = [
             {
                 "split_info": split["info"],
                 "split_paths": split["paths"],
-                "video_info_csv_path": video_info_csv_path,
+                "video_info_csv_path": os.path.join(os.path.commonpath(split['paths']['train'] + 
+                                                                       split['paths']['test'] + 
+                                                                       split['paths']['val']), 
+                                                    split['index']),
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "workers": workers,
-                "index": idx,
+                "index": split["index"],
             }
-            for idx, split in enumerate(train_val_test_indices)
+            for split in train_val_test_indices
         ]
 
         logging.info(f"Found {len(args_list)} valid test-validation pairs.")

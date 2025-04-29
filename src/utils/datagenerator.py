@@ -18,6 +18,7 @@ class MyDataGenerator(PyDataset):
     def __init__(self, 
                  paths                  : List[str],
                  video_info_csv_path    : str,
+                 mapping                : Dict,
                  groupby_column         : str = "file_name",
                  sortby_column          : str = "frame",
                  target_column          : str = "target",
@@ -36,7 +37,7 @@ class MyDataGenerator(PyDataset):
 
         self.paths                   = paths
         self.video_info_csv_path     = video_info_csv_path
-        self.pointer                 = 0
+        self.mapping                 = mapping
         self.groupby_column          = groupby_column
         self.sortby_column           = sortby_column
         self.target_column           = target_column
@@ -59,8 +60,6 @@ class MyDataGenerator(PyDataset):
             counts_column           = 'total_frames',
             discard_threshold_ratio = self.discard_threshold_ratio)
         self.true_labels             = self._get_true_labels()
-
-        self.num_slices              = []
 
         self.on_epoch_end()
 
@@ -148,13 +147,15 @@ class MyDataGenerator(PyDataset):
     def _get_true_labels(self):
         true_labels = {
             'g' : [],
-            'y_true_unmapped' : []
+            'y_true_unmapped' : [],
+            'y' : []
         }
 
         for batch in self.batch_info['batches']:
             for file in batch:
                 true_labels['g'].extend([os.path.basename(file['path'])] * len(file['raw_intervals']))
                 true_labels['y_true_unmapped'].extend([os.path.basename(file['path']).split('_')[2]] * len(file['raw_intervals']))
+                true_labels['y'].extend([os.path.basename(file['path']).split('_')[2]].map(mapping).astype(float) * len(file['raw_intervals']))
 
         assert has_multiple_mappings(true_labels['y_true_unmapped'], true_labels['g']) == False, 'Has Multiple Mapping'
 
