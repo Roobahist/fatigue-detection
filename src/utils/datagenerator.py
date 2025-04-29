@@ -1,12 +1,12 @@
-import random
+import os
+from tarfile import data_filter
 from typing import Dict, List, Optional
-from unittest import skip
 
 import numpy as np
 import pandas as pd
 from keras.src.trainers.data_adapters.py_dataset_adapter import PyDataset
-from src.preprocess.reshape import count_slices_per_video, reshape_data_rnn
-from src.utils.common import merge_intervals, pop_row
+from src.preprocess.reshape import reshape_data_rnn
+from src.utils.common import has_multiple_mappings, merge_intervals
 from src.utils.load_data import _extract_headers, load_data
 
 
@@ -58,6 +58,7 @@ class MyDataGenerator(PyDataset):
             groupby_column_filter   = self.paths,
             counts_column           = 'total_frames',
             discard_threshold_ratio = self.discard_threshold_ratio)
+        self.true_labels             = self._get_true_labels()
 
         self.num_slices              = []
 
@@ -84,14 +85,14 @@ class MyDataGenerator(PyDataset):
 
     def _get_batch_info(
         self,
-        video_info_csv_path : str,
-        batch_size : int,
-        slice_size: int,
-        step_size: Optional[int],
-        groupby_column : str = 'path',
-        groupby_column_filter : List[str] = [],
-        counts_column : str = 'total_frames',
-        discard_threshold_ratio: float = 0.6) -> Dict[str, List]:
+        video_info_csv_path    : str,
+        batch_size             : int,
+        slice_size             : int,
+        step_size              : Optional[int],
+        groupby_column         : str = 'path',
+        groupby_column_filter  : List[str] = [],
+        counts_column          : str = 'total_frames',
+        discard_threshold_ratio: float = 0.6) -> Dict[str, List]: 
 
         info = {
             'counts' : [],
@@ -100,7 +101,12 @@ class MyDataGenerator(PyDataset):
 
         video_info = load_data(video_info_csv_path)
         groupby_column_filter = groupby_column_filter or video_info[groupby_column].unique()
-        video_info = video_info[video_info[groupby_column].isin(groupby_column_filter)]
+        video_info = (
+            video_info[video_info[groupby_column].isin(groupby_column_filter)]
+            .assign(path=lambda x: pd.Categorical(x[groupby_column], categories=groupby_column_filter, ordered=True))
+            .sort_values(groupby_column)
+            .reset_index(drop=True)
+        )
         
         new_rows = []
         for _, row in video_info.iterrows():
@@ -118,26 +124,42 @@ class MyDataGenerator(PyDataset):
 
         video_info_processed = pd.DataFrame(new_rows).reset_index(drop=True)
 
-        for group_identifier, group in video_info_processed.groupby(groupby_column):
+        for group_identifier, group in video_info_processed.groupby(groupby_column, sort=False):
             info['counts'].append({groupby_column : group_identifier, 
-                                'count' : len(group)})
+                                   'count' : len(group)})
 
         for i in range(int(np.ceil(len(video_info_processed)/batch_size))):
-            start_index = i * batch_size
-            end_index   = min((i+1) * batch_size, len(video_info_processed))
-            current_batch_info  = []
-            for group_identifier, group in video_info_processed[start_index: end_index].groupby(groupby_column):
+            start_index        = i * batch_size
+            end_index          = min((i+1) * batch_size, len(video_info_processed))
+            current_batch_info = []
+
+            for group_identifier, group in video_info_processed[start_index: end_index].groupby(groupby_column, sort=False):
                 current_batch_info.append(
                     {
-                        groupby_column : group_identifier,
-                        'raw_intervals' : list(zip(group['start_frame'], group['end_frame'])),
-                        'merged_intervals' : merge_intervals(list(zip(group['start_frame'], group['end_frame'])))
+                        groupby_column    : group_identifier,
+                        'raw_intervals'   : list(zip(group['start_frame'], group['end_frame'])),
+                        'merged_intervals': merge_intervals(list(zip(group['start_frame'], group['end_frame'])))
                     }
                 )
             info['batches'].append(current_batch_info)
 
         return info
     
+    def _get_true_labels(self):
+        true_labels = {
+            'g' : [],
+            'y_true_unmapped' : []
+        }
+
+        for batch in self.batch_info['batches']:
+            for file in batch:
+                true_labels['g'].extend([os.path.basename(file['path'])] * len(file['raw_intervals']))
+                true_labels['y_true_unmapped'].extend([os.path.basename(file['path']).split('_')[2]] * len(file['raw_intervals']))
+
+        assert has_multiple_mappings(true_labels['y_true_unmapped'], true_labels['g']) == False, 'Has Multiple Mapping'
+
+        return true_labels
+
     def on_epoch_end(self):
         """
         Called at the end of each epoch.
@@ -185,7 +207,9 @@ class MyDataGenerator(PyDataset):
             y.extend(y_file)
             g.extend(g_file)
 
-        return {'X': np.array(X), 'y': np.array(y), 'g': np.array(g)}
+        return {'X': np.array(X), 
+                'y': np.array(y), 
+                'g': np.array(g)}
 
     def __getitem__(self, index):
         """
