@@ -26,6 +26,7 @@ from Zh.src.utils.datagenerator import MyDataGenerator
 from Zh.src.utils.file_folder import create_folders, get_file_paths
 from Zh.src.utils.report import report
 from Zh.src.utils.serialized_parallel import process
+from Zh.src.utils.lstm_tuner import LSTMModel
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -80,9 +81,6 @@ class EpochEndLoggingCallback(Callback):
         """
         super().__init__()
 
-        self.train_data_gen = train_data_gen
-        self.val_data_gen   = val_data_gen
-        self.test_data_gen  = test_data_gen
         self.mapping        = mapping
         self.index          = index
         
@@ -151,85 +149,29 @@ class EpochEndLoggingCallback(Callback):
 class Model:
     def __init__(
         self,
-        units,
-        dropout_ratio,
-        kernel_regularizer_l2,
-        kernel_regularizer_l1,
+        input_shape,
         batch_size,
-        learning_rate,
-        weight_decay,
-        beta_1,
-        beta_2,
-        epsilon,
         epochs,
         patience,
         slice_size,
         step_size,
         discard_threshold_ratio,
         mapping,
+        loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
+        metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
+        hp_config: Optional[Dict[str, Dict[str, Any]]] = None
     ):
-        self.units = units
-        self.dropout_ratio = dropout_ratio
-        self.kernel_regularizer_l2 = kernel_regularizer_l2
-        self.kernel_regularizer_l1 = kernel_regularizer_l1
+        self.input_shape = input_shape
         self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.beta_1 = beta_1
-        self.beta_2 = beta_2
-        self.epsilon = epsilon
         self.epochs = epochs
         self.patience = patience
         self.slice_size = slice_size
         self.step_size = step_size
         self.discard_threshold_ratio = discard_threshold_ratio
         self.mapping = mapping
-
-    def _build_model(self, input_shape) -> Sequential:
-        model = Sequential()
-        model.add(layers.Input(shape=(input_shape[0], input_shape[1])))
-
-        # Add LSTM layers
-        for u in self.units[:-1]:
-            model.add(
-                layers.LSTM(
-                    u,
-                    activation="tanh",
-                    return_sequences=True,
-                    kernel_regularizer=tf.keras.regularizers.l2(
-                        self.kernel_regularizer_l2
-                    ),
-                )
-            )
-            model.add(layers.BatchNormalization())
-            model.add(layers.Dropout(self.dropout_ratio))
-
-        # Final LSTM layer without return_sequences
-        model.add(
-            layers.LSTM(
-                self.units[-1],
-                activation="tanh",
-                kernel_regularizer=tf.keras.regularizers.l2(self.kernel_regularizer_l2),
-            )
-        )
-        model.add(layers.BatchNormalization())
-        model.add(layers.Dropout(self.dropout_ratio))
-
-        # Final output layer
-        model.add(layers.Dense(1, activation="linear"))  # Use sigmoid activation
-
-        model.compile(
-            optimizer=keras.optimizers.AdamW(
-                learning_rate=self.learning_rate,
-                weight_decay=self.weight_decay,
-                # beta_1=self.beta_1,
-                # beta_2=self.beta_2,
-                # epsilon=self.epsilon
-            ),
-            loss="mse",
-            metrics=["mae"],
-        )
-        return model
+        self.loss_function = loss_function
+        self.metrics = metrics
+        self.hp_config = hp_config
 
     def _save_result(
         self,
@@ -393,6 +335,9 @@ class Model:
         split_paths: Dict[str, List[str]],
         video_info_csv_path: str,
         output_folder_path: str,
+        loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
+        metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
+        hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
         columns_to_drop: Optional[List[str]] = [],
         workers: Optional[int] = 1,
         index: Optional[int] = 0,
@@ -441,6 +386,7 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
+            class_weights=train_data_gen.class_weights, #TODO not connected currently. raises error
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
             workers=workers,
             use_multiprocessing=True,
@@ -458,6 +404,7 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
+            class_weights=train_data_gen.class_weights, #TODO not connected currently. raises error
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
             workers=workers,
             use_multiprocessing=True,
@@ -466,26 +413,35 @@ class Model:
         # sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
 
         logging.info(f"{index} - building model")
-        model = self._build_model(
-            (self.slice_size, len(train_data_gen.feature_columns))
+        model = LSTMModel(input_shape = (self.slice_size, len(train_data_gen.feature_columns)),
+                          loss_function = loss_function,
+                          metrics = metrics,
+                          hp_config = hp_config)
+
+        logging.info(f"{index} - Finding Best HP")
+
+        best_hps, tuner = model.tune_model(
+            train_data = train_data_gen, 
+            val_data = val_data_gen,
+            directory = output_folder_path,
+            project_name = index,
+            max_trials = 15,
+            executions_per_trial = 1,
+            epochs = self.epochs//10, #using lower number of epochs for finding the best hp
+            batch_size = self.batch_size,
+            patience = self.patience,
+            overwrite = False
         )
 
-        logging.info(f"{index} - fitting model")
-        # Train the model
+        best_model = model.get_best_model(tuner)
 
-        # epoch_end_logging = EpochEndLoggingCallback(
-        #     X_train=X_train,
-        #     y_train=y_train,
-        #     group_identifiers_train=group_identifiers_train,
-        #     X_val=X_val,
-        #     y_val=y_val,
-        #     group_identifiers_val=group_identifiers_val,
-        #     X_test=X_test,
-        #     y_test=y_test,
-        #     group_identifiers_test=group_identifiers_test,
-        #     mapping=self.mapping,
-        #     index=index,
-        # )
+        epoch_end_logging = EpochEndLoggingCallback(
+            train_data_gen = train_data_gen,
+            val_data_gen = val_data_gen,
+            test_data_gen = test_data_gen,
+            mapping=self.mapping,
+            index=index,
+        )
 
         early_stop = EarlyStopping(
             monitor="val_loss",
@@ -500,12 +456,14 @@ class Model:
             save_weights_only=False,
         )
 
-        history = model.fit(
+        logging.info(f"{index} - Fitting Best HP {best_hps}")
+
+        history = best_model.fit(
             x=train_data_gen,
             validation_data=val_data_gen,
             epochs=self.epochs,
             batch_size=self.batch_size,
-            callbacks=[early_stop, checkpoint],  # TODO Add epoch_end_logging
+            callbacks=[early_stop, checkpoint, epoch_end_logging],
             verbose=1,
         )
 
@@ -593,6 +551,9 @@ class Model:
         fold_end_index: Optional[int] = None,
         fold_indices: Optional[List[int]] = None,
         workers: Optional[int] = 1,
+        loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
+        metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
+        hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
 
         output_folder_name = datetime.now().strftime(
@@ -605,18 +566,17 @@ class Model:
             json.dump(
                 {
                     "general": {
-                        "units": self.units,
-                        "dropout_ratio": self.dropout_ratio,
+                        "hp" : hp_config,
+                        "loss_function" : loss_function,
+                        "metrics" : metrics,
                         "batch_size": self.batch_size,
-                        "learning_rate": self.learning_rate,
-                        "weight_decay": self.weight_decay,
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
                         "step_size": self.step_size,
                         "mapping": self.mapping,
                         "discard_threshold_ratio": self.discard_threshold_ratio,
                         "input_directory_path": input_directory_path,
-                        "video_info_csv_path": video_info_csv_path,
+                        "split_info_csv_path": split_info_csv_path,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
                         "fold_by_primary_column_name": fold_by_primary_column_name,
@@ -630,11 +590,6 @@ class Model:
         with open(split_info_csv_path, 'r') as json_file:
             train_val_test_indices = json.load(json_file)
 
-        # train_val_test_indices = self._get_train_val_test_file_paths(
-        #     input_path=input_directory_path,
-        #     primary_column_name=fold_by_primary_column_name,
-        #     secondary_column_name=fold_by_secondary_column_name,
-        # )
 
         args_list = [
             {
@@ -647,6 +602,9 @@ class Model:
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "workers": workers,
+                "loss_function": loss_function, 
+                "metrics": metrics,
+                "hp_config": hp_config,
                 "index": split["index"],
             }
             for split in train_val_test_indices

@@ -27,21 +27,29 @@ if __name__ == "__main__":
         "subject_id",
     ]
 
+    hp_config = {
+        'num_lstm_layers': {'min_value': 1, 'max_value': 3, 'step': 1},
+        'units': {'min_value': 32, 'max_value': 256, 'step': 32},
+        'activation': 'tanh',
+        'l1_reg': {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
+        'l2_reg': {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
+        'dropout': {'min_value': 0.1, 'max_value': 0.5, 'step': 0.1},
+        'use_batch_norm': True,
+        'output': {'units': 1, 'activation': 'linear'},
+        'learning_rate': {'min_value': 1e-4, 'max_value': 1e-2, 'sampling': 'log'},
+        'weight_decay': {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
+        'beta_1': {'min_value': 0.8, 'max_value': 0.99, 'step': 0.01},
+        'beta_2': {'min_value': 0.9, 'max_value': 0.999, 'step': 0.001},
+        'epsilon': 1e-7,
+        'amsgrad': True
+    }
+
     set_seed(42)
 
     logging.info("Creating Model ...")
 
     m = Model(
-        units                   = [50, 50],
-        dropout_ratio           = 0.3,
-        kernel_regularizer_l2   = 0,
-        kernel_regularizer_l1   = 0,
         batch_size              = 32,
-        learning_rate           = 1e-3,
-        weight_decay            = 1e-4,
-        beta_1                  = 0.9,
-        beta_2                  = 0.999,
-        epsilon                 = 1e-7,
         epochs                  = 250,
         patience                = 50,
         slice_size              = 4500,
@@ -65,5 +73,8 @@ if __name__ == "__main__":
         fold_start_index              = fold_start_index,
         fold_end_index                = fold_end_index,
         fold_indices                  = [],
-        workers                       = 1
+        workers                       = 1,
+        loss_function                 = 'mse',
+        metrics                       = ['mae'],
+        hp_config                     = hp_config,
     )
