@@ -81,24 +81,23 @@ class EpochEndLoggingCallback(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         # print(f"Epoch {epoch+1} ended. Logs: {logs}")
-        trained_model = self.model
 
         _, train_report = report(
-            model=trained_model,
+            model=self.model,
             x=self.X_train,
             y_true=self.y_train,
             group_identifiers=self.group_identifiers_train,
             unique_classes=list(self.mapping.values()),
         )
         _, val_report = report(
-            model=trained_model,
+            model=self.model,
             x=self.X_val,
             y_true=self.y_val,
             group_identifiers=self.group_identifiers_val,
             unique_classes=list(self.mapping.values()),
         )
         _, test_report = report(
-            model=trained_model,
+            model=self.model,
             x=self.X_test,
             y_true=self.y_test,
             group_identifiers=self.group_identifiers_test,
@@ -393,8 +392,8 @@ class Model:
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
-            workers                 = workers,
-            use_multiprocessing     = True,
+            workers=workers,
+            use_multiprocessing=True,
         )
 
         val_data_gen = MyDataGenerator(
@@ -409,8 +408,8 @@ class Model:
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
-            workers                 = workers,
-            use_multiprocessing     = True,
+            workers=workers,
+            use_multiprocessing=True,
         )
 
         test_data_gen = MyDataGenerator(
@@ -425,8 +424,8 @@ class Model:
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
-            workers                 = workers,
-            use_multiprocessing     = True,
+            workers=workers,
+            use_multiprocessing=True,
         )
 
         # sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
@@ -481,22 +480,22 @@ class Model:
         y_train_pred, train_report = report(
             model=model,
             x=train_data_gen,
-            y=train_data_gen.data["y"].to_list(),
-            group_identifiers=train_data_gen.data["g"].to_list(),
+            y=train_data_gen.true_labels['y'].map(self.mapping).astype(float),
+            group_identifiers=train_data_gen.true_labels['g'],
             unique_classes=list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
             model=model,
             x=val_data_gen,
-            y=val_data_gen.data["y"].to_list(),
-            group_identifiers=val_data_gen.data["g"].to_list(),
+            y=val_data_gen.true_labels['y'].map(self.mapping).astype(float),
+            group_identifiers=val_data_gen.true_labels['g'],
             unique_classes=list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
             model=model,
             x=test_data_gen,
-            y=test_data_gen.data["y"].to_list(),
-            group_identifiers=test_data_gen.data["g"].to_list(),
+            y=test_data_gen.true_labels['y'].map(self.mapping).astype(float),
+            group_identifiers=test_data_gen.true_labels['g'],
             unique_classes=list(self.mapping.values()),
         )
 
@@ -511,20 +510,20 @@ class Model:
             "evaluation": {
                 "train": {
                     "metrics": train_report,
-                    "group_identifiers": train_data_gen.data["g"],
-                    "y_true": train_data_gen.data["y"],
+                    "group_identifiers": train_data_gen.true_labels["g"],
+                    "y_true": train_data_gen.true_labels["y"],
                     "y_pred": y_train_pred,
                 },
                 "val": {
                     "metrics": val_report,
-                    "group_identifiers": val_data_gen.data["g"],
-                    "y_true": train_data_gen.data["y"],
+                    "group_identifiers": val_data_gen.true_labels["g"],
+                    "y_true": train_data_gen.true_labels["y"],
                     "y_pred": y_val_pred,
                 },
                 "test": {
                     "metrics": test_report,
-                    "group_identifiers": test_data_gen.data["g"],
-                    "y_true": train_data_gen.data["y"],
+                    "group_identifiers": test_data_gen.true_labels["g"],
+                    "y_true": train_data_gen.true_labels["y"],
                     "y_pred": y_test_pred,
                 },
             },
@@ -623,7 +622,7 @@ class Model:
 
         selected_indices = fold_indices or slice(fold_start_index, fold_end_index)
         args_list = args_list[selected_indices]
-        logging.info(f"Processing {len(args_list)} valid test-validation pairs.")
+        logging.info(f"Processing {len(args_list)} selected test-validation pairs.")
         logging.info(
             "\n".join([f"{i['index']} - {i['split_info']}" for i in args_list])
         )
