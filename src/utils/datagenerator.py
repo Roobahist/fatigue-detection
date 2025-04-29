@@ -1,6 +1,7 @@
 import os
 from tarfile import data_filter
 from typing import Dict, List, Optional
+from collections import Counter
 
 import numpy as np
 import pandas as pd
@@ -27,7 +28,8 @@ class MyDataGenerator(PyDataset):
                  slice_size             : int = 3000,
                  step_size              : int = 3000,
                  discard_threshold_ratio: float = 0.6,
-                 shuffle                : bool = False,
+                 class_weights          : Optional[Dict] = {},
+                 shuffle                : Optional[bool] = False,
                  **kwargs): 
         """
         Initialization function.  This is where you set up the basic parameters
@@ -60,6 +62,7 @@ class MyDataGenerator(PyDataset):
             counts_column           = 'total_frames',
             discard_threshold_ratio = self.discard_threshold_ratio)
         self.true_labels             = self._get_true_labels()
+        self.class_weights           = class_weights or self._calculate_class_weights()
 
         self.on_epoch_end()
 
@@ -155,11 +158,24 @@ class MyDataGenerator(PyDataset):
             for file in batch:
                 true_labels['g'].extend([os.path.basename(file['path'])] * len(file['raw_intervals']))
                 true_labels['y_true_unmapped'].extend([os.path.basename(file['path']).split('_')[2]] * len(file['raw_intervals']))
-                true_labels['y'].extend([os.path.basename(file['path']).split('_')[2]].map(mapping).astype(float) * len(file['raw_intervals']))
+
+        true_labels['y'] = [float(self.mapping[i]) for i in true_labels['y_true_unmapped']]
 
         assert has_multiple_mappings(true_labels['y_true_unmapped'], true_labels['g']) == False, 'Has Multiple Mapping'
 
         return true_labels
+
+    def _calculate_class_weights(self):
+        class_counts = Counter(self.true_labels['y'])
+        total_samples = len(self.true_labels['y'])
+        num_classes = len(class_counts)
+
+        class_weights = {
+            str(float(cls)): total_samples / (num_classes * count)
+            for cls, count in class_counts.items()
+        }
+
+        return class_weights
 
     def on_epoch_end(self):
         """
@@ -195,7 +211,7 @@ class MyDataGenerator(PyDataset):
         loading and preprocessing happens.
         """
         current_batch_info = self.batch_info['batches'][index]
-        X, y, g = [], [], []
+        X, y, g, w = [], [], [], []
 
         for file in current_batch_info:
             file_data = load_data(input_path=file['path'], 
@@ -208,9 +224,12 @@ class MyDataGenerator(PyDataset):
             y.extend(y_file)
             g.extend(g_file)
 
+        w = [self.class_weights[str(float(i))] for i in y]
+
         return {'X': np.array(X), 
                 'y': np.array(y), 
-                'g': np.array(g)}
+                'g': np.array(g),
+                'w': np.array(w)}
 
     def __getitem__(self, index):
         """
@@ -219,4 +238,4 @@ class MyDataGenerator(PyDataset):
         """
         print(f"index {index}")
         batch = self.__data_generation(index)
-        return (batch['X'], batch['y'])
+        return (batch['X'], batch['y']) #TODO adding w gives error, figure it out
