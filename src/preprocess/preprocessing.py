@@ -193,7 +193,83 @@ def apply_normalizer(
         use_tqdm=use_tqdm,
     )
 
+
+def convert_csv_to_npy(source_dir, target_dir):
+    """
+    Traverses all files in the source directory and its subdirectories.
+    If a file is a CSV, it reads it using pandas and saves it as a NPY file
+    in the corresponding subdirectory in the target folder.
+
+    Args:
+        source_dir (str): Path to the source directory
+        target_dir (str): Path to the target directory where NPY files will be saved
+
+    Returns:
+        tuple: (int, int) - Count of processed files and count of errors
+    """
+    # Check if source directory exists
+    from Zh.src.utils.file_folder import copy_directory_structure
+
+    copy_directory_structure(source_dir=source_dir, target_dir=target_dir)
+
+    processed_count = 0
+    error_count = 0
+    columns = []
+
+    # Walk through all directories and files in source_dir
+    for root, _, files in os.walk(source_dir):
+        # Calculate relative path and target subdir to maintain directory structure
+        relative_path = os.path.relpath(root, source_dir)
+        target_subdir = os.path.join(target_dir, relative_path)
+
+        # Process each file in current directory
+        for file in files:
+            # Check if file is a CSV
+            if file.lower().endswith(".csv"):
+                if file == "video_info.csv":
+                    continue
+
+                source_file = os.path.join(root, file)
+
+                # Generate target NPY filename (replace .csv with .npy)
+                target_file = os.path.join(
+                    target_subdir, os.path.splitext(file)[0] + ".npy"
+                )
+
+                try:
+                    # Read CSV using pandas
+                    logging.info(f"Processing: {source_file}")
+                    df = pd.read_csv(source_file)
+                    current_columns = list(df.select_dtypes(include="number").columns)
+
+                    if columns == []:
+                        columns = list(df.select_dtypes(include="number").columns)
+
+                    assert (
+                        current_columns == columns
+                    ), f"Column names dont match {columns} - {current_columns}"
+                    df = df[columns]
+                    # Convert to numpy array and save as NPY
+                    np.save(target_file, df.to_numpy())
+
+                    logging.info(f"Saved as: {target_file}")
+                    processed_count += 1
+
+                except Exception as e:
+                    logging.info(f"Error processing {source_file}: {str(e)}")
+                    error_count += 1
+
+    save_obj(
+        obj=columns,
+        output_path=os.path.join(target_dir, "columns.json"),
+        file_type="json",
+    )
+    logging.info(f"Completed: {processed_count} files processed, {error_count} errors")
+    return processed_count, error_count
+
+
 if __name__ == "__main__":
+    logging.info("Starting ...")
     # from Zh.src.utils.split_files import _get_train_val_test_file_paths
 
     # input_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
@@ -224,6 +300,11 @@ if __name__ == "__main__":
     #                  max_workers = 10,
     #                  maxtasksperchild = 1,
     #                  use_tqdm = True)
+
+    convert_csv_to_npy(
+        source_dir="/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized",
+        target_dir="/work/long_lab/Mojtaba/data/UTA/1.3.4-augmented_embedded_preprocessed_normalized_npy",
+    )
 
     # TODO check and see if all the output dataframes have the same shape as inputs
     pass
