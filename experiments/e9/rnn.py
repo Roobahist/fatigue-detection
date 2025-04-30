@@ -2,7 +2,6 @@ import logging
 import sys
 
 from Zh.experiments.e9.main import *
-from Zh.src.utils.load_data import load_data
 from Zh.src.utils.common import set_seed
 
 if __name__ == "__main__":
@@ -12,11 +11,12 @@ if __name__ == "__main__":
     job_id            = sys.argv[3] if len(sys.argv) > 3 else None
     fold_start_index  = int(sys.argv[4]) if len(sys.argv) > 4 else None
     fold_end_index    = int(sys.argv[5]) if len(sys.argv) > 5 else None
-    mapping           = {"10": 8.5, "5": 6.5, "0": 2}
 
     logging.info(f"working_directory : {working_directory} & job_id : {job_id}")
 
-    input_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
+    input_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized"
+
+    mapping              = {"10": 8.5, "5": 6.5, "0": 2}
 
     columns_to_drop = [
         "file_name",
@@ -29,19 +29,19 @@ if __name__ == "__main__":
 
     hp_config = {
         'num_lstm_layers': {'min_value': 1, 'max_value': 3, 'step': 1},
-        'units': {'min_value': 32, 'max_value': 256, 'step': 32},
-        'activation': 'tanh',
-        'l1_reg': {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
-        'l2_reg': {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
-        'dropout': {'min_value': 0.1, 'max_value': 0.5, 'step': 0.1},
-        'use_batch_norm': True,
-        'output': {'units': 1, 'activation': 'linear'},
-        'learning_rate': {'min_value': 1e-4, 'max_value': 1e-2, 'sampling': 'log'},
-        'weight_decay': {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
-        'beta_1': {'min_value': 0.8, 'max_value': 0.99, 'step': 0.01},
-        'beta_2': {'min_value': 0.9, 'max_value': 0.999, 'step': 0.001},
-        'epsilon': 1e-7,
-        'amsgrad': True
+        'units'          : {'min_value': 10, 'max_value': 50, 'step': 20},
+        'activation'     : 'tanh',
+        'l1_reg'         : {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
+        'l2_reg'         : {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
+        'dropout'        : {'min_value': 0.1, 'max_value': 0.5, 'step': 0.2},
+        'use_batch_norm' : True,
+        'output'         : {'units': 1, 'activation': 'linear'},
+        'learning_rate'  : {'min_value': 1e-4, 'max_value': 1e-2, 'sampling': 'log'},
+        'weight_decay'   : {'min_value': 1e-6, 'max_value': 1e-2, 'sampling': 'log'},
+        'beta_1'         : {'min_value': 0.8, 'max_value': 0.95, 'step': 0.05},
+        'beta_2'         : {'min_value': 0.9, 'max_value': 0.999, 'step': 0.033},
+        'epsilon'        : 1e-7,
+        'amsgrad'        : True
     }
 
     set_seed(42)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     logging.info("Testing Model ...")
     m.test_model(
         input_directory_path          = input_directory_path,
-        split_info_csv_path           = os.path.join(input_directory_path,'split_info.csv'),
+        split_info_csv_path           = os.path.join(input_directory_path,'split_info.json'),
         columns_to_drop               = columns_to_drop,
         parallel                      = True,
         max_workers                   = max_workers,

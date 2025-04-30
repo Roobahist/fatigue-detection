@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, mean_absolute_error
 
-from src.utils.common import has_multiple_mappings, order_dict_by_key_list
-from src.utils.datagenerator import MyDataGenerator
+from Zh.src.utils.common import has_multiple_mappings, order_dict_by_key_list
+from Zh.src.utils.datagenerator import MyDataGenerator
 
 def report(model, 
            x : Union[np.ndarray, MyDataGenerator], 

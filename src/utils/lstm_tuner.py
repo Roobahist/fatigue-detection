@@ -223,7 +223,7 @@ class LSTMModel:
                   val_data,
                   project_name: str = 'lstm_tuning', 
                   max_trials: int = 10, 
-                  executions_per_trial: int = 2, 
+                  executions_per_trial: int = 1, 
                   directory: str = 'my_dir',
                   epochs: int = 50,
                   batch_size: Optional[int] = None,

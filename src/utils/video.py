@@ -47,7 +47,7 @@ def get_video_info_from_csv(
 
     import pandas as pd
 
-    from src.utils.common import find_new_file_name, get_csv_length
+    from Zh.src.utils.common import find_new_file_name, get_csv_length
 
     if isinstance(file_paths, str):
         file_paths = [file_paths]
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     
     logging.info('Starting')
-    from src.utils.file_folder import get_file_paths
+    from Zh.src.utils.file_folder import get_file_paths
     root_dir = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized"
     for subdir in os.listdir(root_dir):
         logging.info(subdir)
