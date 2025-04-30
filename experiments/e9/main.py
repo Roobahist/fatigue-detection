@@ -1,32 +1,30 @@
 import json
 import logging
 import os
-import pickle
 import random
 from datetime import datetime
-from locale import strcoll
-from typing import Dict, List, Optional, Tuple, Union, Any
-from xml.dom import xmlbuilder
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from keras import backend as K
-from keras import layers, losses
 from keras.src.callbacks import Callback, EarlyStopping, History, ModelCheckpoint
-from keras.src.layers import Lambda
-from keras.src.models.sequential import Sequential
-from sklearn.decomposition import PCA
-from sklearn.utils.class_weight import compute_sample_weight
-from tensorflow import keras
 
-from Zh.src.preprocess.reshape import count_slices_per_video, reshape_data_rnn
 from Zh.src.utils.datagenerator import MyDataGenerator
 from Zh.src.utils.file_folder import create_folders, get_file_paths
+from Zh.src.utils.lstm_tuner import LSTMModel
 from Zh.src.utils.report import report
 from Zh.src.utils.serialized_parallel import process
-from Zh.src.utils.lstm_tuner import LSTMModel
+
+# from keras import backend as K
+# from keras import layers, losses
+# from keras.src.layers import Lambda
+# from keras.src.models.sequential import Sequential
+# from sklearn.decomposition import PCA
+# from sklearn.utils.class_weight import compute_sample_weight
+# from tensorflow import keras
+
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -149,7 +147,6 @@ class EpochEndLoggingCallback(Callback):
 class Model:
     def __init__(
         self,
-        input_shape,
         batch_size,
         epochs,
         patience,
@@ -161,7 +158,6 @@ class Model:
         metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None
     ):
-        self.input_shape = input_shape
         self.batch_size = batch_size
         self.epochs = epochs
         self.patience = patience
@@ -340,6 +336,11 @@ class Model:
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
         columns_to_drop: Optional[List[str]] = [],
         workers: Optional[int] = 1,
+        tuner_max_trials: int = 15, 
+        tuner_executions_per_trial: int = 1, 
+        tuner_epochs: int = 50,
+        tuner_patience: int = 10,
+        tuner_type: str = 'bayesian',
         index: Optional[int] = 0,
     ):
         """Helper function for parallel processing in test_model.
@@ -425,11 +426,12 @@ class Model:
             val_data = val_data_gen,
             directory = output_folder_path,
             project_name = index,
-            max_trials = 15,
-            executions_per_trial = 1,
-            epochs = self.epochs//10, #using lower number of epochs for finding the best hp
+            max_trials = tuner_max_trials,
+            executions_per_trial = tuner_executions_per_trial,
+            epochs = tuner_epochs, #using lower number of epochs for finding the best hp
             batch_size = self.batch_size,
-            patience = self.patience,
+            patience = tuner_patience,
+            tuner_type = tuner_type,
             overwrite = False
         )
 
@@ -551,6 +553,11 @@ class Model:
         fold_end_index: Optional[int] = None,
         fold_indices: Optional[List[int]] = None,
         workers: Optional[int] = 1,
+        tuner_max_trials: int = 15, 
+        tuner_executions_per_trial: int = 1, 
+        tuner_epochs: int = 50,
+        tuner_patience: int = 10,
+        tuner_type: str = 'bayesian',
         loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
         metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -566,9 +573,6 @@ class Model:
             json.dump(
                 {
                     "general": {
-                        "hp" : hp_config,
-                        "loss_function" : loss_function,
-                        "metrics" : metrics,
                         "batch_size": self.batch_size,
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
@@ -583,13 +587,21 @@ class Model:
                         "fold_by_secondary_column_name": fold_by_secondary_column_name,
                         "fold_start_index": fold_start_index,
                         "fold_end_index": fold_end_index,
+                        "fold_indices": fold_indices,
+                        "tuner_max_trials" : tuner_max_trials,
+                        "tuner_executions_per_trial" : tuner_executions_per_trial,
+                        "tuner_epochs" : tuner_epochs,
+                        "tuner_patience" : tuner_patience,
+                        "tuner_type" : tuner_type,
+                        "hp" : hp_config,
+                        "loss_function" : loss_function,
+                        "metrics" : metrics,
                     }
                 },
                 file,
             )
         with open(split_info_csv_path, 'r') as json_file:
             train_val_test_indices = json.load(json_file)
-
 
         args_list = [
             {
@@ -598,10 +610,16 @@ class Model:
                 "video_info_csv_path": os.path.join(os.path.commonpath(split['paths']['train'] + 
                                                                        split['paths']['test'] + 
                                                                        split['paths']['val']), 
-                                                    split['index']),
+                                                    str(split['index']),
+                                                    "video_info.csv"),
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "workers": workers,
+                "tuner_max_trials" : tuner_max_trials,
+                "tuner_executions_per_trial" : tuner_executions_per_trial,
+                "tuner_epochs" : tuner_epochs,
+                "tuner_patience" : tuner_patience,
+                "tuner_type" : tuner_type,
                 "loss_function": loss_function, 
                 "metrics": metrics,
                 "hp_config": hp_config,
@@ -617,8 +635,10 @@ class Model:
 
         random.shuffle(args_list)
 
-        selected_indices = fold_indices or slice(fold_start_index, fold_end_index)
-        args_list = args_list[selected_indices]
+        args_list = ([args_list[i] for i in fold_indices] 
+                     if fold_indices is not None 
+                     else args_list[fold_start_index:fold_end_index])
+        
         logging.info(f"Processing {len(args_list)} selected test-validation pairs.")
         logging.info(
             "\n".join([f"{i['index']} - {i['split_info']}" for i in args_list])
