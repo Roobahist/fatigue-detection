@@ -154,9 +154,6 @@ class Model:
         step_size,
         discard_threshold_ratio,
         mapping,
-        loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
-        metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
-        hp_config: Optional[Dict[str, Dict[str, Any]]] = None
     ):
         self.batch_size = batch_size
         self.epochs = epochs
@@ -165,9 +162,6 @@ class Model:
         self.step_size = step_size
         self.discard_threshold_ratio = discard_threshold_ratio
         self.mapping = mapping
-        self.loss_function = loss_function
-        self.metrics = metrics
-        self.hp_config = hp_config
 
     def _save_result(
         self,
