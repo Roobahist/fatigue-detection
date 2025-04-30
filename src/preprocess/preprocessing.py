@@ -1,11 +1,18 @@
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+
 from Zh.src.utils.common import save_obj
 from Zh.src.utils.file_folder import create_folders
+
+logging.basicConfig(
+    level=logging.INFO,  # or DEBUG for more verbosity
+    format="[%(asctime)s][%(levelname)s] %(message)s",
+)
 
 
 # e7
@@ -50,45 +57,52 @@ def fix_columns(
     return data, columns_to_drop
 
 
-def _fit_normalizer_one_file(train_val_test_file_path, output_directory_path,
-                            chunk_size, feature_columns):
+def _fit_normalizer_one_file(
+    train_val_test_file_path, output_directory_path, chunk_size, feature_columns
+):
 
     import pandas as pd
     from sklearn.preprocessing import StandardScaler
-    index = train_val_test_file_path['index']
+
+    index = train_val_test_file_path["index"]
     directory_path = os.path.join(output_directory_path, str(index))
     create_folders(directory_path)
 
     output_file_path = os.path.join(directory_path, str(index) + "_normalizer.pkl")
 
     scaler = StandardScaler()
-    for file_path in train_val_test_file_path['paths']['train']:
+    for file_path in train_val_test_file_path["paths"]["train"]:
         print(f"{index} - {file_path}")
         for chunk in pd.read_csv(file_path, chunksize=chunk_size):
             chunk = chunk[feature_columns]
             scaler.partial_fit(chunk)
-    return {'obj': scaler, 'output_path': output_file_path, 'file_type': 'pickle'}
+    return {"obj": scaler, "output_path": output_file_path, "file_type": "pickle"}
 
 
-def fit_normalizer(train_val_test_file_paths: List[Dict],
-                   output_directory_path: str,
-                   chunk_size: 1000,
-                   feature_columns: List[str],
-                   parallel: bool = True,
-                   max_workers: int = 10,
-                   maxtasksperchild: int = 1,
-                   use_tqdm: bool = True):
+def fit_normalizer(
+    train_val_test_file_paths: List[Dict],
+    output_directory_path: str,
+    chunk_size: 1000,
+    feature_columns: List[str],
+    parallel: bool = True,
+    max_workers: int = 10,
+    maxtasksperchild: int = 1,
+    use_tqdm: bool = True,
+):
 
     from Zh.src.utils.serialized_parallel import process
 
     create_folders(output_directory_path)
 
-    args_list = [{
-        "train_val_test_file_path": train_val_test_file_path,
-        "output_directory_path": output_directory_path,
-        "chunk_size": chunk_size,
-        "feature_columns": feature_columns,
-    } for train_val_test_file_path in train_val_test_file_paths]
+    args_list = [
+        {
+            "train_val_test_file_path": train_val_test_file_path,
+            "output_directory_path": output_directory_path,
+            "chunk_size": chunk_size,
+            "feature_columns": feature_columns,
+        }
+        for train_val_test_file_path in train_val_test_file_paths
+    ]
 
     process(
         worker_function=_fit_normalizer_one_file,
@@ -102,56 +116,73 @@ def fit_normalizer(train_val_test_file_paths: List[Dict],
 
 
 def _apply_normalizer_one_file(
-    train_val_test_file_path : str,
-    output_directory_path: str):
+    train_val_test_file_path: str, output_directory_path: str
+):
 
     import pickle
 
     from Zh.src.utils.file_folder import create_folders
 
-    index = train_val_test_file_path['index']
-    all_splits_paths = (train_val_test_file_path['paths']['test'] + 
-                        train_val_test_file_path['paths']['val'] + 
-                        train_val_test_file_path['paths']['train'])
-    
+    index = train_val_test_file_path["index"]
+    all_splits_paths = (
+        train_val_test_file_path["paths"]["test"]
+        + train_val_test_file_path["paths"]["val"]
+        + train_val_test_file_path["paths"]["train"]
+    )
+
     origin_directory_path = os.path.commonpath(all_splits_paths)
-    origin_directory_subfolders_path = list(set([os.path.dirname(file_path) for file_path in all_splits_paths]))    
-    output_directory_subfolders_path = [folder_path.replace(origin_directory_path, output_directory_path) 
-                                        for folder_path in origin_directory_subfolders_path]
+    origin_directory_subfolders_path = list(
+        set([os.path.dirname(file_path) for file_path in all_splits_paths])
+    )
+    output_directory_subfolders_path = [
+        folder_path.replace(origin_directory_path, output_directory_path)
+        for folder_path in origin_directory_subfolders_path
+    ]
 
     create_folders(output_directory_subfolders_path)
 
-    with open(os.path.join(output_directory_path, f"{index}_normalizer.pkl"), "rb") as file:
+    with open(
+        os.path.join(output_directory_path, f"{index}_normalizer.pkl"), "rb"
+    ) as file:
         scaler = pickle.load(file)
 
     for file_path in all_splits_paths:
         print(f"{index} - {file_path}")
-        
+
         data = pd.read_csv(file_path)
-        scaled = pd.DataFrame(scaler.transform(data[scaler.feature_names_in_]), 
-                              columns = scaler.feature_names_in_)
-        rest = data[data.columns.difference(scaler.feature_names_in_, 
-                                            sort=False)]
+        scaled = pd.DataFrame(
+            scaler.transform(data[scaler.feature_names_in_]),
+            columns=scaler.feature_names_in_,
+        )
+        rest = data[data.columns.difference(scaler.feature_names_in_, sort=False)]
         data = pd.concat([rest, scaled], axis=1)
-        data.to_csv(file_path.replace(origin_directory_path, output_directory_path), index=False)
+        data.to_csv(
+            file_path.replace(origin_directory_path, output_directory_path), index=False
+        )
 
 
-def apply_normalizer(input_directory_path : str,
-                     parallel: bool = True,
-                     max_workers: int = 10,
-                     maxtasksperchild: int = 1,
-                     use_tqdm: bool = True):
+def apply_normalizer(
+    input_directory_path: str,
+    parallel: bool = True,
+    max_workers: int = 10,
+    maxtasksperchild: int = 1,
+    use_tqdm: bool = True,
+):
 
     from Zh.src.utils.serialized_parallel import process
-    
+
     with open(os.path.join(input_directory_path, "split_info.json"), "r") as file:
         train_val_test_file_paths = json.load(file)
 
-    args_list = [{
-        "train_val_test_file_path": train_val_test_file_path,
-        "output_directory_path": os.path.join(input_directory_path, 
-                                              str(train_val_test_file_path['index'])),
-    } for train_val_test_file_path in train_val_test_file_paths][10:]
+    args_list = [
+        {
+            "train_val_test_file_path": train_val_test_file_path,
+            "output_directory_path": os.path.join(
+                input_directory_path, str(train_val_test_file_path["index"])
+            ),
+        }
+        for train_val_test_file_path in train_val_test_file_paths
+    ][10:]
 
     process(
         worker_function=_apply_normalizer_one_file,
