@@ -39,3 +39,36 @@ def get_file_paths(
                 ]
             )
     return file_paths
+
+
+def copy_directory_structure(source_dir, target_dir):
+    """
+    Copy the directory structure from source_dir to target_dir.
+    This only creates the directories, without copying any files.
+    
+    Args:
+        source_dir (str): Path to the source directory
+        target_dir (str): Path to the target directory where subdirectories will be created
+    """
+    # Check if source directory exists
+    if not os.path.isdir(source_dir):
+        raise ValueError(f"Source directory '{source_dir}' does not exist or is not a directory")
+    
+    # Check if target directory exists, create it if it doesn't
+    create_folders(target_dir)
+    if not os.path.isdir(target_dir):
+        raise ValueError(f"Target path '{target_dir}' exists but is not a directory")
+    
+    # Walk through the source directory structure
+    for root, _, _ in os.walk(source_dir):
+        # Calculate the relative path from source_dir
+        relative_path = os.path.relpath(root, source_dir)
+        
+        # Skip the root directory itself
+        if relative_path == '.':
+            continue
+        
+        # Create the corresponding directory in the target path
+        new_dir_path = os.path.join(target_dir, relative_path)
+        create_folders(new_dir_path)
+        print(f"directory: {new_dir_path}")
