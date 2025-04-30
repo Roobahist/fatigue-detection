@@ -22,7 +22,7 @@ def process(
 ) -> List[Any]:
 
     results = []
-    if parallel:
+    if parallel and len(worker_params_list) > 1:
         logging.info("Processing in Parallel Mode ...")
         multiprocessing.set_start_method('spawn')
         with multiprocessing.Pool(
