@@ -335,7 +335,7 @@ class Model:
         metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
         columns_to_drop: Optional[List[str]] = [],
-        workers: Optional[int] = 1,
+        data_gen_workers: Optional[int] = 1,
         tuner_max_trials: int = 15, 
         tuner_executions_per_trial: int = 1, 
         tuner_epochs: int = 50,
@@ -371,8 +371,8 @@ class Model:
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
-            workers=workers,
-            use_multiprocessing=True,
+            workers=data_gen_workers,
+            use_multiprocessing=True if data_gen_workers > 1 else False,
         )
 
         val_data_gen = MyDataGenerator(
@@ -389,8 +389,8 @@ class Model:
             discard_threshold_ratio=self.discard_threshold_ratio,
             class_weights=train_data_gen.class_weights, #TODO not connected currently. raises error
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
-            workers=workers,
-            use_multiprocessing=True,
+            workers=data_gen_workers,
+            use_multiprocessing=True if data_gen_workers > 1 else False,
         )
 
         test_data_gen = MyDataGenerator(
@@ -407,8 +407,8 @@ class Model:
             discard_threshold_ratio=self.discard_threshold_ratio,
             class_weights=train_data_gen.class_weights, #TODO not connected currently. raises error
             shuffle=False, #Not connected currently. will be deleted probably as it is not needed
-            workers=workers,
-            use_multiprocessing=True,
+            workers=data_gen_workers,
+            use_multiprocessing=True if data_gen_workers > 1 else False,
         )
 
         # sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
@@ -425,7 +425,7 @@ class Model:
             train_data = train_data_gen, 
             val_data = val_data_gen,
             directory = output_folder_path,
-            project_name = index,
+            project_name = str(index),
             max_trials = tuner_max_trials,
             executions_per_trial = tuner_executions_per_trial,
             epochs = tuner_epochs, #using lower number of epochs for finding the best hp
@@ -552,7 +552,7 @@ class Model:
         fold_start_index: Optional[int] = None,
         fold_end_index: Optional[int] = None,
         fold_indices: Optional[List[int]] = None,
-        workers: Optional[int] = 1,
+        data_gen_workers: Optional[int] = 1,
         tuner_max_trials: int = 15, 
         tuner_executions_per_trial: int = 1, 
         tuner_epochs: int = 50,
@@ -606,15 +606,14 @@ class Model:
         args_list = [
             {
                 "split_info": split["info"],
-                "split_paths": split["paths"],
-                "video_info_csv_path": os.path.join(os.path.commonpath(split['paths']['train'] + 
-                                                                       split['paths']['test'] + 
-                                                                       split['paths']['val']), 
-                                                    str(split['index']),
+                "split_paths": split["output_paths"],
+                "video_info_csv_path": os.path.join(os.path.commonpath(split['output_paths']['train'] + 
+                                                                       split['output_paths']['test'] + 
+                                                                       split['output_paths']['val']), 
                                                     "video_info.csv"),
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
-                "workers": workers,
+                "data_gen_workers": data_gen_workers,
                 "tuner_max_trials" : tuner_max_trials,
                 "tuner_executions_per_trial" : tuner_executions_per_trial,
                 "tuner_epochs" : tuner_epochs,

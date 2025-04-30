@@ -53,7 +53,7 @@ if __name__ == "__main__":
         epochs                  = 250,
         patience                = 50,
         slice_size              = 4500,
-        step_size               = 2000,
+        step_size               = 4500, #TODO when step size is lower intervals merge. should be implemented in the data generator
         discard_threshold_ratio = 0.7,
         mapping                 = mapping,
     )
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         fold_start_index              = fold_start_index,
         fold_end_index                = fold_end_index,
         fold_indices                  = [0],
-        workers                       = 1,
+        data_gen_workers              = 10,
         tuner_max_trials              = 15,
         tuner_executions_per_trial    = 1,
         tuner_epochs                  = 50,
