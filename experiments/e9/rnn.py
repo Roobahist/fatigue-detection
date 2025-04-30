@@ -74,6 +74,7 @@ if __name__ == "__main__":
         fold_end_index                = fold_end_index,
         fold_indices                  = [0],
         data_gen_workers              = 10,
+        tuner_model_name              = 'LSTMModel',
         tuner_max_trials              = 15,
         tuner_executions_per_trial    = 1,
         tuner_epochs                  = 50,

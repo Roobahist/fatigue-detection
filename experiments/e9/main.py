@@ -13,7 +13,7 @@ from keras.src.callbacks import Callback, EarlyStopping, History, ModelCheckpoin
 
 from Zh.src.utils.datagenerator import MyDataGenerator
 from Zh.src.utils.file_folder import create_folders, get_file_paths
-from Zh.src.utils.lstm_tuner import LSTMModel
+from Zh.src.utils.model_tuner import *
 from Zh.src.utils.report import report
 from Zh.src.utils.serialized_parallel import process
 
@@ -336,6 +336,7 @@ class Model:
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
         columns_to_drop: Optional[List[str]] = [],
         data_gen_workers: Optional[int] = 1,
+        tuner_model_name: str = ALL_MODELS[0],
         tuner_max_trials: int = 15, 
         tuner_executions_per_trial: int = 1, 
         tuner_epochs: int = 50,
@@ -414,10 +415,16 @@ class Model:
         # sample_weight = compute_sample_weight(class_weight="balanced", y=y_train)
 
         logging.info(f"{index} - building model")
-        model = LSTMModel(input_shape = (self.slice_size, len(train_data_gen.feature_columns)),
-                          loss_function = loss_function,
-                          metrics = metrics,
-                          hp_config = hp_config)
+
+        if tuner_model_name not in ALL_MODELS:
+            logging.info(f"{index} - Model Default Used {ALL_MODELS[0]}")
+            tuner_model_name = ALL_MODELS[0]
+        
+        model = ModelTuner(model_class = eval(tuner_model_name),
+                           input_shape = (self.slice_size, len(train_data_gen.feature_columns)),
+                           loss_function = loss_function,
+                           metrics = metrics,
+                           hp_config = hp_config)
 
         logging.info(f"{index} - Finding Best HP")
 
@@ -553,6 +560,7 @@ class Model:
         fold_end_index: Optional[int] = None,
         fold_indices: Optional[List[int]] = None,
         data_gen_workers: Optional[int] = 1,
+        tuner_model_name: str = ALL_MODELS[0],
         tuner_max_trials: int = 15, 
         tuner_executions_per_trial: int = 1, 
         tuner_epochs: int = 50,
@@ -588,14 +596,15 @@ class Model:
                         "fold_start_index": fold_start_index,
                         "fold_end_index": fold_end_index,
                         "fold_indices": fold_indices,
-                        "tuner_max_trials" : tuner_max_trials,
-                        "tuner_executions_per_trial" : tuner_executions_per_trial,
-                        "tuner_epochs" : tuner_epochs,
-                        "tuner_patience" : tuner_patience,
-                        "tuner_type" : tuner_type,
-                        "hp" : hp_config,
-                        "loss_function" : loss_function,
-                        "metrics" : metrics,
+                        "tuner_model_name": tuner_model_name,
+                        "tuner_max_trials": tuner_max_trials,
+                        "tuner_executions_per_trial": tuner_executions_per_trial,
+                        "tuner_epochs": tuner_epochs,
+                        "tuner_patience": tuner_patience,
+                        "tuner_type": tuner_type,
+                        "hp": hp_config,
+                        "loss_function": loss_function,
+                        "metrics": metrics,
                     }
                 },
                 file,
@@ -614,6 +623,7 @@ class Model:
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "data_gen_workers": data_gen_workers,
+                "tuner_model_name": tuner_model_name,
                 "tuner_max_trials" : tuner_max_trials,
                 "tuner_executions_per_trial" : tuner_executions_per_trial,
                 "tuner_epochs" : tuner_epochs,
