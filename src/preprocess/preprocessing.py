@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from src.utils.common import save_obj
-from src.utils.file_folder import create_folders
+from Zh.src.utils.common import save_obj
+from Zh.src.utils.file_folder import create_folders
 
 
 # e7
@@ -79,11 +79,7 @@ def fit_normalizer(train_val_test_file_paths: List[Dict],
                    maxtasksperchild: int = 1,
                    use_tqdm: bool = True):
 
-    from src.utils.serialized_parallel import process
-
-    save_obj(obj=train_val_test_file_paths,
-             output_path=os.path.join(output_directory_path, 'split_info.json'),
-             file_type='json')
+    from Zh.src.utils.serialized_parallel import process
 
     create_folders(output_directory_path)
 
@@ -111,7 +107,7 @@ def _apply_normalizer_one_file(
 
     import pickle
 
-    from src.utils.file_folder import create_folders
+    from Zh.src.utils.file_folder import create_folders
 
     index = train_val_test_file_path['index']
     all_splits_paths = (train_val_test_file_path['paths']['test'] + 
@@ -146,7 +142,7 @@ def apply_normalizer(input_directory_path : str,
                      maxtasksperchild: int = 1,
                      use_tqdm: bool = True):
 
-    from src.utils.serialized_parallel import process
+    from Zh.src.utils.serialized_parallel import process
     
     with open(os.path.join(input_directory_path, "split_info.json"), "r") as file:
         train_val_test_file_paths = json.load(file)
@@ -167,16 +163,24 @@ def apply_normalizer(input_directory_path : str,
     )
 
 if __name__ == "__main__":
-    # from src.utils.split_files import _get_train_val_test_file_paths
+    # from Zh.src.utils.split_files import _get_train_val_test_file_paths
+
+    # input_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed"
+    # output_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized"
 
     # train_val_test_file_paths = _get_train_val_test_file_paths(
-    #     input_path = "/work/long_lab/Mojtaba/data/UTA/1.3.2-augmented_embedded_preprocessed",
+    #     input_path = input_path,
+    #     output_path=output_directory_path,
     #     primary_column_name = "fold",
     #     secondary_column_name = None
     # )
 
+    # save_obj(obj=train_val_test_file_paths,
+    #          output_path=os.path.join(output_directory_path, 'split_info_1.json'),
+    #          file_type='json')
+
     # fit_normalizer(train_val_test_file_paths = train_val_test_file_paths,
-    #                 output_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized",
+    #                 output_directory_path = output_directory_path,
     #                 chunk_size = 1000,
     #                 feature_columns = [f"f_{i}" for i in range(128)],
     #                 parallel = True,
@@ -184,10 +188,11 @@ if __name__ == "__main__":
     #                 maxtasksperchild = 1,
     #                 use_tqdm = True)
 
-    apply_normalizer(input_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized",
-                     parallel = True,
-                     max_workers = 10,
-                     maxtasksperchild = 1,
-                     use_tqdm = True)
+    # apply_normalizer(input_directory_path = output_directory_path,
+    #                  parallel = True,
+    #                  max_workers = 10,
+    #                  maxtasksperchild = 1,
+    #                  use_tqdm = True)
 
-    #TODO check and see if all the output dataframes have the same shape as inputs
+    # TODO check and see if all the output dataframes have the same shape as inputs
+    pass
