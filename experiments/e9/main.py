@@ -49,24 +49,21 @@ class NumpyEncoder(json.JSONEncoder):
 class EpochEndLoggingCallback(Callback):
     def __init__(
         self,
-        mapping : Dict,
-        index : int,
-
+        mapping: Dict,
+        index: int,
         X_train: Union[np.ndarray, MyDataGenerator],
-        X_val  : Union[np.ndarray, MyDataGenerator],
-        X_test : Union[np.ndarray, MyDataGenerator],
-
-        y_train : Union[np.ndarray, None] = None,
-        y_val   : Union[np.ndarray, None] = None,
-        y_test  : Union[np.ndarray, None] = None,
-
-        group_identifiers_train : Union[np.ndarray, None] = None,
-        group_identifiers_val   : Union[np.ndarray, None] = None,
-        group_identifiers_test  : Union[np.ndarray, None] = None,
+        X_val: Union[np.ndarray, MyDataGenerator],
+        X_test: Union[np.ndarray, MyDataGenerator],
+        y_train: Union[np.ndarray, None] = None,
+        y_val: Union[np.ndarray, None] = None,
+        y_test: Union[np.ndarray, None] = None,
+        group_identifiers_train: Union[np.ndarray, None] = None,
+        group_identifiers_val: Union[np.ndarray, None] = None,
+        group_identifiers_test: Union[np.ndarray, None] = None,
     ):
         """
         Callback to log metrics at the end of each epoch using data generators.
-        
+
         Args:
             train_generator: Generator for training data
             val_generator: Generator for validation data
@@ -79,57 +76,56 @@ class EpochEndLoggingCallback(Callback):
         """
         super().__init__()
 
-        self.mapping        = mapping
-        self.index          = index
-        
+        self.mapping = mapping
+        self.index = index
+
         self.X_train = X_train
         if isinstance(self.X_train, MyDataGenerator):
-            self.y_train                 = self.X_train.true_labels['y']
-            self.group_identifiers_train = self.X_train.true_labels['g']
+            self.y_train = self.X_train.true_labels["y"]
+            self.group_identifiers_train = self.X_train.true_labels["g"]
         else:
-            self.y_train                 = y_train
+            self.y_train = y_train
             self.group_identifiers_train = group_identifiers_train
 
         self.X_val = X_val
         if isinstance(self.X_val, MyDataGenerator):
-            self.y_val                 = self.X_val.true_labels['y']
-            self.group_identifiers_val = self.X_val.true_labels['g']
+            self.y_val = self.X_val.true_labels["y"]
+            self.group_identifiers_val = self.X_val.true_labels["g"]
         else:
-            self.y_val                 = y_val
+            self.y_val = y_val
             self.group_identifiers_val = group_identifiers_val
 
         self.X_test = X_test
         if isinstance(self.X_test, MyDataGenerator):
-            self.y_test                 = self.X_test.true_labels['y']
-            self.group_identifiers_test = self.X_test.true_labels['g']
+            self.y_test = self.X_test.true_labels["y"]
+            self.group_identifiers_test = self.X_test.true_labels["g"]
         else:
-            self.y_test                 = y_test
+            self.y_test = y_test
             self.group_identifiers_test = group_identifiers_test
-
 
     def on_epoch_end(self, epoch, logs=None):
         """Called at the end of an epoch to log metrics for each dataset."""
-        
+
         _, train_report = report(
-            model             = self.model,
-            x                 = self.X_train,
-            y                 = self.y_train,
-            group_identifiers = self.group_identifiers_train,
-            unique_classes    = list(self.mapping.values()),
+            model=self.model,
+            x=self.X_train,
+            y=self.y_train,
+            group_identifiers=self.group_identifiers_train,
+            unique_classes=list(self.mapping.values()),
         )
         _, val_report = report(
-            model             = self.model,
-            x                 = self.X_val,
-            y                 = self.y_val,
-            group_identifiers = self.group_identifiers_val,
-            unique_classes    = list(self.mapping.values()),
+            model=self.model,
+            x=self.X_val,
+            y=self.y_val,
+            group_identifiers=self.group_identifiers_val,
+            unique_classes=list(self.mapping.values()),
         )
         _, test_report = report(
-            model             = self.model,
-            x                 = self.X_test,
-            y                 = self.y_test,
-            group_identifiers = self.group_identifiers_test,
-            unique_classes    = list(self.mapping.values()),
+            model=self.model,
+            x=self.X_test,
+            y=self.y_test,
+            group_identifiers=self.group_identifiers_test,
+            unique_classes=list(self.mapping.values()),
         )
 
         logging.info(
@@ -188,17 +184,17 @@ class Model:
         split_paths: Dict[str, List[str]],
         video_info_csv_path: str,
         output_folder_path: str,
-        loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
-        metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
+        loss_function: Union[str, tf.keras.losses.Loss] = "mse",
+        metrics: List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
         columns_to_drop: Optional[List[str]] = [],
         data_gen_workers: Optional[int] = 1,
         tuner_model_name: str = ALL_MODELS[0],
-        tuner_max_trials: int = 15, 
-        tuner_executions_per_trial: int = 1, 
+        tuner_max_trials: int = 15,
+        tuner_executions_per_trial: int = 1,
         tuner_epochs: int = 50,
         tuner_patience: int = 10,
-        tuner_type: str = 'bayesian',
+        tuner_type: str = "bayesian",
         index: Optional[int] = 0,
     ):
         """Helper function for parallel processing in test_model.
@@ -228,7 +224,7 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            shuffle=False, #Not connected currently. will be deleted probably as it is not needed
+            shuffle=False,  # Not connected currently. will be deleted probably as it is not needed
             workers=data_gen_workers,
             use_multiprocessing=True if data_gen_workers > 1 else False,
         )
@@ -245,8 +241,8 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            class_weights=train_data_gen.class_weights, #TODO not connected currently. raises error
-            shuffle=False, #Not connected currently. will be deleted probably as it is not needed
+            class_weights=train_data_gen.class_weights,  # TODO not connected currently. raises error
+            shuffle=False,  # Not connected currently. will be deleted probably as it is not needed
             workers=data_gen_workers,
             use_multiprocessing=True if data_gen_workers > 1 else False,
         )
@@ -263,8 +259,8 @@ class Model:
             slice_size=self.slice_size,
             step_size=self.step_size,
             discard_threshold_ratio=self.discard_threshold_ratio,
-            class_weights=train_data_gen.class_weights, #TODO not connected currently. raises error
-            shuffle=False, #Not connected currently. will be deleted probably as it is not needed
+            class_weights=train_data_gen.class_weights,  # TODO not connected currently. raises error
+            shuffle=False,  # Not connected currently. will be deleted probably as it is not needed
             workers=data_gen_workers,
             use_multiprocessing=True if data_gen_workers > 1 else False,
         )
@@ -276,35 +272,37 @@ class Model:
         if tuner_model_name not in ALL_MODELS:
             logging.info(f"{index} - Model Default Used {ALL_MODELS[0]}")
             tuner_model_name = ALL_MODELS[0]
-        
-        model = ModelTuner(model_class = eval(tuner_model_name),
-                           input_shape = (self.slice_size, len(train_data_gen.feature_columns)),
-                           loss_function = loss_function,
-                           metrics = metrics,
-                           hp_config = hp_config)
+
+        model = ModelTuner(
+            model_class=eval(tuner_model_name),
+            input_shape=(self.slice_size, len(train_data_gen.feature_columns)),
+            loss_function=loss_function,
+            metrics=metrics,
+            hp_config=hp_config,
+        )
 
         logging.info(f"{index} - Finding Best HP")
 
         best_hps, tuner = model.tune_model(
-            train_data = train_data_gen, 
-            val_data = val_data_gen,
-            directory = output_folder_path,
-            project_name = str(index),
-            max_trials = tuner_max_trials,
-            executions_per_trial = tuner_executions_per_trial,
-            epochs = tuner_epochs, #using lower number of epochs for finding the best hp
-            batch_size = self.batch_size,
-            patience = tuner_patience,
-            tuner_type = tuner_type,
-            overwrite = False
+            train_data=train_data_gen,
+            val_data=val_data_gen,
+            directory=output_folder_path,
+            project_name=str(index),
+            max_trials=tuner_max_trials,
+            executions_per_trial=tuner_executions_per_trial,
+            epochs=tuner_epochs,  # using lower number of epochs for finding the best hp
+            batch_size=self.batch_size,
+            patience=tuner_patience,
+            tuner_type=tuner_type,
+            overwrite=False,
         )
 
         best_model = model.get_best_model(tuner)
 
         epoch_end_logging = EpochEndLoggingCallback(
-            train_data_gen = train_data_gen,
-            val_data_gen = val_data_gen,
-            test_data_gen = test_data_gen,
+            train_data_gen=train_data_gen,
+            val_data_gen=val_data_gen,
+            test_data_gen=test_data_gen,
             mapping=self.mapping,
             index=index,
         )
@@ -338,22 +336,22 @@ class Model:
         y_train_pred, train_report = report(
             model=model,
             x=train_data_gen,
-            y=train_data_gen.true_labels['y'],
-            group_identifiers=train_data_gen.true_labels['g'],
+            y=train_data_gen.true_labels["y"],
+            group_identifiers=train_data_gen.true_labels["g"],
             unique_classes=list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
             model=model,
             x=val_data_gen,
-            y=val_data_gen.true_labels['y'],
-            group_identifiers=val_data_gen.true_labels['g'],
+            y=val_data_gen.true_labels["y"],
+            group_identifiers=val_data_gen.true_labels["g"],
             unique_classes=list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
             model=model,
             x=test_data_gen,
-            y=test_data_gen.true_labels['y'],
-            group_identifiers=test_data_gen.true_labels['g'],
+            y=test_data_gen.true_labels["y"],
+            group_identifiers=test_data_gen.true_labels["g"],
             unique_classes=list(self.mapping.values()),
         )
 
@@ -418,13 +416,13 @@ class Model:
         fold_indices: Optional[List[int]] = None,
         data_gen_workers: Optional[int] = 1,
         tuner_model_name: str = ALL_MODELS[0],
-        tuner_max_trials: int = 15, 
-        tuner_executions_per_trial: int = 1, 
+        tuner_max_trials: int = 15,
+        tuner_executions_per_trial: int = 1,
         tuner_epochs: int = 50,
         tuner_patience: int = 10,
-        tuner_type: str = 'bayesian',
-        loss_function: Union[str, tf.keras.losses.Loss] = 'mse', 
-        metrics: List[Union[str, tf.keras.metrics.Metric]] = ['mae'],
+        tuner_type: str = "bayesian",
+        loss_function: Union[str, tf.keras.losses.Loss] = "mse",
+        metrics: List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
         hp_config: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
 
@@ -466,27 +464,31 @@ class Model:
                 },
                 file,
             )
-        with open(split_info_csv_path, 'r') as json_file:
+        with open(split_info_csv_path, "r") as json_file:
             train_val_test_indices = json.load(json_file)
 
         args_list = [
             {
                 "split_info": split["info"],
                 "split_paths": split["output_paths"],
-                "video_info_csv_path": os.path.join(os.path.commonpath(split['output_paths']['train'] + 
-                                                                       split['output_paths']['test'] + 
-                                                                       split['output_paths']['val']), 
-                                                    "video_info.csv"),
+                "video_info_csv_path": os.path.join(
+                    os.path.commonpath(
+                        split["output_paths"]["train"]
+                        + split["output_paths"]["test"]
+                        + split["output_paths"]["val"]
+                    ),
+                    "video_info.csv",
+                ),
                 "output_folder_path": output_folder_path,
                 "columns_to_drop": columns_to_drop,
                 "data_gen_workers": data_gen_workers,
                 "tuner_model_name": tuner_model_name,
-                "tuner_max_trials" : tuner_max_trials,
-                "tuner_executions_per_trial" : tuner_executions_per_trial,
-                "tuner_epochs" : tuner_epochs,
-                "tuner_patience" : tuner_patience,
-                "tuner_type" : tuner_type,
-                "loss_function": loss_function, 
+                "tuner_max_trials": tuner_max_trials,
+                "tuner_executions_per_trial": tuner_executions_per_trial,
+                "tuner_epochs": tuner_epochs,
+                "tuner_patience": tuner_patience,
+                "tuner_type": tuner_type,
+                "loss_function": loss_function,
                 "metrics": metrics,
                 "hp_config": hp_config,
                 "index": split["index"],
@@ -501,10 +503,12 @@ class Model:
 
         random.shuffle(args_list)
 
-        args_list = ([args_list[i] for i in fold_indices] 
-                     if fold_indices is not None 
-                     else args_list[fold_start_index:fold_end_index])
-        
+        args_list = (
+            [args_list[i] for i in fold_indices]
+            if fold_indices is not None
+            else args_list[fold_start_index:fold_end_index]
+        )
+
         logging.info(f"Processing {len(args_list)} selected test-validation pairs.")
         logging.info(
             "\n".join([f"{i['index']} - {i['split_info']}" for i in args_list])
