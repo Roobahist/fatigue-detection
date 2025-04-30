@@ -202,7 +202,9 @@ class Model:
         logging.info(
             f"{result['split_info']['index']} - ======================= Saving ======================="
         )
-        result_file_path = os.path.join(output_folder_path, f"{result['split_info']['index']}.json")
+        result_file_path = os.path.join(
+            output_folder_path, f"{result['split_info']['index']}.json"
+        )
         with open(result_file_path, "w") as file:
             json.dump(result, file, cls=NumpyEncoder, indent=4)
 
@@ -457,8 +459,6 @@ class Model:
             save_weights_only=False,
         )
 
-        
-
         history: History = model.fit(
             X_train,
             y_train,
@@ -571,7 +571,7 @@ class Model:
                         "epochs": self.epochs,
                         "slice_size": self.slice_size,
                         "step_size": self.step_size,
-                        "mapping" : self.mapping,
+                        "mapping": self.mapping,
                         "discard_threshold_ratio": self.discard_threshold_ratio,
                         "columns_to_drop": columns_to_drop,
                         "output_folder_name": output_folder_name,
