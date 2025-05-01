@@ -1,14 +1,15 @@
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.models import Sequential
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import keras_tuner as kt
-from typing import Dict, List, Tuple, Union, Any, Optional
 import numpy as np
+import tensorflow as tf
+from keras.src import layers
+from keras.src.models import Sequential
+from tensorflow import keras
 
 ALL_MODELS = ['LSTMModel', 'TransformerModel', 'ConvLSTMModel', 'TCNModel', 'BiLSTMAttentionModel']
 
-
+# fmt: off
 class TransformerModel(kt.HyperModel):
     def __init__(self, 
                 input_shape: Tuple[int, int], 
