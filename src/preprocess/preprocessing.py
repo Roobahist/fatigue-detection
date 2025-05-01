@@ -252,6 +252,11 @@ def convert_csv_to_npy(source_dir, target_dir):
 
                     if columns == []:
                         columns = list(df.select_dtypes(include="number").columns)
+                        save_obj(
+                            obj=columns,
+                            output_path=os.path.join(target_dir, "columns.json"),
+                            file_type="json",
+                        )
 
                     assert (
                         current_columns == columns
