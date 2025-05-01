@@ -236,6 +236,10 @@ def convert_csv_to_npy(source_dir, target_dir):
                     target_subdir, os.path.splitext(file)[0] + ".npy"
                 )
 
+                if os.path.exists(target_file):
+                    logging.info(f"File Exists: {target_file}")
+                    continue
+
                 try:
                     # Read CSV using pandas
                     logging.info(f"Processing: {source_file}")
