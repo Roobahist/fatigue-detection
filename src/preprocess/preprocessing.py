@@ -237,6 +237,10 @@ def convert_csv_to_npy(source_dir, target_dir):
                 )
 
                 if os.path.exists(target_file):
+                    
+                    # TODO : problem with this implementation is that the column
+                    #        names are not matched with already processed files.
+
                     logging.info(f"File Exists: {target_file}")
                     continue
 
