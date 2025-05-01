@@ -9,12 +9,16 @@ def create_folders(to_create_folder_paths: Union[str, List[str]]) -> bool:
         if isinstance(to_create_folder_paths, str):
             to_create_folder_paths = [to_create_folder_paths]
         assert isinstance(to_create_folder_paths, list)
+        
         for to_create_folder_path in to_create_folder_paths:
-            os.makedirs(to_create_folder_path, exist_ok=True)
-        return True
+            if os.path.exists(to_create_folder_path):
+                # print(f"Folder already exists: {to_create_folder_path}")
+                pass
+            else:
+                os.makedirs(to_create_folder_path)
+                print(f"Folder created: {to_create_folder_path}")
     except Exception as e:
         logging.error(f"Error Creating Folders: %s", traceback.format_exc())
-        return False
 
 
 def get_file_paths(
@@ -57,7 +61,7 @@ def copy_directory_structure(source_dir, target_dir):
     # Check if target directory exists, create it if it doesn't
     create_folders(target_dir)
     if not os.path.isdir(target_dir):
-        raise ValueError(f"Target path '{target_dir}' exists but is not a directory")
+        raise ValueError(f"Target path '{target_dir}' does not exist or is not a directory")
     
     # Walk through the source directory structure
     for root, _, _ in os.walk(source_dir):
@@ -71,4 +75,3 @@ def copy_directory_structure(source_dir, target_dir):
         # Create the corresponding directory in the target path
         new_dir_path = os.path.join(target_dir, relative_path)
         create_folders(new_dir_path)
-        print(f"directory: {new_dir_path}")
