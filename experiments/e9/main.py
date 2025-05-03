@@ -186,7 +186,8 @@ class Model:
         split_info                : Dict[str, Dict[str, List[str]]],
         split_paths               : Dict[str, List[str]],
         video_info_csv_path       : str,
-        output_folder_path        : str,
+        column_names              : Union[list[str], None] = None,
+        output_folder_path        : str = '.',
         loss_function             : Union[str, tf.keras.losses.Loss] = "mse",
         metrics                   : List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
         hp_config                 : Optional[Dict[str, Dict[str, Any]]] = None,
@@ -219,6 +220,7 @@ class Model:
             paths                   = split_paths["train"],
             video_info_csv_path     = video_info_csv_path,
             mapping                 = self.mapping,
+            column_names            = column_names,
             groupby_column          = groupby_column,
             sortby_column           = sortby_column,
             target_column           = target_column,
@@ -236,6 +238,7 @@ class Model:
             paths                   = split_paths["val"],
             video_info_csv_path     = video_info_csv_path,
             mapping                 = self.mapping,
+            column_names            = column_names,
             groupby_column          = groupby_column,
             sortby_column           = sortby_column,
             target_column           = target_column,
@@ -254,6 +257,7 @@ class Model:
             paths                   = split_paths["test"],
             video_info_csv_path     = video_info_csv_path,
             mapping                 = self.mapping,
+            column_names            = column_names,
             groupby_column          = groupby_column,
             sortby_column           = sortby_column,
             target_column           = target_column,
@@ -406,6 +410,7 @@ class Model:
         self,
         input_directory_path         : str,
         split_info_csv_path          : str,
+        column_names_json_path       : str = None,
         columns_to_drop              : Optional[List[str]] = [],
         parallel                     : bool = False,
         max_workers                  : Optional[int] = None,
@@ -447,6 +452,7 @@ class Model:
                         "discard_threshold_ratio"      : self.discard_threshold_ratio,
                         "input_directory_path"         : input_directory_path,
                         "split_info_csv_path"          : split_info_csv_path,
+                        "column_names_json_path"       : column_names_json_path,
                         "columns_to_drop"              : columns_to_drop,
                         "output_folder_name"           : output_folder_name,
                         "fold_by_primary_column_name"  : fold_by_primary_column_name,
@@ -467,21 +473,35 @@ class Model:
                 },
                 file,
             )
-        with open(split_info_csv_path, "r") as json_file:
-            train_val_test_indices = json.load(json_file)
+        
+        if split_info_csv_path is not None and os.path.isfile(split_info_csv_path):
+            with open(split_info_csv_path, "r") as json_file:
+                train_val_test_indices = json.load(json_file)
+        else:
+            raise ValueError("split_info_csv_path is not a file")
+        
+        if column_names_json_path is not None and os.path.isfile(column_names_json_path):
+            with open(column_names_json_path, "r") as json_file:
+                column_names = json.load(json_file)
+        else:
+            logging.warning("column_names_json_path is not a file")
+            column_names = None
+
+        print(f"Column Names - {column_names}")
 
         args_list = [
             {
-                "split_info"         : split["info"],
-                "split_paths"        : split["output_paths"],
-                "video_info_csv_path": os.path.join(
+                "split_info"                : split["info"],
+                "split_paths"               : split["output_paths"],
+                "video_info_csv_path"       : os.path.join(
                     os.path.commonpath(
-                        split["output_paths"]["train"]
-                        + split["output_paths"]["test"]
-                        + split["output_paths"]["val"]
+                        split["output_paths"]["train"] +
+                        split["output_paths"]["test"] +
+                        split["output_paths"]["val"]
                     ),
                     "video_info.csv",
                 ),
+                "column_names"              : column_names,
                 "output_folder_path"        : output_folder_path,
                 "columns_to_drop"           : columns_to_drop,
                 "data_gen_workers"          : data_gen_workers,

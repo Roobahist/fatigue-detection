@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     logging.info(f"working_directory : {working_directory} & job_id : {job_id}")
 
-    input_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized"
+    input_directory_path = "/work/long_lab/Mojtaba/data/UTA/1.3.4-augmented_embedded_preprocessed_normalized_npy"
 
     mapping              = {"10": 8.5, "5": 6.5, "0": 2}
 
@@ -62,6 +62,7 @@ if __name__ == "__main__":
     m.test_model(
         input_directory_path          = input_directory_path,
         split_info_csv_path           = os.path.join(input_directory_path,'split_info.json'),
+        column_names_json_path        = os.path.join(input_directory_path,'columns.json'),
         columns_to_drop               = columns_to_drop,
         parallel                      = True,
         max_workers                   = max_workers,
