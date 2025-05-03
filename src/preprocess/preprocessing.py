@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from Zh.src.utils.common import save_obj
-from Zh.src.utils.file_folder import create_folders
+from Zh.src.utils.file_folder import create_folders, copy_directory_structure
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -207,9 +207,6 @@ def convert_csv_to_npy(source_dir, target_dir):
     Returns:
         tuple: (int, int) - Count of processed files and count of errors
     """
-    # Check if source directory exists
-    from Zh.src.utils.file_folder import copy_directory_structure
-
     copy_directory_structure(source_dir=source_dir, target_dir=target_dir)
 
     processed_count = 0
@@ -272,13 +269,75 @@ def convert_csv_to_npy(source_dir, target_dir):
                     logging.info(f"Error processing {source_file}: {str(e)}")
                     error_count += 1
 
-    save_obj(
-        obj=columns,
-        output_path=os.path.join(target_dir, "columns.json"),
-        file_type="json",
-    )
     logging.info(f"Completed: {processed_count} files processed, {error_count} errors")
     return processed_count, error_count
+
+
+def copy_video_split_info(source_dir, target_dir):
+    """
+    Traverses all files in the source directory and its subdirectories.
+    If a file is a CSV, it reads it using pandas and saves it as a NPY file
+    in the corresponding subdirectory in the target folder.
+
+    Args:
+        source_dir (str): Path to the source directory
+        target_dir (str): Path to the target directory where NPY files will be saved
+
+    Returns:
+        tuple: (int, int) - Count of processed files and count of errors
+    """
+    # Check if source directory exists
+
+    copy_directory_structure(source_dir=source_dir, target_dir=target_dir)
+
+    processed_count = 0
+    error_count = 0
+
+    # Walk through all directories and files in source_dir
+    for root, _, files in os.walk(source_dir):
+        # Calculate relative path and target subdir to maintain directory structure
+        relative_path = os.path.relpath(root, source_dir)
+        target_subdir = os.path.join(target_dir, relative_path)
+
+        # Process each file in current directory
+        for file in files:
+            source_file = os.path.join(root, file)
+            target_file = os.path.join(target_subdir, file)
+
+            if file == "split_info.json":
+                try:
+                    with open(source_file, 'r') as json_file:
+                        df = json.load(json_file)
+
+                        for fold in df:
+                            fold['input_paths'] = fold['output_paths'].copy()
+                            splits = ['train', 'test', 'val']
+                            for split in splits:
+                                fold['output_paths'][split] = [path.replace(source_dir, target_dir).replace('.csv', '.npy') for path in fold['output_paths'][split]]
+
+                except Exception as e:
+                    print(f"Error processing {source_file}: {str(e)}")
+                    error_count += 1
+                
+            if file == "video_info.csv":
+                try:
+                    # Read CSV using pandas
+                    print(f"Processing: {source_file}")
+
+                    df = pd.read_csv(source_file)
+                    df['path'] = df['path'].apply(lambda x: x.replace(source_dir, target_dir).replace('.csv', '.npy'))
+                
+                    df.to_csv(target_file, index=False)
+
+                    print(f"Saved as: {target_file}")
+                    processed_count += 1
+
+                except Exception as e:
+                    print(f"Error processing {source_file}: {str(e)}")
+                    error_count += 1
+
+
+    print(f"Completed: {processed_count} files processed, {error_count} errors")
 
 
 if __name__ == "__main__":
@@ -314,10 +373,10 @@ if __name__ == "__main__":
     #                  maxtasksperchild = 1,
     #                  use_tqdm = True)
 
-    convert_csv_to_npy(
-        source_dir="/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized",
-        target_dir="/work/long_lab/Mojtaba/data/UTA/1.3.4-augmented_embedded_preprocessed_normalized_npy",
-    )
+    # convert_csv_to_npy(
+    #     source_dir="/work/long_lab/Mojtaba/data/UTA/1.3.3-augmented_embedded_preprocessed_normalized",
+    #     target_dir="/work/long_lab/Mojtaba/data/UTA/1.3.4-augmented_embedded_preprocessed_normalized_npy",
+    # )
 
     # TODO check and see if all the output dataframes have the same shape as inputs
     pass
