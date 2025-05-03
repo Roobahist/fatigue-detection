@@ -36,8 +36,6 @@ def reshape_data_rnn(
     total_groups = len(df[groupby_column].unique())
     estimated_total_chunks = max(1, df.shape[0] // step_size) + total_groups #considering all last chunks in each group is higher than threshold
 
-    print(estimated_total_chunks)
-    
     # Pre-allocate arrays
     feature_count = len(feature_columns)
     all_chunks = np.zeros((estimated_total_chunks, slice_size, feature_count))
