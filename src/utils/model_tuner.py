@@ -9,6 +9,20 @@ from tensorflow import keras
 
 ALL_MODELS = ['LSTMModel', 'TransformerModel', 'ConvLSTMModel', 'TCNModel', 'BiLSTMAttentionModel']
 
+# Get available devices
+gpus = tf.config.list_physical_devices('GPU')
+
+# Determine device strategy
+if len(gpus) > 0:
+    print(f"Using GPU: {gpus[0]}")
+    # Optional: Configure memory growth
+    try:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+    except RuntimeError as e:
+        print(f"Memory growth setting error: {e}")
+else:
+    print("No GPU found. Using CPU instead.")
+
 # fmt: off
 class TransformerModel(kt.HyperModel):
     def __init__(self, 
