@@ -190,17 +190,27 @@ def merge_intervals(intervals):
     return merged
 
 
-def timeit(func):
+def timeit(_func=None, *, verbose=0):
     from functools import wraps
     import time
-
-    @wraps(func)
-    def timeit_wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        print(f'Function {func.__name__}{args} {kwargs} Took {total_time:.4f} seconds')
-        return result
     
-    return timeit_wrapper
+    def decorator(func):
+        @wraps(func)
+        def timeit_wrapper(*args, **kwargs):
+            start_time = time.perf_counter()
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            total_time = end_time - start_time
+            if verbose == 0:
+                print(f'Function {func.__name__} Took {total_time:.4f} seconds')
+            elif verbose == 1:
+                print(f'Function {func.__name__}{args} {kwargs} Took {total_time:.4f} seconds')
+            return result
+        return timeit_wrapper
+    
+    if _func is None:
+        # Called with parameters: @timeit(verbose=1)
+        return decorator
+    else:
+        # Called without parameters: @timeit
+        return decorator(_func)
