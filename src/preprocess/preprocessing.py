@@ -307,13 +307,17 @@ def copy_video_split_info(source_dir, target_dir):
             if file == "split_info.json":
                 try:
                     with open(source_file, 'r') as json_file:
-                        df = json.load(json_file)
+                        j = json.load(json_file)
 
-                        for fold in df:
-                            fold['input_paths'] = fold['output_paths'].copy()
-                            splits = ['train', 'test', 'val']
-                            for split in splits:
-                                fold['output_paths'][split] = [path.replace(source_dir, target_dir).replace('.csv', '.npy') for path in fold['output_paths'][split]]
+                    for fold in j:
+                        fold['input_paths'] = fold['output_paths'].copy()
+                        splits = ['train', 'test', 'val']
+                        for split in splits:
+                            fold['output_paths'][split] = [path.replace(source_dir, target_dir).replace('.csv', '.npy') for path in fold['output_paths'][split]]
+                
+                    save_obj(j, target_file, 'json')
+                    print(f"Saved as: {target_file}")
+                    processed_count += 1
 
                 except Exception as e:
                     print(f"Error processing {source_file}: {str(e)}")
@@ -328,7 +332,6 @@ def copy_video_split_info(source_dir, target_dir):
                     df['path'] = df['path'].apply(lambda x: x.replace(source_dir, target_dir).replace('.csv', '.npy'))
                 
                     df.to_csv(target_file, index=False)
-
                     print(f"Saved as: {target_file}")
                     processed_count += 1
 
