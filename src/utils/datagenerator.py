@@ -1,5 +1,4 @@
 import os
-from tarfile import data_filter
 from typing import Dict, List, Optional
 from collections import Counter
 
@@ -7,7 +6,7 @@ import numpy as np
 import pandas as pd
 from keras.src.trainers.data_adapters.py_dataset_adapter import PyDataset
 from Zh.src.preprocess.reshape import reshape_data_rnn
-from Zh.src.utils.common import has_multiple_mappings, merge_intervals
+from Zh.src.utils.common import has_multiple_mappings, merge_intervals, timeit
 from Zh.src.utils.load_data import _extract_headers, load_data
 
 
@@ -20,6 +19,7 @@ class MyDataGenerator(PyDataset):
                  paths                  : List[str],
                  video_info_csv_path    : str,
                  mapping                : Dict,
+                 column_names           : str = None,
                  groupby_column         : str = "file_name",
                  sortby_column          : str = "frame",
                  target_column          : str = "target",
@@ -40,6 +40,7 @@ class MyDataGenerator(PyDataset):
         self.paths                   = paths
         self.video_info_csv_path     = video_info_csv_path
         self.mapping                 = mapping
+        self.column_names            = column_names
         self.groupby_column          = groupby_column
         self.sortby_column           = sortby_column
         self.target_column           = target_column
@@ -67,18 +68,21 @@ class MyDataGenerator(PyDataset):
         self.on_epoch_end()
 
     def _get_columns_to_drop_1(self):
+        column_names = self.column_names or _extract_headers(self.paths[0])
         return [
             column_name
             for column_name in self.columns_to_drop
             if column_name not in [self.groupby_column, 
                                    self.sortby_column, 
                                    self.target_column]
+            and column_name in column_names
         ]
     
     def _get_feature_columns(self):
+        column_names = self.column_names or _extract_headers(self.paths[0])
         return [
             column_name
-            for column_name in _extract_headers(self.paths[0])
+            for column_name in column_names
             if column_name not in 
             self.columns_to_drop + [self.target_column, 
                                     self.sortby_column, 
@@ -193,6 +197,7 @@ class MyDataGenerator(PyDataset):
 
         return int(np.ceil(sum([file['count'] for file in self.batch_info['counts']])/self.batch_size))
     
+    @timeit(verbose=0)
     def _preprocess_data(self, file_data):
         file_data = file_data.drop(self.columns_to_drop_1, axis=1)
         X, y, g = reshape_data_rnn(df                      = file_data, 
@@ -204,7 +209,8 @@ class MyDataGenerator(PyDataset):
                                    target_column           = self.target_column,
                                    discard_threshold_ratio = self.discard_threshold_ratio)
         return X, y, g
-
+    
+    @timeit(verbose=0)
     def __data_generation(self, index):
         """
         Generates data containing batch_size samples. This is where the actual data
@@ -215,8 +221,9 @@ class MyDataGenerator(PyDataset):
 
         for file in current_batch_info:
             file_data = load_data(input_path=file['path'], 
-                      skiprows=file['merged_intervals'][0][0],
-                      nrows=file['merged_intervals'][0][1] - file['merged_intervals'][0][0])
+                                  column_names=self.column_names,
+                                  skiprows=file['merged_intervals'][0][0],
+                                  nrows=file['merged_intervals'][0][1] - file['merged_intervals'][0][0])
             X_file, y_file, g_file = self._preprocess_data(file_data=file_data)
             
             # Concatenate to the parent arrays
