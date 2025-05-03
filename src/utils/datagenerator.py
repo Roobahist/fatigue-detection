@@ -197,7 +197,7 @@ class MyDataGenerator(PyDataset):
 
         return int(np.ceil(sum([file['count'] for file in self.batch_info['counts']])/self.batch_size))
     
-    @timeit(verbose=0)
+    # @timeit(verbose=0)
     def _preprocess_data(self, file_data):
         file_data = file_data.drop(self.columns_to_drop_1, axis=1)
         X, y, g = reshape_data_rnn(df                      = file_data, 
@@ -210,7 +210,7 @@ class MyDataGenerator(PyDataset):
                                    discard_threshold_ratio = self.discard_threshold_ratio)
         return X, y, g
     
-    @timeit(verbose=0)
+    # @timeit(verbose=0)
     def __data_generation(self, index):
         """
         Generates data containing batch_size samples. This is where the actual data
