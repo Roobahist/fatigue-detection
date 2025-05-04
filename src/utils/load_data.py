@@ -117,6 +117,7 @@ def load_data(
     nrows: Optional[int] = None,
     skiprows: Optional[int] = 0,
     identifier_column_prefix: Optional[str] = "file_name",
+    verbose=0,
 ) -> pd.DataFrame:
     """
     Load data from a file or directory of CSV or NPY files.
@@ -159,7 +160,8 @@ def load_data(
                 skiprows,
                 identifier_column_prefix,
             )
-            logging.info(f"Loaded file: {input_path}, data shape: {data.shape}")
+            if verbose == 1:
+                logging.info(f"Loaded file: {input_path}, data shape: {data.shape}")
 
     elif os.path.isdir(input_path):
         # Handle directory of files
@@ -178,9 +180,10 @@ def load_data(
                     
                     if all(temp_data.columns == data.columns):
                         data = pd.concat([data, temp_data], ignore_index=True)
-                        logging.info(
-                            f"Concatenated file: {file}, current data shape: {data.shape}"
-                        )
+                        if verbose == 1:
+                            logging.info(
+                                f"Concatenated file: {file}, current data shape: {data.shape}"
+                            )
                     
                     else:
                         raise ValueError(f"Column names dont match {temp_data.columns}, {data.columns}")

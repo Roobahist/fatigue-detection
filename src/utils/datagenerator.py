@@ -243,6 +243,5 @@ class MyDataGenerator(PyDataset):
         Generates one batch of data.  The core of the data generator.
         #TODO Calculate class weights based on the name of files and num_slices and return
         """
-        print(f"index {index}")
         batch = self.__data_generation(index)
         return (batch['X'], batch['y']) #TODO adding w gives error, figure it out
