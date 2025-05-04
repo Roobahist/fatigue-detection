@@ -7,6 +7,55 @@ from sklearn.metrics import classification_report, confusion_matrix, mean_absolu
 from Zh.src.utils.common import has_multiple_mappings, order_dict_by_key_list
 from Zh.src.utils.datagenerator import MyDataGenerator
 
+def assign_class(value, thresholds, unique_classes):
+    unique_classes = [float(i) for i in unique_classes]
+    return next((unique_classes[i] for i, t in enumerate(thresholds) if value < t), unique_classes[-1])
+
+def calculate_classification_metrics(y_true, y_pred, unique_classes):
+    y_true = np.array(y_true).astype(float).astype(str)
+    y_pred = np.array(y_pred).astype(float).astype(str)
+
+    results = classification_report(
+        y_true        = y_true,
+        y_pred        = y_pred,
+        labels        = unique_classes,
+        output_dict   = True,
+        zero_division = False
+    )
+
+    for cls in unique_classes:
+        filter = y_true == cls
+        if sum(filter) == 0:
+            results[cls] = {
+                'precision': 0.0,
+                'recall'   : 0.0,
+                'f1-score' : 0.0,
+                'mae'      : 0.0,
+                'support'  : 0.0}
+            continue
+
+        results[cls]['mae'] = mean_absolute_error(
+            y_true = [cls]*sum(filter), 
+            y_pred = y_pred[(y_true == cls)]
+            )
+        
+        results[cls] = order_dict_by_key_list(results[cls], 
+                                              ['precision', 'recall', 'f1-score', 'mae', 'support'])
+
+    results['confusion matrix'] = confusion_matrix(
+        y_true = y_true, 
+        y_pred = y_pred, 
+        labels=unique_classes)
+    
+    results['mae'] = mean_absolute_error(
+        y_true = y_true,
+        y_pred = y_pred
+    )
+
+    results = order_dict_by_key_list(results, 
+                                     unique_classes + ['accuracy', 'mae', 'macro avg', 'weighted avg', 'confusion matrix'])
+    return results
+
 def report(model, 
            x : Union[np.ndarray, MyDataGenerator], 
            y_true, 
@@ -32,57 +81,8 @@ def report(model,
     unique_classes = sorted(unique_classes)
     thresholds     = [(unique_classes[i] + unique_classes[i + 1]) / 2 for i in range(len(unique_classes)-1)]
     unique_classes = [str(float(i)) for i in unique_classes]
-    
-    def assign_class(value, thresholds, unique_classes):
-        unique_classes = [float(i) for i in unique_classes]
-        return next((unique_classes[i] for i, t in enumerate(thresholds) if value < t), unique_classes[-1])
 
-    def calculate_classification_metrics(y_true, y_pred, unique_classes):
-        y_true = y_true.astype(float).astype(str)
-        y_pred = y_pred.astype(float).astype(str)
-
-        results = classification_report(
-            y_true        = y_true,
-            y_pred        = y_pred,
-            labels        = unique_classes,
-            output_dict   = True,
-            zero_division = False
-        )
-
-        for cls in unique_classes:
-            filter = y_true == cls
-            if sum(filter) == 0:
-                results[cls] = {
-                    'precision': 0.0,
-                    'recall'   : 0.0,
-                    'f1-score' : 0.0,
-                    'mae'      : 0.0,
-                    'support'  : 0.0}
-                continue
-
-            results[cls]['mae'] = mean_absolute_error(
-                y_true = [cls]*sum(filter), 
-                y_pred = y_pred[(y_true == cls)].to_list()
-                )
-            
-            results[cls] = order_dict_by_key_list(results[cls], 
-                                                  ['precision', 'recall', 'f1-score', 'mae', 'support'])
-
-        results['confusion matrix'] = confusion_matrix(
-            y_true = y_true, 
-            y_pred = y_pred, 
-            labels=unique_classes)
-        
-        results['mae'] = mean_absolute_error(
-            y_true = y_true,
-            y_pred = y_pred
-        )
-
-        results = order_dict_by_key_list(results, 
-                                         unique_classes + ['accuracy', 'mae', 'macro avg', 'weighted avg', 'confusion matrix'])
-        return results
-
-    #Calculating classification metrics for slices
+    # Calculating classification metrics for slices
     slice_data = pd.DataFrame({'y_true'           : y_true, 
                                'y_pred'           : y_pred,
                                'group_identifiers': group_identifiers})
@@ -92,9 +92,11 @@ def report(model,
     slice_data['y_pred']       = slice_data['y_pred'].astype(float).astype(str)
     slice_data['y_pred_class'] = slice_data['y_pred_class'].astype(float).astype(str)
 
-    slice_results               = calculate_classification_metrics(slice_data['y_true'], slice_data['y_pred_class'], unique_classes)
+    slice_results               = calculate_classification_metrics(slice_data['y_true'].to_numpy(), 
+                                                                   slice_data['y_pred_class'].to_numpy(), 
+                                                                   unique_classes)
 
-    #Calculating classification metrics for videos
+    # Calculating classification metrics for videos
     video_data = pd.DataFrame(columns=['group_identifier', 'y_true', 'y_pred_majority', 'y_pred_average', 'y_pred_class_average'])  
 
     for name, group in slice_data.groupby('group_identifiers'):
@@ -106,9 +108,17 @@ def report(model,
             'y_pred_class_average': [str(float(assign_class(group['y_pred_class'].astype(float).mean(), thresholds, unique_classes)))],
         })], ignore_index=True)
 
-    video_results_majority      = calculate_classification_metrics(video_data['y_true'], video_data['y_pred_majority'], unique_classes)
-    video_results_average       = calculate_classification_metrics(video_data['y_true'], video_data['y_pred_average'], unique_classes)
-    video_results_class_average = calculate_classification_metrics(video_data['y_true'], video_data['y_pred_class_average'], unique_classes)
+    video_results_majority      = calculate_classification_metrics(video_data['y_true'].to_numpy(), 
+                                                                   video_data['y_pred_majority'].to_numpy(), 
+                                                                   unique_classes)
+    
+    video_results_average       = calculate_classification_metrics(video_data['y_true'].to_numpy(), 
+                                                                   video_data['y_pred_average'].to_numpy(), 
+                                                                   unique_classes)
+    
+    video_results_class_average = calculate_classification_metrics(video_data['y_true'].to_numpy(), 
+                                                                   video_data['y_pred_class_average'].to_numpy(), 
+                                                                   unique_classes)
 
     return (
         [float(i) for i in y_pred],
