@@ -244,4 +244,4 @@ class MyDataGenerator(PyDataset):
         #TODO Calculate class weights based on the name of files and num_slices and return
         """
         batch = self.__data_generation(index)
-        return (batch['X'], batch['y']) #TODO adding w gives error, figure it out
+        return (batch['X'], batch['y'], batch['w'])
