@@ -328,17 +328,17 @@ class Model:
         logging.info(f"{index} - getting reports")
 
         y_train_pred, train_report = report(
-            model             = model,
+            model             = best_model,
             x                 = train_data_gen,
             unique_classes    = list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
-            model             = model,
+            model             = best_model,
             x                 = val_data_gen,
             unique_classes    = list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
-            model             = model,
+            model             = best_model,
             x                 = test_data_gen,
             unique_classes    = list(self.mapping.values()),
         )
