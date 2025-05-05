@@ -53,8 +53,8 @@ if __name__ == "__main__":
         epochs                  = 250,
         patience                = 50,
         slice_size              = 4500,
-        step_size               = 4500, #TODO when step size is lower intervals merge. should be implemented in the data generator
-        discard_threshold_ratio = 0.7,
+        step_size               = 2000,
+        discard_threshold_ratio = 0.8,
         mapping                 = mapping,
     )
 

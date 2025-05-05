@@ -181,7 +181,6 @@ def merge_intervals(intervals):
         else:
             last = merged[-1]
             if interval[0] < last[1]:  # real intersection (not just touching)
-                print(f"Warning: intervals {last} and {interval} overlap!")
                 merged[-1] = (last[0], max(last[1], interval[1]))
             elif interval[0] == last[1]:  # touching, safe to merge
                 merged[-1] = (last[0], interval[1])

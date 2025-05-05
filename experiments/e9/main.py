@@ -247,7 +247,7 @@ class Model:
             slice_size              = self.slice_size,
             step_size               = self.step_size,
             discard_threshold_ratio = self.discard_threshold_ratio,
-            class_weights           = train_data_gen.class_weights,            # TODO not connected currently. raises error
+            class_weights           = train_data_gen.class_weights, 
             shuffle                 = False,                                   # Not connected currently. will be deleted probably as it is not needed
             workers                 = data_gen_workers,
             use_multiprocessing     = True if data_gen_workers > 1 else False,
@@ -266,7 +266,7 @@ class Model:
             slice_size              = self.slice_size,
             step_size               = self.step_size,
             discard_threshold_ratio = self.discard_threshold_ratio,
-            class_weights           = train_data_gen.class_weights,            # TODO not connected currently. raises error
+            class_weights           = train_data_gen.class_weights, 
             shuffle                 = False,                                   # Not connected currently. will be deleted probably as it is not needed
             workers                 = data_gen_workers,
             use_multiprocessing     = True if data_gen_workers > 1 else False,

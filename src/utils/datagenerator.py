@@ -149,6 +149,12 @@ class MyDataGenerator(PyDataset):
                 )
             info['batches'].append(current_batch_info)
 
+            current_batch_num_samples = sum([len(file['raw_intervals']) for file in current_batch_info])
+            assert (
+                i == int(np.ceil(len(video_info_processed) / batch_size))-1
+                or current_batch_num_samples == batch_size
+            ), f"Incomplete Batch {i} - expected {batch_size} received {current_batch_num_samples}"
+
         return info
     
     def _get_true_labels(self):
@@ -220,10 +226,16 @@ class MyDataGenerator(PyDataset):
         X, y, g, w = [], [], [], []
 
         for file in current_batch_info:
+
             file_data = load_data(input_path=file['path'], 
                                   column_names=self.column_names,
                                   skiprows=file['merged_intervals'][0][0],
                                   nrows=file['merged_intervals'][0][1] - file['merged_intervals'][0][0])
+            file_data.index = np.concatenate([np.arange(interval[0], interval[1]) for interval in file['merged_intervals']])
+
+            effective_index = np.concatenate([np.arange(interval[0], interval[1]) for interval in file['raw_intervals']])
+            file_data       = file_data.loc[effective_index, :]
+
             X_file, y_file, g_file = self._preprocess_data(file_data=file_data)
             
             # Concatenate to the parent arrays
