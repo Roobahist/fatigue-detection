@@ -293,13 +293,13 @@ class Model:
 
         best_model = model.get_best_model(tuner)
 
-        epoch_end_logging = EpochEndLoggingCallback(
-            train_data_gen = train_data_gen,
-            val_data_gen   = val_data_gen,
-            test_data_gen  = test_data_gen,
-            mapping        = self.mapping,
-            index          = index,
-        )
+        # epoch_end_logging = EpochEndLoggingCallback(
+        #     X_train        = train_data_gen,
+        #     X_val          = val_data_gen,
+        #     X_test         = test_data_gen,
+        #     mapping        = self.mapping,
+        #     index          = index,
+        # )
 
         early_stop = EarlyStopping(
             monitor              = "val_loss",
@@ -321,7 +321,7 @@ class Model:
             validation_data = val_data_gen,
             epochs          = self.epochs,
             batch_size      = self.batch_size,
-            callbacks       = [early_stop, checkpoint, epoch_end_logging],
+            callbacks       = [early_stop, checkpoint],
             verbose         = 1,
         )
 
