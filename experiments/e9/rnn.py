@@ -49,9 +49,9 @@ if __name__ == "__main__":
     logging.info("Creating Model ...")
 
     m = Model(
-        batch_size              = 32,
+        batch_size              = 16,
         epochs                  = 250,
-        patience                = 50,
+        patience                = 100,
         slice_size              = 4500,
         step_size               = 2000,
         discard_threshold_ratio = 0.8,
@@ -64,6 +64,7 @@ if __name__ == "__main__":
         split_info_csv_path           = os.path.join(input_directory_path,'split_info.json'),
         column_names_json_path        = os.path.join(input_directory_path,'columns.json'),
         columns_to_drop               = columns_to_drop,
+
         parallel                      = True,
         max_workers                   = max_workers,
         maxtasksperchild              = 1,
@@ -77,14 +78,16 @@ if __name__ == "__main__":
         fold_start_index              = fold_start_index,
         fold_end_index                = fold_end_index,
         fold_indices                  = [0],
+
         data_gen_workers              = 10,
-        tuner_model_name              = 'LSTMModel',
-        tuner_max_trials              = 15,
+        tuner_max_trials              = 20,
         tuner_executions_per_trial    = 1,
+
         tuner_epochs                  = 50,
-        tuner_patience                = 10,
+        tuner_patience                = 25,
+        tuner_model_name              = 'BiLSTMAttentionModel',
         tuner_type                    = 'bayesian',
         loss_function                 = 'mse',
         metrics                       = ['mae'],
-        hp_config                     = hp_config,
+        # hp_config                     = hp_config,
     )
