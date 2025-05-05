@@ -68,7 +68,10 @@ if __name__ == "__main__":
         max_workers                   = max_workers,
         maxtasksperchild              = 1,
         use_tqdm                      = False,
-        output_parent_dir             = "/home/mojtaba.kananisarche/Zh/outputs",
+
+        output_directory_path         = "/home/mojtaba.kananisarche/Zh/outputs",
+        output_folder_name            = None,
+
         fold_by_primary_column_name   = "fold",
         fold_by_secondary_column_name = None,
         fold_start_index              = fold_start_index,

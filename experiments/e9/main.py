@@ -397,7 +397,8 @@ class Model:
         max_workers                  : Optional[int] = None,
         maxtasksperchild             : Optional[int] = 1,
         use_tqdm                     : bool = False,
-        output_parent_dir            : str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
+        output_directory_path        : str = "/home/mojtaba.kananisarche/Zh/UTA/Output/",
+        output_folder_name           : str = None,
         fold_by_primary_column_name  : str = None,
         fold_by_secondary_column_name: str = None,
         fold_start_index             : Optional[int] = None,
@@ -415,10 +416,10 @@ class Model:
         hp_config                    : Optional[Dict[str, Dict[str, Any]]] = None,
     ):
 
-        output_folder_name = datetime.now().strftime(
-            "%Y-%m-%d|%H:%M:%S|RNN_FACENET_5CV"
-        )
-        output_folder_path = os.path.join(output_parent_dir, output_folder_name)
+        output_folder_name = (output_folder_name or 
+                              datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET_5CV"))
+
+        output_folder_path = os.path.join(output_directory_path, output_folder_name)
         create_folders(output_folder_path)
 
         with open(os.path.join(output_folder_path, "results.json"), "w") as file:
