@@ -177,7 +177,7 @@ class Model:
         output_folder_path        : str = '.',
         loss_function             : Union[str, tf.keras.losses.Loss] = "mse",
         metrics                   : List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
-        hp_config                 : Optional[Dict[str, Dict[str, Any]]] = None,
+        hp_config                 : Optional[Dict[str, Dict[str, Any]]] = {},
         columns_to_drop           : Optional[List[str]] = [],
         data_gen_workers          : Optional[int] = 1,
         tuner_model_name          : str = ALL_MODELS[0],
@@ -413,7 +413,7 @@ class Model:
         tuner_type                   : str = "bayesian",
         loss_function                : Union[str, tf.keras.losses.Loss] = "mse",
         metrics                      : List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
-        hp_config                    : Optional[Dict[str, Dict[str, Any]]] = None,
+        hp_config                    : Optional[Dict[str, Dict[str, Any]]] = {},
     ):
 
         output_folder_name = (output_folder_name or 
