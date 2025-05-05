@@ -505,7 +505,8 @@ class BiLSTMAttentionModel(kt.HyperModel):
                 input_shape: Tuple[int, int], 
                 loss_function: Union[str, tf.keras.losses.Loss], 
                 metrics: List[Union[str, tf.keras.metrics.Metric]],
-                hp_config: Dict[str, Dict[str, Any]]):
+                hp_config: Dict[str, Dict[str, Any]],
+                memory_efficient: bool = True):
         """
         Bidirectional LSTM with Attention for time series prediction.
         
@@ -514,128 +515,138 @@ class BiLSTMAttentionModel(kt.HyperModel):
             loss_function: Loss function for model compilation
             metrics: Metrics for model evaluation
             hp_config: Dictionary containing hyperparameter search space configurations
+            memory_efficient: If True, uses memory efficiency techniques
         """
         self.input_shape = input_shape
         self.loss_function = loss_function
         self.metrics = metrics
         self.hp_config = hp_config
-    
-    def attention_layer(self, inputs, attention_size):
-        """
-        Attention mechanism implementation.
-        
-        Args:
-            inputs: Input tensor
-            attention_size: Size of the attention layer
-            
-        Returns:
-            Context vector and attention weights
-        """
-        # Compute a time-wise hidden representation
-        hidden_layer = layers.Dense(attention_size, activation='tanh')(inputs)
-        # Compute weights
-        attention_weights = layers.Dense(1, activation='softmax', use_bias=False)(hidden_layer)
-        # Reshape to match the input shape
-        attention_weights = tf.reshape(attention_weights, (-1, tf.shape(inputs)[1]))
-        # Create attention weights
-        attention_weights = tf.transpose(attention_weights, [0, 1])
-        # Compute the context vector
-        context_vector = tf.matmul(tf.transpose(inputs, [0, 2, 1]), 
-                                  tf.expand_dims(attention_weights, 2))
-        context_vector = tf.reshape(context_vector, (-1, inputs.shape[2]))
-        
-        return context_vector, attention_weights
+        self.memory_efficient = memory_efficient
     
     def build(self, hp):
         # Input layer
         inputs = keras.Input(shape=(self.input_shape[0], self.input_shape[1]))
         
-        # Number of BiLSTM layers
+        # Memory efficiency techniques
+        if self.memory_efficient:
+            # Option to reduce input sequence length via striding/pooling
+            if hp.Boolean('use_input_pooling', default=False):
+                pool_size = hp.Choice('input_pool_size', values=[2, 3, 4], default=2)
+                x = layers.AveragePooling1D(pool_size=pool_size)(inputs)
+            else:
+                x = inputs
+                
+            # Option to reduce input dimensionality 
+            if hp.Boolean('use_dim_reduction', default=False):
+                dim_reduction = hp.Int(
+                    'dim_reduction_factor', 
+                    min_value=2, 
+                    max_value=4,
+                    default=2
+                )
+                reduced_dim = max(8, self.input_shape[1] // dim_reduction)
+                x = layers.Dense(reduced_dim)(x)
+        else:
+            x = inputs
+        
+        # Number of BiLSTM layers - reduced for memory efficiency
+        max_bilstm_layers = 2 if self.memory_efficient else 3
         num_bilstm_layers = hp.Int(
             'num_bilstm_layers',
-            min_value=self.hp_config.get('num_bilstm_layers', {}).get('min_value', 1),
-            max_value=self.hp_config.get('num_bilstm_layers', {}).get('max_value', 3),
-            step=self.hp_config.get('num_bilstm_layers', {}).get('step', 1)
+            min_value=1,
+            max_value=max_bilstm_layers,
+            step=1
         )
-        
-        x = inputs
         
         # Build BiLSTM layers
         for i in range(num_bilstm_layers):
+            # Smaller units range for memory efficiency
+            min_units = 16 if self.memory_efficient else 32
+            max_units = 128 if self.memory_efficient else 256
+            
             units = hp.Int(
                 f'bilstm_units_{i}',
-                min_value=self.hp_config.get('bilstm_units', {}).get('min_value', 32),
-                max_value=self.hp_config.get('bilstm_units', {}).get('max_value', 256),
-                step=self.hp_config.get('bilstm_units', {}).get('step', 32)
+                min_value=min_units,
+                max_value=max_units,
+                step=32
             )
             
-            # Return sequences for all layers (needed for attention)
+            # Return sequences for all layers except potentially the last one
             return_sequences = True if i < num_bilstm_layers - 1 else hp.Boolean(
                 'return_sequences_last', default=True
             )
             
-            # Bidirectional LSTM layer
-            x = layers.Bidirectional(
-                layers.LSTM(
-                    units=units,
-                    return_sequences=return_sequences,
-                    dropout=hp.Float(
-                        f'dropout_{i}',
-                        min_value=self.hp_config.get('dropout', {}).get('min_value', 0.0),
-                        max_value=self.hp_config.get('dropout', {}).get('max_value', 0.5),
-                        step=self.hp_config.get('dropout', {}).get('step', 0.1)
-                    ),
-                    recurrent_dropout=hp.Float(
-                        f'recurrent_dropout_{i}',
-                        min_value=self.hp_config.get('recurrent_dropout', {}).get('min_value', 0.0),
-                        max_value=self.hp_config.get('recurrent_dropout', {}).get('max_value', 0.3),
-                        step=self.hp_config.get('recurrent_dropout', {}).get('step', 0.1)
-                    )
-                )
-            )(x)
+            # Optional pre-layer dimensionality reduction for memory efficiency
+            if self.memory_efficient and i > 0 and hp.Boolean(f'use_projection_{i}', default=False):
+                projection_size = max(16, units // 2)
+                x = layers.TimeDistributed(layers.Dense(projection_size))(x)
             
-            # Optional BatchNormalization
+            # Bidirectional LSTM layer with improved memory settings
+            lstm_layer = layers.LSTM(
+                units=units,
+                return_sequences=return_sequences,
+                dropout=hp.Float(f'dropout_{i}', min_value=0.0, max_value=0.5, step=0.1),
+                recurrent_dropout=0.0 if self.memory_efficient else hp.Float(
+                    f'recurrent_dropout_{i}', min_value=0.0, max_value=0.3, step=0.1
+                ),
+                # Use LSTM implementation that's more memory efficient
+                implementation=1 if self.memory_efficient else 2
+            )
+            
+            # Wrap with Bidirectional
+            x = layers.Bidirectional(lstm_layer)(x)
+            
+            # Optional BatchNormalization 
             if hp.Boolean(f'batch_norm_{i}', default=True):
                 x = layers.BatchNormalization()(x)
         
+        # Check if the final layer returns sequences
+        last_layer_returns_sequences = hp.Boolean('return_sequences_last', default=True)
+        
         # Apply attention if return_sequences is True
-        if hp.Boolean('return_sequences_last', default=True):
+        if last_layer_returns_sequences:
             attention_size = hp.Int(
                 'attention_size',
-                min_value=self.hp_config.get('attention_size', {}).get('min_value', 32),
-                max_value=self.hp_config.get('attention_size', {}).get('max_value', 128),
-                step=self.hp_config.get('attention_size', {}).get('step', 32)
+                min_value=16 if self.memory_efficient else 32,
+                max_value=64 if self.memory_efficient else 128,
+                step=16
             )
             
-            context_vector, _ = self.attention_layer(x, attention_size)
-            x = context_vector
+            # Implement attention as a custom layer
+            x = AttentionLayer(attention_size)(x)
         else:
-            # Global average pooling if no attention
-            x = layers.GlobalAveragePooling1D()(x)
+            # If the last layer doesn't return sequences, we don't need pooling
+            # as the LSTM already returns a single vector per sequence
+            pass
         
-        # Dense layers
+        # Dense layers - reduced for memory efficiency
+        max_dense_layers = 1 if self.memory_efficient else 2
         num_dense_layers = hp.Int(
             'num_dense_layers',
-            min_value=self.hp_config.get('num_dense_layers', {}).get('min_value', 0),
-            max_value=self.hp_config.get('num_dense_layers', {}).get('max_value', 2),
-            step=self.hp_config.get('num_dense_layers', {}).get('step', 1)
+            min_value=0,
+            max_value=max_dense_layers,
+            step=1
         )
         
         for i in range(num_dense_layers):
+            # Smaller units range for memory efficiency
+            min_units = 16 if self.memory_efficient else 32
+            max_units = 64 if self.memory_efficient else 128
+            
             dense_units = hp.Int(
                 f'dense_units_{i}',
-                min_value=self.hp_config.get('dense_units', {}).get('min_value', 32),
-                max_value=self.hp_config.get('dense_units', {}).get('max_value', 128),
-                step=self.hp_config.get('dense_units', {}).get('step', 32)
+                min_value=min_units,
+                max_value=max_units,
+                step=16
             )
             
             x = layers.Dense(dense_units, activation='relu')(x)
             
             x = layers.Dropout(hp.Float(
                 f'dense_dropout_{i}',
-                min_value=self.hp_config.get('dense_dropout', {}).get('min_value', 0.0),
-                max_value=self.hp_config.get('dense_dropout', {}).get('max_value', 0.5),
-                step=self.hp_config.get('dense_dropout', {}).get('step', 0.1)
+                min_value=0.0,
+                max_value=0.5,
+                step=0.1
             ))(x)
         
         # Output layer
@@ -647,21 +658,86 @@ class BiLSTMAttentionModel(kt.HyperModel):
         
         model = keras.Model(inputs, outputs)
         
-        # Compile model
+        # Compile model with memory efficient settings
         learning_rate = hp.Float(
             'learning_rate',
-            min_value=self.hp_config.get('learning_rate', {}).get('min_value', 1e-4),
-            max_value=self.hp_config.get('learning_rate', {}).get('max_value', 1e-2),
+            min_value=1e-4 if self.memory_efficient else 1e-5,
+            max_value=1e-2,
             sampling='log'
         )
         
+        optimizer = keras.optimizers.Adam(learning_rate=learning_rate) if self.memory_efficient else \
+                   keras.optimizers.AdamW(learning_rate=learning_rate)
+        
         model.compile(
-            optimizer=keras.optimizers.AdamW(learning_rate=learning_rate),
+            optimizer=optimizer,
             loss=self.loss_function,
             metrics=self.metrics
         )
         
         return model
+
+
+class AttentionLayer(layers.Layer):
+    """
+    Memory-efficient attention mechanism as a custom Keras layer.
+    """
+    def __init__(self, attention_size, **kwargs):
+        self.attention_size = attention_size
+        super(AttentionLayer, self).__init__(**kwargs)
+        
+    def build(self, input_shape):
+        # Use a more memory-efficient approach with separate operations
+        # Hidden representation weight matrix - reduced complexity
+        self.W_hidden = self.add_weight(
+            name="W_hidden",
+            shape=(input_shape[-1], self.attention_size),
+            initializer="glorot_uniform",
+            trainable=True
+        )
+        
+        # Context vector for computing attention scores
+        self.V_context = self.add_weight(
+            name="V_context",
+            shape=(self.attention_size, 1),
+            initializer="glorot_uniform",
+            trainable=True
+        )
+        
+        super(AttentionLayer, self).build(input_shape)
+    
+    def call(self, inputs):
+        # inputs shape: (batch_size, time_steps, features)
+        
+        # Use manual matrix multiplication with less memory footprint
+        # First project inputs to attention space
+        # shape: (batch_size, time_steps, attention_size)
+        hidden = tf.tensordot(inputs, self.W_hidden, axes=[[2], [0]])
+        hidden = tf.tanh(hidden)
+        
+        # Calculate attention scores
+        # shape: (batch_size, time_steps, 1)
+        score = tf.tensordot(hidden, self.V_context, axes=[[2], [0]])
+        
+        # Apply softmax to get attention weights
+        # shape: (batch_size, time_steps, 1)
+        weights = tf.nn.softmax(score, axis=1)
+        
+        # Compute context vector via weighted sum
+        # shape: (batch_size, features)
+        context = tf.reduce_sum(inputs * weights, axis=1)
+        
+        return context
+    
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], input_shape[2])
+    
+    def get_config(self):
+        config = {
+            'attention_size': self.attention_size
+        }
+        base_config = super(AttentionLayer, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
 
 class LSTMModel(kt.HyperModel):
