@@ -68,10 +68,9 @@ def reshape_data_rnn(
             chunk_idx += 1
         
         # Process the last partial slice if needed
-        remaining_frames = total_frames - (start_idx + slice_size)
+        remaining_frames = total_frames - (start_idx + slice_size) if chunk_idx > 0 else total_frames
         if remaining_frames > discard_threshold_frame:
-            
-            all_chunks[chunk_idx, :remaining_frames] = features[start_idx + slice_size:]
+            all_chunks[chunk_idx, :remaining_frames] = features[-remaining_frames:]
             all_labels[chunk_idx] = y_group
             all_groups[chunk_idx] = group_name
             chunk_idx += 1
