@@ -1,10 +1,11 @@
 import os
-from typing import Dict, List, Optional
 from collections import Counter
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 from keras.src.trainers.data_adapters.py_dataset_adapter import PyDataset
+
 from Zh.src.preprocess.reshape import reshape_data_rnn
 from Zh.src.utils.common import has_multiple_mappings, merge_intervals, timeit
 from Zh.src.utils.load_data import _extract_headers, load_data
@@ -95,7 +96,7 @@ class MyDataGenerator(PyDataset):
         video_info_csv_path    : str,
         batch_size             : int,
         slice_size             : int,
-        step_size              : Optional[int],
+        step_size              : int,
         groupby_column         : str = 'path',
         groupby_column_filter  : List[str] = [],
         counts_column          : str = 'total_frames',
