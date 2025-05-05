@@ -62,6 +62,7 @@ class MyDataGenerator(PyDataset):
             groupby_column_filter   = self.paths,
             counts_column           = 'total_frames',
             discard_threshold_ratio = self.discard_threshold_ratio)
+        self.num_samples             = sum([file['count'] for file in self.batch_info['counts']])
         self.true_labels             = self._get_true_labels()
         self.class_weights           = class_weights or self._calculate_class_weights()
 
@@ -250,10 +251,12 @@ class MyDataGenerator(PyDataset):
                 'g': np.array(g),
                 'w': np.array(w)}
 
-    def __getitem__(self, index):
+    def __getitem__(self, index, return_group_identifiers=False):
         """
         Generates one batch of data.  The core of the data generator.
         #TODO Calculate class weights based on the name of files and num_slices and return
         """
         batch = self.__data_generation(index)
+        if return_group_identifiers:
+            return (batch['X'], batch['y'], batch['w'], batch['g'])
         return (batch['X'], batch['y'], batch['w'])

@@ -80,51 +80,38 @@ class EpochEndLoggingCallback(Callback):
         self.mapping = mapping
         self.index   = index
 
-        self.X_train = X_train
-        if isinstance(self.X_train, MyDataGenerator):
-            self.y_train                 = self.X_train.true_labels["y"]
-            self.group_identifiers_train = self.X_train.true_labels["g"]
-        else:
-            self.y_train                 = y_train
-            self.group_identifiers_train = group_identifiers_train
+        self.X_train                 = X_train
+        self.y_train                 = y_train
+        self.group_identifiers_train = group_identifiers_train
+        
+        self.X_val                   = X_val
+        self.y_val                   = y_val
+        self.group_identifiers_val   = group_identifiers_val
 
-        self.X_val = X_val
-        if isinstance(self.X_val, MyDataGenerator):
-            self.y_val                 = self.X_val.true_labels["y"]
-            self.group_identifiers_val = self.X_val.true_labels["g"]
-        else:
-            self.y_val                 = y_val
-            self.group_identifiers_val = group_identifiers_val
-
-        self.X_test = X_test
-        if isinstance(self.X_test, MyDataGenerator):
-            self.y_test                 = self.X_test.true_labels["y"]
-            self.group_identifiers_test = self.X_test.true_labels["g"]
-        else:
-            self.y_test                 = y_test
-            self.group_identifiers_test = group_identifiers_test
+        self.X_test                  = X_test
+        self.y_test                  = y_test
+        self.group_identifiers_test  = group_identifiers_test
 
     def on_epoch_end(self, epoch, logs=None):
         """Called at the end of an epoch to log metrics for each dataset."""
-
         _, train_report = report(
             model             = self.model,
             x                 = self.X_train,
-            y                 = self.y_train,
+            y_true            = self.y_train,
             group_identifiers = self.group_identifiers_train,
             unique_classes    = list(self.mapping.values()),
         )
         _, val_report = report(
             model             = self.model,
             x                 = self.X_val,
-            y                 = self.y_val,
+            y_true            = self.y_val,
             group_identifiers = self.group_identifiers_val,
             unique_classes    = list(self.mapping.values()),
         )
         _, test_report = report(
             model             = self.model,
             x                 = self.X_test,
-            y                 = self.y_test,
+            y_true            = self.y_test,
             group_identifiers = self.group_identifiers_test,
             unique_classes    = list(self.mapping.values()),
         )
@@ -343,22 +330,16 @@ class Model:
         y_train_pred, train_report = report(
             model             = model,
             x                 = train_data_gen,
-            y                 = train_data_gen.true_labels["y"],
-            group_identifiers = train_data_gen.true_labels["g"],
             unique_classes    = list(self.mapping.values()),
         )
         y_val_pred, val_report = report(
             model             = model,
             x                 = val_data_gen,
-            y                 = val_data_gen.true_labels["y"],
-            group_identifiers = val_data_gen.true_labels["g"],
             unique_classes    = list(self.mapping.values()),
         )
         y_test_pred, test_report = report(
             model             = model,
             x                 = test_data_gen,
-            y                 = test_data_gen.true_labels["y"],
-            group_identifiers = test_data_gen.true_labels["g"],
             unique_classes    = list(self.mapping.values()),
         )
 

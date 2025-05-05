@@ -58,15 +58,34 @@ def calculate_classification_metrics(y_true, y_pred, unique_classes):
 
 def report(model, 
            x : Union[np.ndarray, MyDataGenerator], 
-           y_true, 
-           group_identifiers, 
-           unique_classes):
+           unique_classes,
+           y_true = None, 
+           group_identifiers = None):
 
-    y_pred = np.array(model.predict(x, verbose=0)).flatten()
     if type(x) == MyDataGenerator:
-        y_true = x.true_labels['y']
-        group_identifiers = x.true_labels['g']
+        assert (y_true == group_identifiers == None), f"y_true and group_identifiers should not be passed if data generator is passed. y_true : {y_true}, group_identifiers : {group_identifiers}"
+
+        num_samples = x.num_samples
+        num_batches = len(x)
+        batch_size  = x.batch_size
+
+        y_pred            = np.empty(num_samples, dtype=object)
+        y_true            = np.empty(num_samples, dtype=object)
+        group_identifiers = np.empty(num_samples, dtype=object)
+
+        for i in range(num_batches):
+            X_batch, y_batch, _, g_batch = x.__getitem__(i, return_group_identifiers=True)
+            y_pred_batch = model.predict(X_batch, verbose=0).flatten()
+
+            y_pred[i*batch_size : i*batch_size + len(y_pred_batch)]            = y_pred_batch
+            y_true[i*batch_size : i*batch_size + len(y_pred_batch)]            = y_batch
+            group_identifiers[i*batch_size : i*batch_size + len(y_pred_batch)] = g_batch
+
+            assert (len(X_batch) == len(y_batch) == len(g_batch) == len(y_pred_batch)), f"Batch {i}, Sizes dont match - {len(X_batch), len(y_batch), len(g_batch), len(y_pred_batch)}"
+            assert (i==num_batches-1 or len(y_pred_batch)==batch_size), f"Batch {i} Incomplete, expected {batch_size} but received {len(y_pred_batch)}"
+
     else:    
+        y_pred = np.array(model.predict(x, verbose=0)).flatten()
         y_true = np.array(y_true)
 
     for i in y_true:
@@ -75,7 +94,7 @@ def report(model,
     if has_multiple_mappings(y_true, group_identifiers):
         raise ValueError("Groups don't match with Targets.")
     if not len(y_true) == len(y_pred) == len(group_identifiers):
-        raise ValueError("Inputs y_true, y_pred, and group_identifiers must have the same length.")
+        raise ValueError(f"Inputs y_true, y_pred, and group_identifiers must have the same length. {len(y_true)} - {len(y_pred)} - {len(group_identifiers)}")
 
     # Sort unique classes and calculate thresholds
     unique_classes = sorted(unique_classes)
