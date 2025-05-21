@@ -27,6 +27,7 @@ from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.memory import print_all_memory as vm
 from Zh.src.utils.video import get_video_info
+from Zh.src.utils.serialized_parallel import process
 
 # log_file = open("/home/mojtaba.kananisarche/Zh/temp/mem3.log", "w")
 
@@ -489,15 +490,17 @@ class VideoProcessor:
     def process_multiple_videos(
         self,
         video_files: List[str],
-        parallel: bool = False,
         start_second: int = 0,
         end_second: Optional[int] = None,
         augmentations: Optional[Dict[str, List[Dict]]] = None,
         save: bool = True,
         crop: bool = True,
-        max_workers: Optional[int] = 10,
         find_embedding: bool = True,
         embedding_model: str = "Facenet",
+        parallel: bool = False,
+        max_workers: Optional[int] = 10,
+        maxtasksperchild: int = 1,
+        use_tqdm: bool = False,
     ) -> List[Optional[Dict[str, str]]]:
         """
         Processes multiple video files, either sequentially or in parallel.
@@ -516,46 +519,29 @@ class VideoProcessor:
         video_files = (
             os.listdir(self.input_folder) if video_files == [] else video_files
         )
-        args = (
-            start_second,
-            end_second,
-            augmentations,
-            save,
-            crop,
-            find_embedding,
-            embedding_model,
-        )
+
+        args_list = [
+            {
+                'video_file' : video_file,
+                'start_second' : start_second,
+                'end_second' : end_second,
+                'augmentations' : augmentations,
+                'save' : save,
+                'crop' : crop,
+                'find_embedding' : find_embedding,
+                'embedding_model' : embedding_model,
+            }
+            for video_file in video_files
+        ]
+
         _process_single_video = partial(self.process_single_video)
-        if parallel:
-            # breakpoint()
-            try:
-                with multiprocessing.Pool(
-                    processes=max_workers, maxtasksperchild=1
-                ) as pool:
-                    pool.starmap(
-                        _process_single_video,
-                        zip(video_files, *([arg] * len(video_files) for arg in args)),
-                    )
-                return
-                # return results
 
-                # with ProcessPoolExecutor(
-                #     max_workers=max_workers,
-                # ) as executor:
-                #     results = list(
-                #         executor.map(
-                #             _process_single_video,
-                #             video_files,
-                #             *([arg] * len(video_files) for arg in args),
-                #         )
-                #     )
-                # return results
-
-            except KeyboardInterrupt:
-                print("Ctrl+C detected! Attempting to shut down gracefully...")
-                # executor.shutdown(wait=False, cancel_futures=True)
-                sys.exit(1)
-        else:
-            # breakpoint()
-            results = [self.process_single_video(file, *args) for file in video_files]
-            return results
+        process(
+            worker_function = _process_single_video,
+            worker_params_list = args_list,
+            handler_function = None,
+            parallel = parallel,
+            max_workers = max_workers,
+            maxtasksperchild = maxtasksperchild,
+            use_tqdm = use_tqdm,
+        )
