@@ -418,6 +418,8 @@ class Model:
 
         output_folder_name = (output_folder_name or 
                               datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET_5CV"))
+        
+        logging.info(f"Output Folder : {output_folder_name}")
 
         output_folder_path = os.path.join(output_directory_path, output_folder_name)
         create_folders(output_folder_path)
