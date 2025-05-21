@@ -36,6 +36,7 @@ class MyDataGenerator(PyDataset):
         Initialization function.  This is where you set up the basic parameters
         of your data generator.
         """
+        print("================================")
         super().__init__(**kwargs)
 
         self.paths                   = paths
@@ -135,6 +136,14 @@ class MyDataGenerator(PyDataset):
         for group_identifier, group in video_info_processed.groupby(groupby_column, sort=False):
             info['counts'].append({groupby_column : group_identifier, 
                                    'count' : len(group)})
+        missing_group_identifiers = [group_identifier for 
+                                     group_identifier in video_info[groupby_column].unique() 
+                                     if group_identifier not in video_info_processed[groupby_column].unique()]
+        
+        for group_identifier in missing_group_identifiers:
+            info['counts'].append({groupby_column : group_identifier, 
+                                   'count' : 0})
+
 
         for i in range(int(np.ceil(len(video_info_processed)/batch_size))):
             start_index        = i * batch_size
