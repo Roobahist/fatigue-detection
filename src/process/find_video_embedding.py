@@ -85,7 +85,7 @@ def process_single_video(
         if not cap.isOpened():
             logging.error(f"Failed to open video {file_index} - {video_file_path}")
 
-        fps, _, _, total_frames = get_video_info(cap=cap)
+        fps, _, _, total_frames, _ = get_video_info(cap=cap)
         start_frame = max(int(start_second * fps), CSVW.get_current_line_number(), 0)
         end_frame = int(end_second * fps) if end_second is not None else total_frames
 

@@ -2,7 +2,7 @@ import cv2
 from typing import Tuple, Optional
 
 def get_video_info(cap: Optional[cv2.VideoCapture] = None,
-                   file_path: Optional[str] = None) -> Tuple[int, int, int, int]:
+                   file_path: Optional[str] = None) -> Tuple[int, int, int, int, str]:
     """
     Retrieves video information from a cv2.VideoCapture object.
 
@@ -14,7 +14,7 @@ def get_video_info(cap: Optional[cv2.VideoCapture] = None,
         ValueError: If both `cap` and `file_path` are provided, or if neither is provided.
 
     Returns:
-        A tuple containing (fps, width, height, total_frames) as integers.
+        A tuple containing (fps, width, height, total_frames, fourcc) as integers.
     """
 
     if (cap is None and not file_path) or (cap is not None and file_path):
@@ -25,7 +25,8 @@ def get_video_info(cap: Optional[cv2.VideoCapture] = None,
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
 
     if file_path is not None: cap.release()
 
-    return fps, width, height, total_frames
+    return fps, width, height, total_frames, fourcc

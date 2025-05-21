@@ -265,7 +265,7 @@ class VideoProcessor:
                 logging.warning(f"Failed to open video: {input_path}")
                 return None
 
-            fps, width, height, total_frames = get_video_info(cap)
+            fps, width, height, total_frames, _ = get_video_info(cap)
             start_frame = int(start_second * fps)
             end_frame = (
                 int(end_second * fps) if end_second is not None else total_frames
