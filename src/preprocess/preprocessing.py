@@ -7,7 +7,9 @@ import numpy as np
 import pandas as pd
 
 from Zh.src.utils.common import save_obj
-from Zh.src.utils.file_folder import create_folders, copy_directory_structure
+from Zh.src.utils.file_folder import create_folders, copy_directory_structure, get_file_paths
+from Zh.src.utils.video import get_video_info
+from Zh.src.utils.serialized_parallel import process
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -57,6 +59,153 @@ def fix_columns(
     return data, columns_to_drop
 
 
+import cv2
+import mediapipe as mp
+import numpy as np
+import os
+
+def _remove_background_from_video_one_file(
+    input_video_path: str,
+    output_folder_path: str,
+    suffix: str = "_bgremoved"
+):
+    """
+    Processes a video to remove the background of the main subject
+    using MediaPipe Selfie Segmentation and saves the output to a specified folder.
+
+    The output video will have the same name and extension as the input video,
+    with the given suffix added before the file extension.
+    The FPS and dimensions of the video will remain unchanged.
+
+    Args:
+        input_video_path (str): The full path to the input video file.
+        output_folder_path (str): The path to the directory where the processed
+                                  video will be saved.
+        suffix (str, optional): A suffix to add to the output video filename
+                                before the extension. Defaults to "_bg_removed".
+    """
+
+    # Input Validation
+    if not os.path.exists(input_video_path):
+        print(f"Error: Input video path not found: {input_video_path}")
+        return
+
+    if not os.path.isfile(input_video_path):
+        print(f"Error: Input path is not a file: {input_video_path}")
+        return
+
+    if not os.path.exists(output_folder_path):
+        print(f"Output directory does not exist. Creating: {output_folder_path}")
+        os.makedirs(output_folder_path)
+    elif not os.path.isdir(output_folder_path):
+        print(f"Error: Output path is not a directory: {output_folder_path}")
+        return
+
+    # Initialize MediaPipe Selfie Segmentation
+    mp_selfie_segmentation = mp.solutions.selfie_segmentation
+    segmentation = mp_selfie_segmentation.SelfieSegmentation(model_selection=0)
+
+    # Open Video Capture
+    cap = cv2.VideoCapture(input_video_path)
+
+    if not cap.isOpened():
+        print(f"Error: Could not open video file: {input_video_path}")
+        return
+
+    # Get Video Properties
+    fps, width, height, _, _ = get_video_info(cap)
+
+    # Prepare Output Video Path
+    base_name = os.path.basename(input_video_path)
+    file_name_without_ext, file_extension = os.path.splitext(base_name)
+    output_file_name = f"{file_name_without_ext}{suffix}{file_extension}"
+    output_video_path = os.path.join(output_folder_path, output_file_name)
+
+    # Initialize Video Writer
+    fourcc_out = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_video_path, fourcc_out, fps, (width, height))
+
+    if not out.isOpened():
+        print(f"Error: Could not create video writer for: {output_video_path}")
+        cap.release()
+        return
+
+    print(f"Processing video: {input_video_path}")
+    print(f"Saving output to: {output_video_path}")
+    print(f"Dimensions: {width}x{height}, FPS: {fps}")
+
+    frame_count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break # End of video
+
+        # Convert the BGR image to RGB (MediaPipe expects RGB)
+        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Process the image and get the segmentation mask
+        results = segmentation.process(image_rgb)
+
+        # The segmentation mask is a float array (0.0 to 1.0)
+        # where values close to 1.0 indicate the person.
+        # Create a binary mask (True for person, False for background)
+        # Adjust the threshold (e.g., 0.1) if the segmentation is too aggressive/lenient
+        condition = np.stack((results.segmentation_mask,) * 3, axis=-1) > 0.1
+
+        # Create a background:
+        # For simplicity, we'll use a solid black background.
+        bg_image = np.zeros(frame.shape, dtype=np.uint8) # Solid black
+
+        # Apply the mask to blend the foreground (person) with the new background
+        output_frame = np.where(condition, frame, bg_image)
+
+        # Write the processed frame to the output video
+        out.write(output_frame)
+        frame_count += 1
+
+    # Release resources
+    cap.release()
+    out.release()
+
+    print(f"Processing complete. Total frames processed: {frame_count}")
+    print(f"Output video saved to: {output_video_path}")
+
+
+def remove_background_from_video(
+    input_folder_path: str,
+    output_folder_path: str,
+    suffix: str = "_bgremoved",
+    parallel: bool = True,
+    max_workers: int = 10,
+    maxtasksperchild: int = 1,
+    use_tqdm: bool = True,
+):
+    
+    create_folders(output_folder_path)
+
+    args_list = [
+        {
+            'input_video_path' : input_video_path,
+            'output_folder_path' : output_folder_path,
+            'suffix' : suffix,
+        } 
+        for input_video_path in 
+        get_file_paths(input_path=input_folder_path, depth=5, EXT_LIST=['mov', 'mp4'])
+    ]
+
+    print(f"Number of files to process : {len(args_list)}")
+
+    process(
+        worker_function=_remove_background_from_video_one_file,
+        handler_function=None,
+        worker_params_list=args_list,
+        parallel=parallel,
+        max_workers=max_workers,
+        maxtasksperchild=maxtasksperchild,
+        use_tqdm=use_tqdm,
+    )
+
+
 def _fit_normalizer_one_file(
     train_val_test_file_path, output_directory_path, chunk_size, feature_columns
 ):
@@ -90,7 +239,6 @@ def fit_normalizer(
     use_tqdm: bool = True,
 ):
 
-    from Zh.src.utils.serialized_parallel import process
 
     create_folders(output_directory_path)
 
@@ -169,7 +317,6 @@ def apply_normalizer(
     use_tqdm: bool = True,
 ):
 
-    from Zh.src.utils.serialized_parallel import process
 
     with open(os.path.join(input_directory_path, "split_info.json"), "r") as file:
         train_val_test_file_paths = json.load(file)
