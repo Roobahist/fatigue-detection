@@ -13,7 +13,7 @@ from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.video import get_video_info
 from Zh.src.utils.serialized_parallel import process
-from Zh.src.utils.file_folder import create_folders
+from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -22,22 +22,6 @@ logging.basicConfig(
 
 
 VIDEO_EXTS = [".mp4", ".mov", ".avi"]
-
-
-def find_folders_to_create(input_folder_path, output_folder_path):
-    try:
-        to_create_folder_paths = [output_folder_path]
-        folder_names_inside_input_folder_path = [
-            folder_name
-            for folder_name in os.listdir(input_folder_path)
-            if os.path.isdir(os.path.join(input_folder_path, folder_name))
-        ]
-        for folder_name in folder_names_inside_input_folder_path:
-            to_create_folder_paths.append(os.path.join(output_folder_path, folder_name))
-        return to_create_folder_paths
-    except Exception as e:
-        logging.error(f"Error Finding Folders to Create: %s", traceback.format_exc())
-        return False
 
 
 def process_single_video(
@@ -153,27 +137,17 @@ def process_parallel_or_serial(
                        otherwise all the files in all subdirectories would be
                        processed.
     """
-    to_create_folder_paths = find_folders_to_create(
-        input_folder_path=input_folder_path, output_folder_path=output_folder_path
-    )
-    create_folders(to_create_folder_paths)
+    copy_directory_structure(input_folder_path, output_folder_path)
+    all_video_file_names = get_file_paths(input_path=input_folder_path, depth=5, EXT_LIST=VIDEO_EXTS)
 
     if video_file_names != []:
-        video_file_paths = [
-            os.path.join(input_folder_path, video_file_name)
-            for video_file_name in video_file_names
-            if os.path.splitext(video_file_name)[1].lower() in VIDEO_EXTS
-        ]
+        video_file_names = [video_file_name for video_file_name in all_video_file_names 
+                            if os.path.basename(video_file_name) in video_file_names]
         logging.info(
             f"Video File Paths Captured Using Provided List: {len(video_file_paths)}"
         )
     else:
-        video_file_paths = [
-            os.path.join(root, file)
-            for root, _, files in os.walk(input_folder_path)
-            for file in files
-            if os.path.splitext(file)[1].lower() in VIDEO_EXTS
-        ]
+        video_file_paths = all_video_file_names
         logging.info(
             f"Video File Paths Captured Automatically: {len(video_file_paths)}"
         )
