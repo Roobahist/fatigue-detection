@@ -226,195 +226,194 @@ class VideoProcessor:
                 int(end_second * fps) if end_second is not None else total_frames
             )
 
-            if save:
-                try:
-                    first_frame_height, first_frame_width = -1, -1
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-                    temp_detection_result = []
-                    while (
-                        cap.isOpened()
-                        and first_frame_width == -1
-                        and first_frame_height == -1
-                    ):
-                        ret, frame = cap.read()
-                        if not ret:
-                            logging.warning(
-                                f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
-                            )
-                            break
-                        cropped_frame, temp_detection_result = (
-                            self._process_frame(
-                                frame, width, height, temp_detection_result
-                            )
-                            if crop
-                            else frame
-                        )
-                        if cropped_frame is not None:
-                            first_frame_height, first_frame_width = cropped_frame.shape[
-                                :2
-                            ]
-                            augmented_frames = self._augment_frame(
-                                cropped_frame, augmentations
-                            )
-                    logging.warning(
-                        f"New video dimensions found: {first_frame_height}, {first_frame_width}"
-                    )
-
-                except Exception as e:
-                    logging.error(
-                        f"Error processing {video_file}: %s", traceback.format_exc()
-                    )
-                    return None
-
-                if crop:
-                    cropped_folder = os.path.join(
-                        self.output_folder, "video", f"cropped"
-                    )
-                    os.makedirs(cropped_folder, exist_ok=True)
-                    cropped_output_path = os.path.join(
-                        cropped_folder, f"{output_base}_cropped.mp4"
-                    )
-                    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                    out_crop = cv2.VideoWriter(
-                        cropped_output_path,
-                        fourcc,
-                        fps,
-                        (first_frame_width, first_frame_height),
-                    )
-                    if find_embedding:
-                        cropped_embedding_folder = os.path.join(
-                            self.output_folder,
-                            "embedding",
-                            f"{embedding_model}",
-                            f"cropped",
-                        )
-                        os.makedirs(cropped_embedding_folder, exist_ok=True)
-                        cropped_embedding_path = os.path.join(
-                            cropped_embedding_folder, f"{output_base}_cropped.csv"
-                        )
-                        cropped_embedding_writer = CSVWriter(cropped_embedding_path)
-
-                aug_writers = {}
-                aug_embedding_writers = {}
-
-                for aug_key in augmented_frames.keys():
-                    aug_folder = os.path.join(self.output_folder, "video", f"{aug_key}")
-                    os.makedirs(aug_folder, exist_ok=True)
-                    aug_output_path = os.path.join(
-                        aug_folder, f"{output_base}_{aug_key}.mp4"
-                    )
-                    aug_writers[aug_key] = cv2.VideoWriter(
-                        aug_output_path,
-                        fourcc,
-                        fps,
-                        (first_frame_width, first_frame_height),
-                    )
-                    if find_embedding:
-                        aug_embedding_folder = os.path.join(
-                            self.output_folder,
-                            "embedding",
-                            f"{embedding_model}",
-                            f"{aug_key}",
-                        )
-                        os.makedirs(aug_embedding_folder, exist_ok=True)
-                        aug_embedding_path = os.path.join(
-                            aug_embedding_folder, f"{output_base}_{aug_key}.csv"
-                        )
-                        aug_embedding_writers[aug_key] = CSVWriter(aug_embedding_path)
-
+            try:
+                first_frame_height, first_frame_width = -1, -1
                 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
                 temp_detection_result = []
-                with tqdm(
-                    total=end_frame - start_frame,
-                    desc=f"Processing {os.path.basename(input_path)}",
-                    unit="frame",
-                    disable=not self.use_tqdm,
-                ) as progress_bar:
-                    while (
-                        cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame
-                    ):
-                        ret, frame = cap.read()
-                        if not ret:
-                            logging.warning(
-                                f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
-                            )
-                            break
-                        if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
-                            logging.info(
-                                f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
-                            )
-
-                        cropped_frame, temp_detection_result = (
-                            self._process_frame(
-                                frame, width, height, temp_detection_result
-                            )
-                            if crop
-                            else frame
+                while (
+                    cap.isOpened()
+                    and first_frame_width == -1
+                    and first_frame_height == -1
+                ):
+                    ret, frame = cap.read()
+                    if not ret:
+                        logging.warning(
+                            f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
                         )
-                        if cropped_frame is not None:
-                            if crop:
-                                resized_frame = cv2.resize(
-                                    cropped_frame,
-                                    (first_frame_width, first_frame_height),
-                                    interpolation=cv2.INTER_LINEAR,
-                                )
-                                out_crop.write(resized_frame)
-                                if find_embedding:
-                                    cropped_embedding_writer.write(
-                                        [
-                                            round(x, 3)
-                                            for x in DF.represent(
-                                                img_path=resized_frame,
-                                                enforce_detection=False,
-                                                detector_backend="skip",
-                                                model_name=embedding_model,
-                                                normalization=(
-                                                    "Facenet"
-                                                    if embedding_model == "Facenet"
-                                                    else "base"
-                                                ),
-                                            )[0]["embedding"]
-                                        ]
-                                    )
+                        break
+                    cropped_frame, temp_detection_result = (
+                        self._process_frame(
+                            frame, width, height, temp_detection_result
+                        )
+                        if crop
+                        else frame
+                    )
+                    if cropped_frame is not None:
+                        first_frame_height, first_frame_width = cropped_frame.shape[
+                            :2
+                        ]
+                        augmented_frames = self._augment_frame(
+                            cropped_frame, augmentations
+                        )
+                logging.warning(
+                    f"New video dimensions found: {first_frame_height}, {first_frame_width}"
+                )
 
-                            augmented_frames = self._augment_frame(
-                                cropped_frame, augmentations
+            except Exception as e:
+                logging.error(
+                    f"Error processing {video_file}: %s", traceback.format_exc()
+                )
+                return None
+
+            if crop:
+                cropped_folder = os.path.join(
+                    self.output_folder, "video", f"cropped"
+                )
+                os.makedirs(cropped_folder, exist_ok=True)
+                cropped_output_path = os.path.join(
+                    cropped_folder, f"{output_base}_cropped.mp4"
+                )
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                out_crop = cv2.VideoWriter(
+                    cropped_output_path,
+                    fourcc,
+                    fps,
+                    (first_frame_width, first_frame_height),
+                )
+                if find_embedding:
+                    cropped_embedding_folder = os.path.join(
+                        self.output_folder,
+                        "embedding",
+                        f"{embedding_model}",
+                        f"cropped",
+                    )
+                    os.makedirs(cropped_embedding_folder, exist_ok=True)
+                    cropped_embedding_path = os.path.join(
+                        cropped_embedding_folder, f"{output_base}_cropped.csv"
+                    )
+                    cropped_embedding_writer = CSVWriter(cropped_embedding_path)
+
+            aug_writers = {}
+            aug_embedding_writers = {}
+
+            for aug_key in augmented_frames.keys():
+                aug_folder = os.path.join(self.output_folder, "video", f"{aug_key}")
+                os.makedirs(aug_folder, exist_ok=True)
+                aug_output_path = os.path.join(
+                    aug_folder, f"{output_base}_{aug_key}.mp4"
+                )
+                aug_writers[aug_key] = cv2.VideoWriter(
+                    aug_output_path,
+                    fourcc,
+                    fps,
+                    (first_frame_width, first_frame_height),
+                )
+                if find_embedding:
+                    aug_embedding_folder = os.path.join(
+                        self.output_folder,
+                        "embedding",
+                        f"{embedding_model}",
+                        f"{aug_key}",
+                    )
+                    os.makedirs(aug_embedding_folder, exist_ok=True)
+                    aug_embedding_path = os.path.join(
+                        aug_embedding_folder, f"{output_base}_{aug_key}.csv"
+                    )
+                    aug_embedding_writers[aug_key] = CSVWriter(aug_embedding_path)
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+            temp_detection_result = []
+            with tqdm(
+                total=end_frame - start_frame,
+                desc=f"Processing {os.path.basename(input_path)}",
+                unit="frame",
+                disable=not self.use_tqdm,
+            ) as progress_bar:
+                while (
+                    cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame
+                ):
+                    ret, frame = cap.read()
+                    if not ret:
+                        logging.warning(
+                            f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
+                        )
+                        break
+                    if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
+                        logging.info(
+                            f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
+                        )
+
+                    cropped_frame, temp_detection_result = (
+                        self._process_frame(
+                            frame, width, height, temp_detection_result
+                        )
+                        if crop
+                        else frame
+                    )
+                    if cropped_frame is not None:
+                        if crop:
+                            resized_frame = cv2.resize(
+                                cropped_frame,
+                                (first_frame_width, first_frame_height),
+                                interpolation=cv2.INTER_LINEAR,
                             )
-                            for aug_key, aug_frame in augmented_frames.items():
-                                resized_frame = cv2.resize(
-                                    aug_frame,
-                                    (first_frame_width, first_frame_height),
-                                    interpolation=cv2.INTER_LINEAR,
+                            out_crop.write(resized_frame)
+                            if find_embedding:
+                                cropped_embedding_writer.write(
+                                    [
+                                        round(x, 3)
+                                        for x in DF.represent(
+                                            img_path=resized_frame,
+                                            enforce_detection=False,
+                                            detector_backend="skip",
+                                            model_name=embedding_model,
+                                            normalization=(
+                                                "Facenet"
+                                                if embedding_model == "Facenet"
+                                                else "base"
+                                            ),
+                                        )[0]["embedding"]
+                                    ]
                                 )
-                                aug_writers[aug_key].write(resized_frame)
-                                if find_embedding:
-                                    aug_embedding_writers[aug_key].write(
-                                        [
-                                            round(x, 3)
-                                            for x in DF.represent(
-                                                img_path=resized_frame,
-                                                enforce_detection=False,
-                                                detector_backend="skip",
-                                                model_name=embedding_model,
-                                                normalization=(
-                                                    "Facenet"
-                                                    if embedding_model == "Facenet"
-                                                    else "base"
-                                                ),
-                                            )[0]["embedding"]
-                                        ]
-                                    )
-                        progress_bar.update(1)
 
-                if crop:
-                    out_crop.release()
-                    if find_embedding:
-                        cropped_embedding_writer.close()
+                        augmented_frames = self._augment_frame(
+                            cropped_frame, augmentations
+                        )
+                        for aug_key, aug_frame in augmented_frames.items():
+                            resized_frame = cv2.resize(
+                                aug_frame,
+                                (first_frame_width, first_frame_height),
+                                interpolation=cv2.INTER_LINEAR,
+                            )
+                            aug_writers[aug_key].write(resized_frame)
+                            if find_embedding:
+                                aug_embedding_writers[aug_key].write(
+                                    [
+                                        round(x, 3)
+                                        for x in DF.represent(
+                                            img_path=resized_frame,
+                                            enforce_detection=False,
+                                            detector_backend="skip",
+                                            model_name=embedding_model,
+                                            normalization=(
+                                                "Facenet"
+                                                if embedding_model == "Facenet"
+                                                else "base"
+                                            ),
+                                        )[0]["embedding"]
+                                    ]
+                                )
+                    progress_bar.update(1)
 
-                for aug_key, writer in aug_writers.items():
-                    writer.release()
-                    if find_embedding:
-                        aug_embedding_writers[aug_key].close()
+            if crop:
+                out_crop.release()
+                if find_embedding:
+                    cropped_embedding_writer.close()
+
+            for aug_key, writer in aug_writers.items():
+                writer.release()
+                if find_embedding:
+                    aug_embedding_writers[aug_key].close()
 
             cap.release()
             return None
@@ -447,7 +446,6 @@ class VideoProcessor:
         start_second: int = 0,
         end_second: Optional[int] = None,
         augmentations: Optional[Dict[str, List[Dict]]] = None,
-        save: bool = True,
         crop: bool = True,
         find_embedding: bool = True,
         embedding_model: str = "Facenet",
@@ -480,7 +478,6 @@ class VideoProcessor:
                 'start_second' : start_second,
                 'end_second' : end_second,
                 'augmentations' : augmentations,
-                'save' : save,
                 'crop' : crop,
                 'find_embedding' : find_embedding,
                 'embedding_model' : embedding_model,
