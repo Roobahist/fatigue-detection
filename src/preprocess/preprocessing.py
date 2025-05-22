@@ -175,10 +175,10 @@ def remove_background_from_video(
     input_folder_path: str,
     output_folder_path: str,
     suffix: str = "_bgremoved",
-    parallel: bool = True,
-    max_workers: int = 10,
-    maxtasksperchild: int = 1,
-    use_tqdm: bool = True,
+    parallel: Optional[bool] = False,
+    max_workers: Optional[int] = 10,
+    maxtasksperchild: Optional[int] = 1,
+    use_tqdm: Optional[bool] = False,
 ):
     
     create_folders(output_folder_path)
