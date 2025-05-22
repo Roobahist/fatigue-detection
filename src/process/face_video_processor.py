@@ -29,19 +29,6 @@ from Zh.src.utils.memory import print_all_memory as vm
 from Zh.src.utils.video import get_video_info
 from Zh.src.utils.serialized_parallel import process
 
-# log_file = open("/home/mojtaba.kananisarche/Zh/temp/mem3.log", "w")
-
-# def _process_video_helper(
-#     video_processor_instance, file, start_second, end_second, augmentations, save, crop
-# ):
-#     try:
-#         video_processor_instance.detector = FaceDetector(False, False, 1).landmarker
-#         return video_processor_instance.process_single_video(
-#             file, start_second, end_second, augmentations, save, crop
-#         )
-#     except:
-#         return None
-
 
 class VideoProcessor:
     """
@@ -185,9 +172,8 @@ class VideoProcessor:
         self,
         video_file: str,
         start_second: int = 0,
-        end_second: Optional[int] = None,
-        augmentations: Optional[Dict[str, List[Dict]]] = None,
-        save: bool = True,
+        end_second: Optional[Union[int, None]] = None,
+        augmentations: Optional[Dict[str, List[Dict]]] = {},
         crop: bool = True,
         find_embedding: bool = True,
         embedding_model: str = "Facenet",
@@ -208,10 +194,6 @@ class VideoProcessor:
         """
         input_path = os.path.join(self.input_folder, video_file)
         output_base = os.path.splitext(video_file)[0]
-        output_paths = {}
-
-        if augmentations is None:
-            augmentations = {}
 
         try:
             logging.info(f"Starting processing for video: {input_path}")
@@ -485,10 +467,8 @@ class VideoProcessor:
             for video_file in video_files
         ]
 
-        _process_single_video = partial(self.process_single_video)
-
         process(
-            worker_function = _process_single_video,
+            worker_function = self.process_single_video,
             worker_params_list = args_list,
             handler_function = None,
             parallel = parallel,
