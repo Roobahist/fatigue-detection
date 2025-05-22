@@ -119,7 +119,7 @@ def process_single_video(
         )
 
 
-def process_parallel_or_serial(
+def process_multiple_videos(
     input_folder_path: str,
     output_folder_path: str,
     video_file_names: Optional[List[str]] = [],
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     #     "1_06_5_30fps_brightness_alpha0.8_beta-10.mp4"
     # ],
     logging.info("Starting ...")
-    process_parallel_or_serial(
+    process_multiple_videos(
         input_folder_path=input_folder_path,
         output_folder_path=output_folder_path,
         video_file_names=[],
