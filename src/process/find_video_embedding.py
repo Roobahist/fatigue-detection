@@ -12,6 +12,8 @@ from Zh.src.process.frame_processor import FrameProcessor
 from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.video import get_video_info
+from Zh.src.utils.serialized_parallel import process
+from Zh.src.utils.file_folder import create_folders
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -38,20 +40,6 @@ def find_folders_to_create(input_folder_path, output_folder_path):
         return False
 
 
-def create_folders(to_create_folder_paths):
-    try:
-        for to_create_folder_path in to_create_folder_paths:
-            os.makedirs(to_create_folder_path, exist_ok=True)
-        return True
-    except Exception as e:
-        logging.error(f"Error Creating Folders: %s", traceback.format_exc())
-        return False
-
-
-def process_single_video_wrapper(kwargs):
-    return process_single_video(**kwargs)
-
-
 def process_single_video(
     video_file_path: str,
     input_folder_path: str,
@@ -66,13 +54,6 @@ def process_single_video(
     try:
         logging.info(f"--- Processing Video {file_index} - {video_file_path} ---")
         FP = FrameProcessor()
-        file_path = (
-            os.path.splitext(
-                video_file_path.replace(input_folder_path, output_folder_path)
-            )[0]
-            + ".csv"
-        )
-        # logging.info(f'fp, {file_path}')
 
         CSVW = CSVWriter(
             file_path=os.path.splitext(
@@ -158,12 +139,13 @@ def process_parallel_or_serial(
     input_folder_path: str,
     output_folder_path: str,
     video_file_names: Optional[List[str]] = [],
-    parallel: Optional[bool] = False,
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
-    max_workers: Optional[int] = 10,
     embedding_model: Optional[str] = "Facenet",
     embedding_normalization: Optional[str] = "Facenet",
+    parallel: Optional[bool] = False,
+    max_workers: Optional[int] = 10,
+    maxtasksperchild: Optional[int] = 1,
     use_tqdm: Optional[bool] = False,
 ):
     """
@@ -174,14 +156,7 @@ def process_parallel_or_serial(
     to_create_folder_paths = find_folders_to_create(
         input_folder_path=input_folder_path, output_folder_path=output_folder_path
     )
-    if not isinstance(to_create_folder_paths, list):
-        return False
-    if not create_folders(to_create_folder_paths):
-        return False
-
-    logging.info(
-        "Folders Created :\n" + "\n".join(f"- {p}" for p in to_create_folder_paths)
-    )
+    create_folders(to_create_folder_paths)
 
     if video_file_names != []:
         video_file_paths = [
@@ -203,43 +178,30 @@ def process_parallel_or_serial(
             f"Video File Paths Captured Automatically: {len(video_file_paths)}"
         )
 
-    if parallel:
-        logging.info("Processing in Parallel Mode ...")
-        with multiprocessing.Pool(processes=max_workers, maxtasksperchild=1) as pool:
-            pool.map(
-                process_single_video_wrapper,
-                [
-                    {
-                        "video_file_path": video_file_paths[i],
-                        "input_folder_path": input_folder_path,
-                        "output_folder_path": output_folder_path,
-                        "start_second": start_second,
-                        "end_second": end_second,
-                        "embedding_model": embedding_model,
-                        "embedding_normalization": embedding_normalization,
-                        "use_tqdm": use_tqdm,
-                        "file_index": i,
-                    }
-                    for i in range(len(video_file_paths))
-                ],
-            )
+    args_list = [
+        {
+            "video_file_path": video_file_paths[i],
+            "input_folder_path": input_folder_path,
+            "output_folder_path": output_folder_path,
+            "start_second": start_second,
+            "end_second": end_second,
+            "embedding_model": embedding_model,
+            "embedding_normalization": embedding_normalization,
+            "use_tqdm": use_tqdm,
+            "file_index": i,
+        }
+        for i in range(len(video_file_paths))
+    ]
 
-    else:
-        logging.info("Processing in Serialized Mode ...")
-        for i in range(len(video_file_paths)):
-            process_single_video(
-                **{
-                    "video_file_path": video_file_paths[i],
-                    "input_folder_path": input_folder_path,
-                    "output_folder_path": output_folder_path,
-                    "start_second": start_second,
-                    "end_second": end_second,
-                    "embedding_model": embedding_model,
-                    "embedding_normalization": embedding_normalization,
-                    "use_tqdm": use_tqdm,
-                    "file_index": i,
-                }
-            )
+    process(
+        worker_function = process_single_video,
+        worker_params_list = args_list,
+        handler_function = None,
+        parallel = parallel,
+        max_workers = max_workers,
+        maxtasksperchild = maxtasksperchild,
+        use_tqdm = use_tqdm,
+    )
 
 
 if __name__ == "__main__":
