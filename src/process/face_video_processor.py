@@ -181,54 +181,6 @@ class VideoProcessor:
             )
 
     # @profile(stream=log_file)
-    def _save_video(
-        self,
-        frames: List[np.ndarray],
-        output_path: str,
-        fps: float,
-        start_frame: int,
-        end_frame: int,
-    ) -> None:
-        """
-        Saves processed frames as a video.
-
-        Args:
-            frames: List of processed frames (NumPy arrays).
-            output_path: Path to save the output video.
-            fps: Frames per second of the video.
-            start_frame: Start frame of the processing.
-            end_frame: End frame of the processing.
-        """
-        if not frames:
-            logging.warning(
-                f"No frames to save for {output_path}. Skipping video save."
-            )
-            return
-
-        first_frame_height, first_frame_width = frames[0].shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(
-            output_path, fourcc, fps, (first_frame_width, first_frame_height)
-        )
-
-        with tqdm(
-            total=end_frame - start_frame,
-            desc=f"Saving {os.path.basename(output_path)}",
-            unit="frame",
-            disable=not self.use_tqdm,
-        ) as progress_bar:
-            for frame in frames:
-                resized_frame = cv2.resize(
-                    frame,
-                    (first_frame_width, first_frame_height),
-                    interpolation=cv2.INTER_LINEAR,
-                )
-                out.write(resized_frame)
-                progress_bar.update(1)
-            out.release()
-        logging.info(f"Augmented video saved at: {output_path}")
-
-    # @profile(stream=log_file)
     def process_single_video(
         self,
         video_file: str,
