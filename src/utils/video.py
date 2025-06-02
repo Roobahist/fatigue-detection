@@ -250,3 +250,27 @@ class VideoReader:
                 return frame
         print("Info: Reached beginning of video.")
         return None
+
+    def jump_to_frame(self, frame_index: int) -> Optional[np.ndarray]:
+        """
+        Jumps to a specific frame by its index and returns it.
+
+        Args:
+            frame_index (int): The 0-based index of the frame to jump to.
+
+        Returns:
+            Optional[np.ndarray]: The frame image as a NumPy array if successful,
+                               None if the index is out of bounds or video is not open.
+        """
+        if not self.cap or not self.cap.isOpened():
+            return None
+
+        if 0 <= frame_index < self.total_frames:
+            self.current_frame_index = frame_index
+            ret, frame = self._read_frame_at_index(self.current_frame_index)
+            if ret:
+                return frame
+        print(
+            f"Error: Frame index {frame_index} is out of bounds (0 to {self.total_frames - 1})."
+        )
+        return None
