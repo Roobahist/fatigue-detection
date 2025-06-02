@@ -65,10 +65,34 @@ def fix_columns(
     return data, columns_to_drop
 
 
-import cv2
-import mediapipe as mp
-import numpy as np
-import os
+def _remove_background_from_video_one_frame(
+    frame,
+):
+    # Initialize MediaPipe Selfie Segmentation
+    mp_selfie_segmentation = mp.solutions.selfie_segmentation
+    segmentation = mp_selfie_segmentation.SelfieSegmentation(model_selection=0)
+
+    # Convert the BGR image to RGB (MediaPipe expects RGB)
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Process the image and get the segmentation mask
+    results = segmentation.process(image_rgb)
+
+    # The segmentation mask is a float array (0.0 to 1.0)
+    # where values close to 1.0 indicate the person.
+    # Create a binary mask (True for person, False for background)
+    # Adjust the threshold (e.g., 0.1) if the segmentation is too aggressive/lenient
+    condition = np.stack((results.segmentation_mask,) * 3, axis=-1) > 0.1
+
+    # Create a background:
+    # For simplicity, we'll use a solid black background.
+    bg_image = np.zeros(frame.shape, dtype=np.uint8)  # Solid black
+
+    # Apply the mask to blend the foreground (person) with the new background
+    output_frame = np.where(condition, frame, bg_image)
+
+    return output_frame
+
 
 def _remove_background_from_video_one_file(
     input_video_path: str, output_folder_path: str, suffix: str = "_bgremoved"
@@ -105,10 +129,6 @@ def _remove_background_from_video_one_file(
         print(f"Error: Output path is not a directory: {output_folder_path}")
         return
 
-    # Initialize MediaPipe Selfie Segmentation
-    mp_selfie_segmentation = mp.solutions.selfie_segmentation
-    segmentation = mp_selfie_segmentation.SelfieSegmentation(model_selection=0)
-
     # Open Video Capture
     cap = cv2.VideoCapture(input_video_path)
 
@@ -142,26 +162,8 @@ def _remove_background_from_video_one_file(
     while True:
         ret, frame = cap.read()
         if not ret:
-            break # End of video
-
-        # Convert the BGR image to RGB (MediaPipe expects RGB)
-        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Process the image and get the segmentation mask
-        results = segmentation.process(image_rgb)
-
-        # The segmentation mask is a float array (0.0 to 1.0)
-        # where values close to 1.0 indicate the person.
-        # Create a binary mask (True for person, False for background)
-        # Adjust the threshold (e.g., 0.1) if the segmentation is too aggressive/lenient
-        condition = np.stack((results.segmentation_mask,) * 3, axis=-1) > 0.1
-
-        # Create a background:
-        # For simplicity, we'll use a solid black background.
-        bg_image = np.zeros(frame.shape, dtype=np.uint8) # Solid black
-
-        # Apply the mask to blend the foreground (person) with the new background
-        output_frame = np.where(condition, frame, bg_image)
+            break  # End of video
+        output_frame = _remove_background_from_video_one_frame(frame)
 
         # Write the processed frame to the output video
         out.write(output_frame)
