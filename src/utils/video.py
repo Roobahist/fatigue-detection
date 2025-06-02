@@ -167,3 +167,32 @@ class VideoReader:
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.current_frame_index = -1  # Start before the first frame
 
+    def _read_frame_at_index(
+        self, frame_index: int
+    ) -> Tuple[bool, Optional[np.ndarray]]:
+        """
+        Helper method to read a specific frame by its index.
+
+        Args:
+            frame_index (int): The 0-based index of the frame to read.
+
+        Returns:
+            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
+                - bool: True if the frame was successfully read, False otherwise.
+                - np.ndarray | None: The frame image as a NumPy array if successful,
+                                     None otherwise.
+        """
+        if (
+            not self.cap
+            or not self.cap.isOpened()
+            or frame_index < 0
+            or frame_index >= self.total_frames
+        ):
+            return False, None
+
+        # Set the position to the desired frame
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ret, frame = self.cap.read()
+        if ret:
+            self.current_frame_index = frame_index
+        return ret, frame
