@@ -21,6 +21,44 @@ LEFT_EYEBROW =[ 336, 296, 334, 293, 300, 276, 283, 282, 295, 285 ]
 RIGHT_EYE=[ 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246 ]  
 RIGHT_EYEBROW=[ 70, 63, 105, 66, 107, 55, 65, 52, 53, 46 ]
 
+def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> np.ndarray:
+    """
+    Masks the face region using FACE_OVAL landmarks to handle face rotation.
+
+    Args:
+        frame: The input frame as a NumPy array.
+        detection_result: The face detection result containing facial landmarks.
+        width: The width of the input frame.
+        height: The height of the input frame.
+
+    Returns:
+        The masked frame as a NumPy array.
+    """
+    # Get all landmarks needed for the mask
+    all_landmarks = list(set(FACE_OVAL))  # Remove duplicates
+    
+    # Convert landmarks to pixel coordinates
+    points = np.array([
+        (
+            int(detection_result.face_landmarks[0][i].x * width),
+            int(detection_result.face_landmarks[0][i].y * height)
+        )
+        for i in all_landmarks
+    ], dtype=np.int32)
+    
+    # Find the convex hull of all points to create a complete face mask
+    hull = cv2.convexHull(points)
+    
+    # Create a mask of zeros (black)
+    mask_img = np.zeros(frame.shape[:2], dtype=np.uint8)
+    
+    # Fill the convex hull with white (255)
+    cv2.fillConvexPoly(mask_img, hull, 255)
+    
+    # Apply the mask to the frame
+    masked_frame = cv2.bitwise_and(frame, frame, mask=mask_img)
+    return masked_frame
+
 
 def get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, float, float]:
     """
