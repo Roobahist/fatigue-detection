@@ -225,7 +225,7 @@ class VideoReader:
         next_index = self.current_frame_index + 1
         if next_index < self.total_frames:
             self.current_frame_index = self.current_frame_index + 1
-            ret, frame = self.get_current_frame(self.current_frame_index)
+            ret, frame = self.get_current_frame()
             if ret:
                 return frame
         print("Info: Reached end of video.")
@@ -245,7 +245,7 @@ class VideoReader:
         prev_index = self.current_frame_index - 1
         if prev_index >= 0:
             self.current_frame_index = self.current_frame_index - 1
-            ret, frame = self.get_current_frame(self.current_frame_index)
+            ret, frame = self.get_current_frame()
             if ret:
                 return frame
         print("Info: Reached beginning of video.")
