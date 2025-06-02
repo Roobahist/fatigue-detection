@@ -71,9 +71,7 @@ import numpy as np
 import os
 
 def _remove_background_from_video_one_file(
-    input_video_path: str,
-    output_folder_path: str,
-    suffix: str = "_bgremoved"
+    input_video_path: str, output_folder_path: str, suffix: str = "_bgremoved"
 ):
     """
     Processes a video to remove the background of the main subject
@@ -128,7 +126,7 @@ def _remove_background_from_video_one_file(
     output_video_path = os.path.join(output_folder_path, output_file_name)
 
     # Initialize Video Writer
-    fourcc_out = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc_out = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_video_path, fourcc_out, fps, (width, height))
 
     if not out.isOpened():
@@ -186,17 +184,18 @@ def remove_background_from_video(
     maxtasksperchild: Optional[int] = 1,
     use_tqdm: Optional[bool] = False,
 ):
-    
+
     create_folders(output_folder_path)
 
     args_list = [
         {
-            'input_video_path' : input_video_path,
-            'output_folder_path' : output_folder_path,
-            'suffix' : suffix,
-        } 
-        for input_video_path in 
-        get_file_paths(input_path=input_folder_path, depth=5, EXT_LIST=['mov', 'mp4'])
+            "input_video_path": input_video_path,
+            "output_folder_path": output_folder_path,
+            "suffix": suffix,
+        }
+        for input_video_path in get_file_paths(
+            input_path=input_folder_path, depth=5, EXT_LIST=["mov", "mp4"]
+        )
     ]
 
     print(f"Number of files to process : {len(args_list)}")
@@ -244,7 +243,6 @@ def fit_normalizer(
     maxtasksperchild: int = 1,
     use_tqdm: bool = True,
 ):
-
 
     create_folders(output_directory_path)
 
@@ -323,7 +321,6 @@ def apply_normalizer(
     use_tqdm: bool = True,
 ):
 
-
     with open(os.path.join(input_directory_path, "split_info.json"), "r") as file:
         train_val_test_file_paths = json.load(file)
 
@@ -387,7 +384,7 @@ def convert_csv_to_npy(source_dir, target_dir):
                 )
 
                 if os.path.exists(target_file):
-                    
+
                     # TODO : problem with this implementation is that the column
                     #        names are not matched with already processed files.
 
@@ -459,31 +456,40 @@ def copy_video_split_info(source_dir, target_dir):
 
             if file == "split_info.json":
                 try:
-                    with open(source_file, 'r') as json_file:
+                    with open(source_file, "r") as json_file:
                         j = json.load(json_file)
 
                     for fold in j:
-                        fold['input_paths'] = fold['output_paths'].copy()
-                        splits = ['train', 'test', 'val']
+                        fold["input_paths"] = fold["output_paths"].copy()
+                        splits = ["train", "test", "val"]
                         for split in splits:
-                            fold['output_paths'][split] = [path.replace(source_dir, target_dir).replace('.csv', '.npy') for path in fold['output_paths'][split]]
-                
-                    save_obj(j, target_file, 'json')
+                            fold["output_paths"][split] = [
+                                path.replace(source_dir, target_dir).replace(
+                                    ".csv", ".npy"
+                                )
+                                for path in fold["output_paths"][split]
+                            ]
+
+                    save_obj(j, target_file, "json")
                     print(f"Saved as: {target_file}")
                     processed_count += 1
 
                 except Exception as e:
                     print(f"Error processing {source_file}: {str(e)}")
                     error_count += 1
-                
+
             if file == "video_info.csv":
                 try:
                     # Read CSV using pandas
                     print(f"Processing: {source_file}")
 
                     df = pd.read_csv(source_file)
-                    df['path'] = df['path'].apply(lambda x: x.replace(source_dir, target_dir).replace('.csv', '.npy'))
-                
+                    df["path"] = df["path"].apply(
+                        lambda x: x.replace(source_dir, target_dir).replace(
+                            ".csv", ".npy"
+                        )
+                    )
+
                     df.to_csv(target_file, index=False)
                     print(f"Saved as: {target_file}")
                     processed_count += 1
@@ -491,7 +497,6 @@ def copy_video_split_info(source_dir, target_dir):
                 except Exception as e:
                     print(f"Error processing {source_file}: {str(e)}")
                     error_count += 1
-
 
     print(f"Completed: {processed_count} files processed, {error_count} errors")
 
