@@ -196,3 +196,17 @@ class VideoReader:
         if ret:
             self.current_frame_index = frame_index
         return ret, frame
+
+    def get_current_frame(self) -> Optional[np.ndarray]:
+        """
+        Retrieves the frame at the current position.
+
+        Returns:
+            Optional[np.ndarray]: The current frame image as a NumPy array, or None if
+                               no frame is currently loaded or video is not open.
+        """
+        if self.current_frame_index == -1 or not self.cap or not self.cap.isOpened():
+            return None
+        # Re-read the current frame to ensure it's up-to-date
+        _, frame = self._read_frame_at_index(self.current_frame_index)
+        return frame
