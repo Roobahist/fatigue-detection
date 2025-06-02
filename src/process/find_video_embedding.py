@@ -60,8 +60,7 @@ def process_single_video(
     file_index: Optional[int] = -1,
 ):
     try:
-        logging.info(f"--- Processing Video {file_index} - {video_file_path} ---")
-        FP = FrameProcessor()
+        # FP = FrameProcessor()
 
         output_file_path = os.path.splitext(
                 video_file_path.replace(input_folder_path, output_folder_path)
@@ -98,6 +97,10 @@ def process_single_video(
         )
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
+        model_path = "/work/long_lab/Mojtaba/src/process/vit-base-patch16-224-in21k"
+        processor = ViTImageProcessor.from_pretrained(model_path)
+        model = TFViTModel.from_pretrained(model_path)
+
         with tqdm(
             total=end_frame - start_frame,
             desc=f"Processing {os.path.basename(video_file_path)}",
@@ -118,16 +121,23 @@ def process_single_video(
                     progress_bar.update(1)
                     continue
 
-                frame_embedding = [
-                    round(x, 3)
-                    for x in FP.represent(
-                        img_path=frame,
-                        model_name=embedding_model,
-                        enforce_detection=False,
-                        detector_backend="skip",
-                        normalization=embedding_normalization,
-                    )[0]["embedding"]
-                ]
+                # frame_embedding = [
+                #     round(x, 3)
+                #     for x in FP.represent(
+                #         img_path=frame,
+                #         model_name=embedding_model,
+                #         enforce_detection=False,
+                #         detector_backend="skip",
+                #         normalization=embedding_normalization,
+                #     )[0]["embedding"]
+                # ]
+
+                inputs = processor(images=frame, return_tensors="np")
+                outputs = model(**inputs)
+                last_hidden_states = outputs.last_hidden_state
+                frame_embedding = list(np.round(last_hidden_states[0, 1].numpy(), 3))
+                # TODO : Isolate embedding function
+
                 CSVW.write(frame_embedding)
                 progress_bar.update(1)
 
