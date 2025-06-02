@@ -210,3 +210,23 @@ class VideoReader:
         # Re-read the current frame to ensure it's up-to-date
         ret, frame = self._read_frame_at_index(self.current_frame_index)
         return ret, frame
+
+    def get_next_frame(self) -> Optional[np.ndarray]:
+        """
+        Reads and returns the next frame in the video sequence.
+
+        Returns:
+            Optional[np.ndarray]: The next frame image as a NumPy array, or None if
+                               the end of the video is reached or video is not open.
+        """
+        if not self.cap or not self.cap.isOpened():
+            return None
+
+        next_index = self.current_frame_index + 1
+        if next_index < self.total_frames:
+            self.current_frame_index = self.current_frame_index + 1
+            ret, frame = self.get_current_frame(self.current_frame_index)
+            if ret:
+                return frame
+        print("Info: Reached end of video.")
+        return None
