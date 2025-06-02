@@ -107,3 +107,63 @@ def save_video(
             progress_bar.update(1)
         out.release()
     logging.info(f"Augmented video saved at: {output_path}")
+
+
+class VideoReader:
+    """
+    A class for reading video files, providing methods to navigate through frames
+    and retrieve video information.
+    """
+
+    def __init__(
+        self,
+        video_path: Optional[str] = None,
+        cap_object: Optional[cv2.VideoCapture] = None,
+    ):
+        """
+        Initializes the VideoReader with either a path to a video file or an
+        existing cv2.VideoCapture object.
+
+        Args:
+            video_path (str, optional): The file path to the video. Required if
+                                        cap_object is not provided.
+            cap_object (cv2.VideoCapture, optional): An existing cv2.VideoCapture
+                                                     object. If provided, video_path
+                                                     will be ignored.
+        """
+        self.video_path = video_path
+        self.cap = None
+
+        if cap_object is not None and isinstance(cap_object, cv2.VideoCapture):
+            self.cap = cap_object
+        elif video_path is not None:
+            self.cap = cv2.VideoCapture(video_path)
+        else:
+            print("Error: Either video_path or cap_object must be provided.")
+            self.total_frames = 0
+            self.fps = 0
+            self.width = 0
+            self.height = 0
+            self.current_frame_index = -1  # Indicate no frame is loaded
+            return
+
+        if (
+            not self.cap or not self.cap.isOpened()
+        ):  # Check self.cap before calling isOpened()
+            if video_path:
+                print(f"Error: Could not open video file at {video_path}")
+            else:
+                print("Error: Provided cv2.VideoCapture object is not opened or valid.")
+            self.total_frames = 0
+            self.fps = 0
+            self.width = 0
+            self.height = 0
+            self.current_frame_index = -1  # Indicate no frame is loaded
+            return
+
+        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.current_frame_index = -1  # Start before the first frame
+
