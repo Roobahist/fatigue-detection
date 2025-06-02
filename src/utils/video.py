@@ -1,12 +1,17 @@
+import logging
+import os
+from typing import Dict, List, Optional, Tuple, Union
+
 import cv2
-from typing import Tuple, Optional, List
+import matplotlib.pyplot as plt
 import numpy as np
 import logging
 from tqdm import tqdm
-import os
 
-def get_video_info(cap: Optional[cv2.VideoCapture] = None,
-                   file_path: Optional[str] = None) -> Tuple[int, int, int, int, str]:
+
+def get_video_info(
+    cap: Optional[cv2.VideoCapture] = None, file_path: Optional[str] = None
+) -> Tuple[int, int, int, int, str]:
     """
     Retrieves video information from a cv2.VideoCapture object.
 
@@ -22,7 +27,9 @@ def get_video_info(cap: Optional[cv2.VideoCapture] = None,
     """
 
     if (cap is None and not file_path) or (cap is not None and file_path):
-        raise ValueError("Provide either `cap` or `file_path`, but not both or neither.")
+        raise ValueError(
+            "Provide either `cap` or `file_path`, but not both or neither."
+        )
     if cap is None:
         cap = cv2.VideoCapture(file_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
@@ -31,9 +38,11 @@ def get_video_info(cap: Optional[cv2.VideoCapture] = None,
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
 
-    if file_path is not None: cap.release()
+    if file_path is not None:
+        cap.release()
 
     return fps, width, height, total_frames, fourcc
+
 
 def save_video(
     self,
@@ -54,9 +63,7 @@ def save_video(
         end_frame: End frame of the processing.
     """
     if not frames:
-        logging.warning(
-            f"No frames to save for {output_path}. Skipping video save."
-        )
+        logging.warning(f"No frames to save for {output_path}. Skipping video save.")
         return
 
     first_frame_height, first_frame_width = frames[0].shape[:2]
