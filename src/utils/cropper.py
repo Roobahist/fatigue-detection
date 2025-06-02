@@ -1,6 +1,9 @@
 import cv2
 from typing import Tuple, Optional
+import mediapipe as mp
 import numpy as np
+import logging
+import traceback
 
 #reference_image = https://github.com/google-ai-edge/mediapipe/blob/e0eef9791ebb84825197b49e09132d3643564ee2/mediapipe/modules/face_geometry/data/canonical_face_model_uv_visualization.png
 #reference_for_indices = https://gist.github.com/Asadullah-Dal17/fd71c31bac74ee84e6a31af50fa62961
