@@ -290,3 +290,12 @@ class VideoReader:
             "height": self.height,
             "current_frame_index": self.current_frame_index,
         }
+
+    def release(self):
+        """
+        Releases the video capture object. This should be called when you are
+        finished with the video to free up resources.
+        """
+        if self.cap and self.cap.isOpened():
+            self.cap.release()
+            print("Video capture released.")
