@@ -91,13 +91,13 @@ def crop_face_from_frame(
     if mask : 
         frame = mask_frame(frame, detection_result, width, height)
 
-        face = frame[y_min:y_max, x_min:x_max]
-        new_width = x_max - x_min
-        new_height = y_max - y_min
-        new_size = max(new_width, new_height)
+    face = frame[y_min:y_max, x_min:x_max]
+    new_width = x_max - x_min
+    new_height = y_max - y_min
+    new_size = max(new_width, new_height)
 
-        square_face = cv2.resize(
-            face, (new_size, new_size), interpolation=cv2.INTER_LINEAR
-        )
+    square_face = cv2.resize(
+        face, (new_size, new_size), interpolation=cv2.INTER_LINEAR
+    )
 
     return square_face
