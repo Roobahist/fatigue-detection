@@ -230,3 +230,23 @@ class VideoReader:
                 return frame
         print("Info: Reached end of video.")
         return None
+
+    def get_previous_frame(self) -> Optional[np.ndarray]:
+        """
+        Reads and returns the previous frame in the video sequence.
+
+        Returns:
+            Optional[np.ndarray]: The previous frame image as a NumPy array, or None if
+                               the beginning of the video is reached or video is not open.
+        """
+        if not self.cap or not self.cap.isOpened():
+            return None
+
+        prev_index = self.current_frame_index - 1
+        if prev_index >= 0:
+            self.current_frame_index = self.current_frame_index - 1
+            ret, frame = self.get_current_frame(self.current_frame_index)
+            if ret:
+                return frame
+        print("Info: Reached beginning of video.")
+        return None
