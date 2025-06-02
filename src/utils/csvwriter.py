@@ -28,6 +28,13 @@ class CSVWriter:
     def close(self):
         self.file.close()
 
+    def clear(self):
+        self.file.close()
+        with open(self.file_path, 'w', newline='') as f:
+            pass  # Truncate the file to zero length
+        self.file = open(self.file_path, 'a+', newline='')
+        self.writer = csv.writer(self.file)
+
 
 # CSVW = CSVWriter(
 #     file_path="/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded/embedding/Facenet/cropped/1_06_5_30fps_cropped.csv"
