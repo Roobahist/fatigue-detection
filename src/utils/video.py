@@ -274,3 +274,19 @@ class VideoReader:
             f"Error: Frame index {frame_index} is out of bounds (0 to {self.total_frames - 1})."
         )
         return None
+
+    def get_info(self) -> Dict[str, Union[int, float]]:
+        """
+        Returns a dictionary containing information about the video.
+
+        Returns:
+            Dict[str, Union[int, float]]: A dictionary with video properties like 'total_frames', 'fps',
+                  'width', 'height', and 'current_frame_index'.
+        """
+        return {
+            "total_frames": self.total_frames,
+            "fps": self.fps,
+            "width": self.width,
+            "height": self.height,
+            "current_frame_index": self.current_frame_index,
+        }
