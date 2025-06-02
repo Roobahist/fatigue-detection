@@ -27,6 +27,26 @@ logging.basicConfig(
 
 VIDEO_EXTS = [".mp4", ".mov", ".avi"]
 
+# Get available devices
+gpus = tf.config.list_physical_devices('GPU')
+
+# Determine device strategy
+if len(gpus) > 0:
+    print(f"Using GPU: {gpus[0]}")
+    # Optional: Configure memory growth
+    try:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+    except RuntimeError as e:
+        print(f"Memory growth setting error: {e}")
+else:
+    print("No GPU found. Using CPU instead.")
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+else:
+    device = torch.device("cpu")
+    print("No GPU found. Using CPU instead.")
 
 def process_single_video(
     video_file_path: str,
