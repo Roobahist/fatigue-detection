@@ -21,9 +21,11 @@ LEFT_EYEBROW =[ 336, 296, 334, 293, 300, 276, 283, 282, 295, 285 ]
 RIGHT_EYE=[ 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246 ]  
 RIGHT_EYEBROW=[ 70, 63, 105, 66, 107, 55, 65, 52, 53, 46 ]
 
+HORIZONTAL_CENTER = [1, 6, 197, 0, 17, 2, 152, 199, 15, 168, 94]
+
 def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> np.ndarray:
     """
-    Masks the face region using FACE_OVAL landmarks to handle face rotation.
+    Masks the face region using both FACE_OVAL and HORIZONTAL_CENTER landmarks to handle face rotation.
 
     Args:
         frame: The input frame as a NumPy array.
@@ -35,7 +37,7 @@ def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> 
         The masked frame as a NumPy array.
     """
     # Get all landmarks needed for the mask
-    all_landmarks = list(set(FACE_OVAL))  # Remove duplicates
+    all_landmarks = list(set(FACE_OVAL + HORIZONTAL_CENTER))  # Remove duplicates
     
     # Convert landmarks to pixel coordinates
     points = np.array([
