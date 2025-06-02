@@ -208,5 +208,5 @@ class VideoReader:
         if self.current_frame_index == -1 or not self.cap or not self.cap.isOpened():
             return None
         # Re-read the current frame to ensure it's up-to-date
-        _, frame = self._read_frame_at_index(self.current_frame_index)
-        return frame
+        ret, frame = self._read_frame_at_index(self.current_frame_index)
+        return ret, frame
