@@ -62,6 +62,7 @@ def crop_face_from_frame(
     width: int,
     height: int,
     margin: float = 0.1,
+    mask: bool = False,
 ) -> Optional[np.ndarray]:
     """
     Crops a square face region from a frame based on face detection results.
@@ -86,6 +87,9 @@ def crop_face_from_frame(
     x_max = int(x_max * width)
     y_min = int(y_min * height)
     y_max = int(y_max * height)
+
+    if mask : 
+        frame = mask_frame(frame, detection_result, width, height)
 
         face = frame[y_min:y_max, x_min:x_max]
         new_width = x_max - x_min
