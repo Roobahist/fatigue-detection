@@ -63,11 +63,13 @@ def process_single_video(
         logging.info(f"--- Processing Video {file_index} - {video_file_path} ---")
         FP = FrameProcessor()
 
-        CSVW = CSVWriter(
-            file_path=os.path.splitext(
+        output_file_path = os.path.splitext(
                 video_file_path.replace(input_folder_path, output_folder_path)
-            )[0]
-            + ".csv"
+            )[0] + ".csv"
+        
+
+        CSVW = CSVWriter(
+            file_path=output_file_path
         )
 
         cap = cv2.VideoCapture(video_file_path)
@@ -77,6 +79,19 @@ def process_single_video(
         fps, _, _, total_frames, _ = get_video_info(cap=cap)
         start_frame = max(int(start_second * fps), CSVW.get_current_line_number(), 0)
         end_frame = int(end_second * fps) if end_second is not None else total_frames
+
+        if os.path.exists(output_file_path):
+            if CSVW.get_current_line_number() == total_frames:
+                logging.info(
+                    f"--- Skipping Video {file_index} - {video_file_path} File Exists. ---"
+                )
+                return
+            if CSVW.get_current_line_number() == 0:
+                logging.info(f"--- Processing Video {file_index} - {video_file_path} ---")
+            else:
+                logging.info(
+                    f"--- Continuing processing Video {file_index} - {video_file_path} ---"
+                )
 
         logging.info(
             f"Video {file_index} - Start Frame: {start_frame}, End Frame: {end_frame}"
