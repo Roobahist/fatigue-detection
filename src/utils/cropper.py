@@ -76,12 +76,16 @@ def crop_face_from_frame(
     Returns:
         The cropped square face region as a NumPy array, or None if cropping fails.
     """
-    try:
-        x_min, x_max, y_min, y_max = get_face_bbox(detection_result, margin)
-        x_min = int(x_min * width)
-        x_max = int(x_max * width)
-        y_min = int(y_min * height)
-        y_max = int(y_max * height)
+    if detection_result == mp.tasks.vision.FaceLandmarkerResult(face_landmarks=[],
+                                                                face_blendshapes=[],
+                                                                facial_transformation_matrixes=[]):
+        return None
+    
+    x_min, x_max, y_min, y_max = get_face_bbox(detection_result, margin)
+    x_min = int(x_min * width)
+    x_max = int(x_max * width)
+    y_min = int(y_min * height)
+    y_max = int(y_max * height)
 
         face = frame[y_min:y_max, x_min:x_max]
         new_width = x_max - x_min
@@ -92,8 +96,4 @@ def crop_face_from_frame(
             face, (new_size, new_size), interpolation=cv2.INTER_LINEAR
         )
 
-        return square_face
-
-    except Exception as e:
-        print(f"Error cropping face: {e}")
-        return None
+    return square_face
