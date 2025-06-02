@@ -144,7 +144,7 @@ class VideoReader:
             self.fps = 0
             self.width = 0
             self.height = 0
-            self.current_frame_index = -1  # Indicate no frame is loaded
+            self.current_frame_index = 0
             return
 
         if (
@@ -158,14 +158,14 @@ class VideoReader:
             self.fps = 0
             self.width = 0
             self.height = 0
-            self.current_frame_index = -1  # Indicate no frame is loaded
+            self.current_frame_index = 0
             return
 
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.current_frame_index = -1  # Start before the first frame
+        self.current_frame_index = 0
 
     def _read_frame_at_index(
         self, frame_index: int
