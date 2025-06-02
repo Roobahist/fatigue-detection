@@ -6,14 +6,18 @@ import traceback
 from typing import List, Optional
 
 import cv2
+import numpy as np
+import tensorflow as tf
+import torch
 from tqdm import tqdm
+from transformers import TFViTModel, ViTImageProcessor
 
 from Zh.src.process.frame_processor import FrameProcessor
 from Zh.src.utils.csvwriter import CSVWriter
-from Zh.src.utils.memory import cleanup
-from Zh.src.utils.video import get_video_info
-from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
+from Zh.src.utils.memory import cleanup
+from Zh.src.utils.serialized_parallel import process
+from Zh.src.utils.video import get_video_info
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -138,11 +142,16 @@ def process_multiple_videos(
                        processed.
     """
     copy_directory_structure(input_folder_path, output_folder_path)
-    all_video_file_names = get_file_paths(input_path=input_folder_path, depth=5, EXT_LIST=VIDEO_EXTS)
+    all_video_file_names = get_file_paths(
+        input_path=input_folder_path, depth=5, EXT_LIST=VIDEO_EXTS
+    )
 
     if video_file_names != []:
-        video_file_names = [video_file_name for video_file_name in all_video_file_names 
-                            if os.path.basename(video_file_name) in video_file_names]
+        video_file_names = [
+            video_file_name
+            for video_file_name in all_video_file_names
+            if os.path.basename(video_file_name) in video_file_names
+        ]
         logging.info(
             f"Video File Paths Captured Using Provided List: {len(video_file_paths)}"
         )
@@ -168,13 +177,13 @@ def process_multiple_videos(
     ]
 
     process(
-        worker_function = process_single_video,
-        worker_params_list = args_list,
-        handler_function = None,
-        parallel = parallel,
-        max_workers = max_workers,
-        maxtasksperchild = maxtasksperchild,
-        use_tqdm = use_tqdm,
+        worker_function=process_single_video,
+        worker_params_list=args_list,
+        handler_function=None,
+        parallel=parallel,
+        max_workers=max_workers,
+        maxtasksperchild=maxtasksperchild,
+        use_tqdm=use_tqdm,
     )
 
 
