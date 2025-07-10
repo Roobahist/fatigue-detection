@@ -180,3 +180,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+experiments/e10/videomae-base-finetuned-fatigue-subset/
+experiments/e10/videomae-base-finetuned-fatigue-subset-2/
+experiments/e10/videomae-base-finetuned-fatigue-subset-3/
