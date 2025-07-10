@@ -106,8 +106,8 @@ def process_single_video(
             initial=start_frame,
             desc=f"Processing {os.path.basename(video_file_path)}",
             unit="frame",
-            miniters=1000,
-            mininterval=500,
+            # miniters=1000, # steps
+            mininterval=120, # seconds
             disable=not use_tqdm,
         ) as progress_bar:
             while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
