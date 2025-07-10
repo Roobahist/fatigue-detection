@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, List, Optional
 from tqdm import tqdm
 
 
-# Move the wrapped worker function outside
 def wrapped_worker_function(params_and_worker):
     worker_function, params = params_and_worker
     return worker_function(**params)
@@ -17,7 +16,7 @@ def process(
     handler_function: Optional[Callable[[Any], Any]] = None,
     parallel: bool = True,
     max_workers: Optional[int] = None,
-    maxtasksperchild: Optional[int] = 1,
+    maxtasksperchild: Optional[int] = None,
     use_tqdm: bool = False,
 ) -> List[Any]:
 
