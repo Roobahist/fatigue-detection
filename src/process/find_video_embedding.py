@@ -74,6 +74,7 @@ def process_single_video(
         cap = cv2.VideoCapture(video_file_path)
         if not cap.isOpened():
             logging.error(f"Failed to open video {file_index} - {video_file_path}")
+            return
 
         fps, _, _, total_frames, _ = get_video_info(cap=cap)
         start_frame = max(int(start_second * fps), CSVW.get_current_line_number(), 0)
@@ -240,9 +241,9 @@ if __name__ == "__main__":
     # )
     input_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked"
     output_folder_path = (
-        "/work/long_lab/Mojtaba/data/UTA/1.4.2-augmentated_masked_embedded"
+        "/work/long_lab/Mojtaba/data/UTA/1.4.1-augmentated_masked_embedded"
     )
-    max_workers = 40
+    max_workers = 30
     # output_folder_path = "/home/mojtaba.kananisarche/Zh/temp/out/embedding/Facenet"
     # output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded"
     # input_folder_path, output_folder_path, max_workers = (
@@ -262,7 +263,7 @@ if __name__ == "__main__":
         start_second=0,
         end_second=None,
         max_workers=max_workers,
-        maxtasksperchild = 40,
+        maxtasksperchild = None,
         embedding_model="Facenet",
         embedding_normalization="Facenet",
         use_tqdm=True,
