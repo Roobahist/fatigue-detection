@@ -10,7 +10,8 @@ import numpy as np
 import tensorflow as tf
 import torch
 from tqdm import tqdm
-from transformers import TFViTModel, ViTImageProcessor
+from transformers import pipeline
+from PIL import Image
 
 from Zh.src.process.frame_processor import FrameProcessor
 from Zh.src.utils.csvwriter import CSVWriter
@@ -52,6 +53,7 @@ def process_single_video(
     video_file_path: str,
     input_folder_path: str,
     output_folder_path: str,
+    pipe,
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
     embedding_model: Optional[str] = "Facenet",
@@ -98,10 +100,6 @@ def process_single_video(
         )
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
-        model_path = "/work/long_lab/Mojtaba/src/process/vit-base-patch16-224-in21k"
-        processor = ViTImageProcessor.from_pretrained(model_path)
-        model = TFViTModel.from_pretrained(model_path)
-
         with tqdm(
             total=end_frame,
             initial=start_frame,
@@ -132,10 +130,7 @@ def process_single_video(
                 #     )[0]["embedding"]
                 # ]
 
-                inputs = processor(images=frame, return_tensors="np")
-                outputs = model(**inputs)
-                last_hidden_states = outputs.last_hidden_state
-                frame_embedding = list(np.round(last_hidden_states[0, 1].numpy(), 3))
+                frame_embedding = np.round(np.array(pipe.predict(Image.fromarray(frame))[0][0]), 3).astype('float32')
                 # TODO : Isolate embedding function
 
                 CSVW.write(frame_embedding)
@@ -206,6 +201,9 @@ def process_multiple_videos(
             f"Video File Paths Captured Automatically: {len(video_file_paths)}"
         )
 
+    model_path = "/work/long_lab/Mojtaba/src/process/vit-base-patch16-224-in21k"
+    pipe = pipeline(task="image-feature-extraction", model=model_path, device=0)
+
     args_list = [
         {
             "video_file_path": video_file_paths[i],
@@ -215,6 +213,7 @@ def process_multiple_videos(
             "end_second": end_second,
             "embedding_model": embedding_model,
             "embedding_normalization": embedding_normalization,
+            "pipe":pipe,
             "use_tqdm": use_tqdm,
             "file_index": i,
         }
