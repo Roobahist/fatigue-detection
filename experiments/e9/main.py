@@ -329,22 +329,6 @@ class Model:
 
         return train_val_test_indices
 
-    # class DataGenerator(Sequence):
-    #     def __init__(self):
-    #         pass
-
-    #     def __len__(self):
-    #         pass
-
-    #     def __get_item__(self):
-    #         pass
-
-    #     def _load_data(self):
-    #         pass
-
-    #     def on_epoch_end(self):
-    #         pass
-
     def _train_single_fold(
         self,
         data: pd.DataFrame,
