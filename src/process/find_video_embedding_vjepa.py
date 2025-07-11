@@ -49,6 +49,12 @@ else:
     device = torch.device("cpu")
     print("No GPU found. Using CPU instead.")
 
+def save_video_embeddings(video_id, clip_embeddings_list, save_dir):
+    # clip_embeddings_list: list of np arrays, each [8192, 1024]
+    save_path = f"{save_dir}/{video_id}.npz"
+    np.savez_compressed(save_path, **{
+        f"clip_{i:03d}": emb.astype(np.float32) for i, emb in enumerate(clip_embeddings_list)
+    })
 
 def process_single_video(
     video_file_path: str,
@@ -88,8 +94,27 @@ def process_single_video(
                 break  # drop last incomplete chunk
             chunk = downsampled_indices[start:end]
 
+# import torch
+# from torchcodec.decoders import VideoDecoder
+# import numpy as np
 
+# from transformers import AutoVideoProcessor, AutoModel, AutoModelForVideoClassification
 
+# hf_repo = "facebook/vjepa2-vitl-fpc64-256"
+
+# model = AutoModel.from_pretrained(hf_repo)
+# processor = AutoVideoProcessor.from_pretrained(hf_repo)
+
+# video_url = "/home/mojtaba.kananisarche/Zh/temp/1_04_0_30fps_sq_cropped_bgremoved.mp4"
+# vr = VideoDecoder(video_url)
+# frame_idx = np.arange(0, 64) # choosing some frames. here, you can define more complex sampling strategy
+# video = vr.get_frames_at(indices=frame_idx).data  # T x C x H x W
+# video = processor(video, return_tensors="pt").to(model.device)
+# with torch.no_grad():
+#     video_embeddings = model.get_vision_features(**video)
+
+# print(video_embeddings.shape)
+# torch.Size([1, 8192, 1024])
             
 
         
