@@ -135,17 +135,23 @@ class Model:
         epochs,
         patience,
         slice_size,
+        frame_stride,
         step_size,
         discard_threshold_ratio,
         mapping,
+        loss_function: Union[str, tf.keras.losses.Loss] = "mse",
+        metrics: List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
     ):
         self.batch_size              = batch_size
         self.epochs                  = epochs
         self.patience                = patience
         self.slice_size              = slice_size
         self.step_size               = step_size
+        self.frame_stride            = frame_stride
         self.discard_threshold_ratio = discard_threshold_ratio
         self.mapping                 = mapping
+        self.loss_function           = loss_function
+        self.metrics                 = metrics
 
     # fmt: on
     def _save_result(
@@ -415,9 +421,47 @@ class Model:
         metrics                      : List[Union[str, tf.keras.metrics.Metric]] = ["mae"],
         hp_config                    : Optional[Dict[str, Dict[str, Any]]] = {},
     ):
+        pass
 
-        output_folder_name = (output_folder_name or 
-                              datetime.now().strftime("%Y-%m-%d|%H:%M:%S|RNN_FACENET_5CV"))
+    def test_model(
+        self,
+        paths: Dict[str, Any],
+        fold_config: Dict[str, Any],
+        tuner_config: Dict[str, Any],
+        parallel_config: Dict[str, Any],
+    ):
+        # ----------- PATHS -----------
+        input_directory_path   = paths.get("input_directory_path")
+        split_info_csv_path    = paths.get("split_info_csv_path", os.path.join(input_directory_path, "split_info.json"))
+        column_names_json_path = paths.get("column_names_json_path", None)
+        output_directory_path  = paths.get("output_directory_path", "/home/mojtaba.kananisarche/Zh/UTA/Output/")
+        output_folder_name     = paths.get("output_folder_name")
+
+        # ----------- FOLD CONFIG -----------
+        fold_by_primary_column_name   = fold_config.get("fold_by_primary_column_name", None)
+        fold_by_secondary_column_name = fold_config.get("fold_by_secondary_column_name", None)
+        fold_start_index              = fold_config.get("fold_start_index", None)
+        fold_end_index                = fold_config.get("fold_end_index", None)
+        fold_indices                  = fold_config.get("fold_indices", None)
+        columns_to_drop               = fold_config.get("columns_to_drop", [])
+
+        # ----------- TUNER CONFIG -----------
+        tuner_model_name           = tuner_config.get("tuner_model_name", ALL_MODELS[0])
+        tuner_max_trials           = tuner_config.get("tuner_max_trials", 15)
+        tuner_executions_per_trial = tuner_config.get("tuner_executions_per_trial", 1)
+        tuner_epochs               = tuner_config.get("tuner_epochs", 50)
+        tuner_patience             = tuner_config.get("tuner_patience", 10)
+        tuner_type                 = tuner_config.get("tuner_type", "bayesian")
+        hp_config                  = tuner_config.get("hp_config", {})
+
+        # ----------- PARALLEL CONFIG -----------
+        parallel         = parallel_config.get("parallel", False)
+        max_workers      = parallel_config.get("max_workers", None)
+        maxtasksperchild = parallel_config.get("maxtasksperchild", 1)
+        use_tqdm         = parallel_config.get("use_tqdm", False)
+        data_gen_workers = parallel_config.get("data_gen_workers", 1)
+
+        output_folder_name = datetime.now().strftime(f"%Y-%m-%d|%H:%M:%S|{output_folder_name}")
         
         logging.info(f"Output Folder : {output_folder_name}")
 
@@ -428,31 +472,41 @@ class Model:
             json.dump(
                 {
                     "general": {
-                        "batch_size"                   : self.batch_size,
-                        "epochs"                       : self.epochs,
-                        "slice_size"                   : self.slice_size,
-                        "step_size"                    : self.step_size,
-                        "mapping"                      : self.mapping,
-                        "discard_threshold_ratio"      : self.discard_threshold_ratio,
-                        "input_directory_path"         : input_directory_path,
-                        "split_info_csv_path"          : split_info_csv_path,
-                        "column_names_json_path"       : column_names_json_path,
-                        "columns_to_drop"              : columns_to_drop,
-                        "output_folder_name"           : output_folder_name,
+                        # === Model Parameters ===
+                        "batch_size"              : self.batch_size,
+                        "epochs"                  : self.epochs,
+                        "patience"                : self.patience,
+                        "slice_size"              : self.slice_size,
+                        "frame_stride"            : self.frame_stride,
+                        "step_size"               : self.step_size,
+                        "mapping"                 : self.mapping,
+                        "discard_threshold_ratio" : self.discard_threshold_ratio,
+                        "loss_function"           : self.loss_function,
+                        "metrics"                 : self.metrics,
+
+                        # === Paths ===
+                        "input_directory_path"    : input_directory_path,
+                        "split_info_csv_path"     : split_info_csv_path,
+                        "column_names_json_path"  : column_names_json_path,
+                        "output_directory_path"   : output_directory_path,
+                        "output_folder_name"      : output_folder_name,
+
+                        # === Fold Config ===
                         "fold_by_primary_column_name"  : fold_by_primary_column_name,
                         "fold_by_secondary_column_name": fold_by_secondary_column_name,
                         "fold_start_index"             : fold_start_index,
                         "fold_end_index"               : fold_end_index,
                         "fold_indices"                 : fold_indices,
-                        "tuner_model_name"             : tuner_model_name,
+                        "columns_to_drop"              : columns_to_drop,
+
+                        # === Tuner Config ===
                         "tuner_max_trials"             : tuner_max_trials,
                         "tuner_executions_per_trial"   : tuner_executions_per_trial,
                         "tuner_epochs"                 : tuner_epochs,
                         "tuner_patience"               : tuner_patience,
+                        "tuner_model_name"             : tuner_model_name,
                         "tuner_type"                   : tuner_type,
                         "hp"                           : hp_config,
-                        "loss_function"                : loss_function,
-                        "metrics"                      : metrics,
                     }
                 },
                 file,
