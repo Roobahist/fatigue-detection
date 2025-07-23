@@ -1,5 +1,7 @@
 import logging
 import multiprocessing
+import os, math
+
 from typing import Any, Callable, Dict, List, Optional
 
 from tqdm import tqdm
@@ -51,3 +53,28 @@ def process(
                 results.append(results)
 
     return results
+
+
+def get_task_slice(total_items: int):
+    # Case 1: SLURM job array
+    tid = os.getenv("SLURM_ARRAY_TASK_ID")
+    tcount = os.getenv("SLURM_ARRAY_TASK_COUNT")
+    if tid is not None and tcount is not None:
+        task_id = int(tid)
+        total_tasks = int(tcount)
+    else:
+        # Case 2: multi-node with ntasks
+        procid = os.getenv("SLURM_PROCID")
+        ntasks = os.getenv("SLURM_NTASKS")
+        if procid is not None and ntasks is not None:
+            task_id = int(procid)
+            total_tasks = int(ntasks)
+        else:
+            # Local fallback: single task
+            return 0, total_items, 0, 1
+
+    # Slice the workload
+    chunk_size = math.ceil(total_items / total_tasks)
+    start = task_id * chunk_size
+    end = min(start + chunk_size, total_items)
+    return start, end, task_id, total_tasks
