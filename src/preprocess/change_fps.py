@@ -2,7 +2,7 @@ import os
 
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
 from Zh.src.utils.video import change_fps
-from Zh.src.utils.serialized_parallel import process, get_task_slice
+from Zh.src.utils.serialized_parallel import process
 
 def change_fps_folder(input_folder: str, 
                       output_folder: str, 
@@ -21,23 +21,24 @@ def change_fps_folder(input_folder: str,
         depth=5,
         EXT_LIST=[".mp4", ".avi", ".mov", ".mkv"]
     ))
-    start, end, task_id, total_tasks = get_task_slice(len(input_video_paths))
-    print(f"[SLURM] Task {task_id}/{total_tasks} → processing files {start}:{end}")
 
     args_list = [
-    {
-        "input_path": input_path,
-        "output_path": os.path.join(
-            output_folder, os.path.relpath(input_path, input_folder)).replace('30fps', '10fps'),
-        "target_fps": target_fps
-    } for input_path in input_video_paths
-    ][start:end]
+        {
+            "input_path": input_path,
+            "output_path": os.path.join(
+                output_folder, os.path.relpath(input_path, input_folder)).replace('30fps', '10fps'),
+            "target_fps": target_fps
+        } for input_path in input_video_paths
+    ]
 
+    # The process function now handles SLURM slicing automatically
     process(
         worker_function=change_fps,
         worker_params_list=args_list,
         parallel=False,
-        use_tqdm=True)
+        use_tqdm=True,
+        auto_slice=True  # This enables automatic SLURM task slicing
+    )
     
 
 if __name__ == "__main__":
