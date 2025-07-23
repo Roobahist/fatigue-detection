@@ -85,6 +85,10 @@ def change_fps(
     Returns:
         bool: True if processing succeeded, False otherwise.
     """
+    if os.path.exists(output_path):
+        if is_video_valid(output_path):
+            return True
+        
     command = [
         "ffmpeg",
         "-y",  # Overwrite output if it exists
@@ -108,7 +112,7 @@ def change_fps(
         )
         return False
     
-    
+
 def save_video(
     self,
     frames: List[np.ndarray],
