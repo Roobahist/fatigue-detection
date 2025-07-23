@@ -35,6 +35,7 @@ def save_video(
     fps: float,
     start_frame: int,
     end_frame: int,
+    fourcc: str = "mp4v",
 ) -> None:
     """
     Saves processed frames as a video.
@@ -51,7 +52,7 @@ def save_video(
         return
 
     first_frame_height, first_frame_width = frames[0].shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*fourcc)
     out = cv2.VideoWriter(
         output_path, fourcc, fps, (first_frame_width, first_frame_height)
     )
