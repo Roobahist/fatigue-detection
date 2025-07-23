@@ -1,3 +1,4 @@
+import subprocess
 import logging
 import os
 from typing import Dict, List, Optional, Tuple, Union
@@ -28,6 +29,46 @@ def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
         print("Warning: Cannot draw a None frame.")
 
 
+def change_fps(
+    input_path: str,
+    output_path: str,
+    target_fps: int = 30,
+) -> bool:
+    """
+    Changes the FPS of a single video using FFmpeg.
+
+    Args:
+        input_path (str): Path to the input video file.
+        output_path (str): Path to save the processed video file.
+        target_fps (int): Desired frames per second (default: 30).
+
+    Returns:
+        bool: True if processing succeeded, False otherwise.
+    """
+    command = [
+        "ffmpeg",
+        "-y",  # Overwrite output if it exists
+        "-i", input_path,
+        "-r", str(target_fps),
+        output_path,
+    ]
+
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        logging.info(f"Successfully changed FPS for: {os.path.basename(input_path)}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logging.error(
+            f"Error changing FPS for {os.path.basename(input_path)}: {e.stderr.decode().strip()}"
+        )
+        return False
+    
+    
 def save_video(
     self,
     frames: List[np.ndarray],
