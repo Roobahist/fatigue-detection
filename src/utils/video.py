@@ -8,41 +8,6 @@ import numpy as np
 from tqdm import tqdm
 
 
-def get_video_info(
-    cap: Optional[cv2.VideoCapture] = None, file_path: Optional[str] = None
-) -> Tuple[int, int, int, int, str]:
-    """
-    Retrieves video information from a cv2.VideoCapture object.
-
-    Args:
-        cap: The cv2.VideoCapture object.
-        file_path: The path to the video file.
-
-        Raises:
-        ValueError: If both `cap` and `file_path` are provided, or if neither is provided.
-
-    Returns:
-        A tuple containing (fps, width, height, total_frames, fourcc) as integers.
-    """
-
-    if (cap is None and not file_path) or (cap is not None and file_path):
-        raise ValueError(
-            "Provide either `cap` or `file_path`, but not both or neither."
-        )
-    if cap is None:
-        cap = cv2.VideoCapture(file_path)
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
-
-    if file_path is not None:
-        cap.release()
-
-    return fps, width, height, total_frames, fourcc
-
-
 def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
     """
     Displays a given frame using matplotlib, suitable for Jupyter Notebooks.
@@ -145,6 +110,7 @@ class VideoReader:
             self.width = 0
             self.height = 0
             self.current_frame_index = 0
+            self.fourcc = None
             return
 
         if (
@@ -159,12 +125,14 @@ class VideoReader:
             self.width = 0
             self.height = 0
             self.current_frame_index = 0
+            self.fourcc = None
             return
 
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         self.current_frame_index = 0
 
     def _read_frame_at_index(
@@ -288,6 +256,7 @@ class VideoReader:
             "fps": self.fps,
             "width": self.width,
             "height": self.height,
+            "fourcc": self.fourcc,
             "current_frame_index": self.current_frame_index,
         }
 
