@@ -214,39 +214,80 @@ def process_multiple_videos(
 
 
 if __name__ == "__main__":
+    import argparse
 
-    # input_folder_path, output_folder_path, max_workers = (
-    #     sys.argv[1],
-    #     sys.argv[2],
-    #     int(sys.argv[3]),
-    # )
-    input_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked"
-    output_folder_path = (
-        "/work/long_lab/Mojtaba/data/UTA/1.4.1-augmentated_masked_embedded"
+    parser = argparse.ArgumentParser(description="Process video files")
+    parser.add_argument(
+        "input_folder_path",
+        type=str,
+        default="/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked",
+        help="Path to the input folder",
     )
-    max_workers = 30
-    # output_folder_path = "/home/mojtaba.kananisarche/Zh/temp/out/embedding/Facenet"
-    # output_folder_path = "/work/long_lab/Mojtaba/data/UTA/1.3.1-augmentated_embedded"
-    # input_folder_path, output_folder_path, max_workers = (
-    # "/work/long_lab/Mojtaba/augmented/brightness_alpha0.8_beta-10",
-    # "/home/mojtaba.kananisarche/Zh/temp/out4",
-    # 2,
-    # )
-    # video_file_names=[
-    #     "1_06_5_30fps_brightness_alpha0.8_beta-10.mp4"
-    # ],
+    parser.add_argument(
+        "output_folder_path",
+        type=str,
+        default="/work/long_lab/Mojtaba/data/UTA/1.4.1-augmentated_masked_embedded",
+        help="Path to the output folder",
+    )
+    parser.add_argument(
+        "--video_file_names",
+        type=str,
+        nargs="*",
+        help="List of video file names to process (optional, if not provided all videos will be processed)",
+    )
+
+    parser.add_argument(
+        "--start_second", type=int, default=0, help="Start second for processing"
+    )
+    parser.add_argument(
+        "--end_second",
+        type=int,
+        default=None,
+        help="End second for processing (default: None, process till the end)",
+    )
+
+    parser.add_argument(
+        "--embedding_model_name",
+        type=str,
+        default="Facenet",
+        help="Embedding model to use (default: Facenet)",
+    )
+
+    parser.add_argument(
+        "--strategies",
+        type=str,
+        nargs="*",
+        default=["cls"],
+        help="List of strategies to use for embedding (default: ['cls'])",
+    )
+
+    parser.add_argument(
+        "--disable_tqdm", action="store_false", help="Disable tqdm for progress bar"
+    )
+    parser.add_argument(
+        "--disable_parallel", action="store_false", help="Disable parallel processing"
+    )
+    parser.add_argument("--max_workers", type=int, help="Maximum number of workers")
+    parser.add_argument(
+        "--maxtasksperchild",
+        type=int,
+        default=None,
+        help="Maximum tasks per child process (default: None)",
+    )
+
+    args = parser.parse_args()
+
     logging.info("Starting ...")
     process_multiple_videos(
-        input_folder_path=input_folder_path,
-        output_folder_path=output_folder_path,
-        video_file_names=[],
-        parallel=True,
-        start_second=0,
-        end_second=None,
-        max_workers=max_workers,
-        maxtasksperchild = None,
-        embedding_model="Facenet",
-        embedding_normalization="Facenet",
-        use_tqdm=True,
+        input_folder_path=args.input_folder_path,
+        output_folder_path=args.output_folder_path,
+        video_file_names=args.video_file_names,
+        start_second=args.start_second,
+        end_second=args.end_second,
+        embedding_model_name=args.embedding_model_name,
+        strategies=args.strategies,
+        use_tqdm=args.disable_tqdm,
+        parallel=args.disable_parallel,
+        max_workers=args.max_workers,
+        maxtasksperchild=args.maxtasksperchild,
     )
-    # python -m Zh.src.process.find_video_embedding /work/long_lab/Mojtaba/augmented/cropped /work/long_lab/Mojtaba/data/UTA/1.3.2-augmentated_embedded/cropped 44
