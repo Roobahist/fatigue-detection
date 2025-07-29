@@ -1,21 +1,14 @@
 import logging
-import multiprocessing
 import os
-import sys
-import traceback
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-import cv2
 import numpy as np
-import tensorflow as tf
 import torch
 from PIL import Image
 from tqdm import tqdm
-from transformers import AutoImageProcessor, AutoModel, pipeline
+from transformers import AutoImageProcessor, AutoModel
 
-from Zh.src.process.frame_processor import FrameProcessor
-from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
 from Zh.src.utils.hdf5writer import HDF5Writer
 from Zh.src.utils.memory import cleanup
@@ -55,6 +48,7 @@ def check_metadata_consistency(existing_metadata, current_metadata):
 
 
 HDF5Writer.check_metadata_consistency = staticmethod(check_metadata_consistency)
+
 
 def process_single_video(
     video_path: str,
