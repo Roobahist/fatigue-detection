@@ -92,6 +92,7 @@ def process_single_video(
         "end_frame": str(end_frame),
         "frame_stride": str(frame_stride),
         "timestamp": datetime.now().isoformat(),
+        "strategies": strategies,
     }
     output_file = os.path.join(output_folder_path, f"{os.path.basename(video_file_path)}.h5")
     writer = HDF5Writer(output_file)
