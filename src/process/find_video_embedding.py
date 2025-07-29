@@ -14,7 +14,7 @@ from Zh.src.utils.hdf5writer import HDF5Writer
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.setup_device import setup_tensorflow, setup_torch
-from Zh.src.utils.video import VideoReader, get_video_info, is_video_valid
+from Zh.src.utils.video import VideoReader
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
