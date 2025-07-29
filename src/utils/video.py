@@ -9,43 +9,36 @@ import numpy as np
 from tqdm import tqdm
 
 def is_video_valid(video_path: str) -> bool:
-    """
-    Check if a video file is valid and not corrupted using ffprobe.
-    
-    Args:
-        video_path (str): Path to the video file.
-        
-    Returns:
-        bool: True if video is valid, False otherwise.
-    """
-    if not os.path.exists(video_path):
+    if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
         return False
-    
-    if os.path.getsize(video_path) == 0:
-        return False
-    
-    # Use ffprobe to check if video is readable
+
     command = [
         "ffprobe",
-        "-v", "quiet",
-        "-select_streams", "v:0",
-        "-count_packets",
-        "-show_entries", "stream=nb_read_packets",
-        "-of", "csv=p=0",
-        video_path
+        "-v",
+        "error",
+        "-select_streams",
+        "v",
+        "-show_entries",
+        "stream=codec_type,nb_read_frames,nb_frames",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        video_path,
     ]
-    
+
     try:
         result = subprocess.run(
             command,
-            check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=30  # 30 second timeout for ffprobe
+            timeout=10,
+            check=True,
         )
-        # If we get here and there's output, the video is likely valid
-        return len(result.stdout.strip()) > 0
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        output = result.stdout.decode("utf-8").strip().split("\n")
+        if "video" in output:
+            frame_counts = [int(s) for s in output if s.isdigit()]
+            return any(f > 0 for f in frame_counts)
+        return False
+    except Exception:
         return False
 
 
