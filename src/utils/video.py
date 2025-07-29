@@ -155,6 +155,10 @@ def save_video(
     logging.info(f"Augmented video saved at: {output_path}")
 
 
+class VideoReaderInitializationError(Exception):
+    pass
+
+
 class VideoReader:
     def __init__(
         self,
