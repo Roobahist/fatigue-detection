@@ -32,117 +32,37 @@ device = setup_torch()
 VIDEO_EXTS = [".mp4", ".mov", ".avi"]
 
 def process_single_video(
-    video_file_path: str,
-    input_folder_path: str,
-    output_folder_path: str,
-    pipe,
-    start_second: Optional[int] = 0,
-    end_second: Optional[int] = None,
-    embedding_model: Optional[str] = "Facenet",
-    embedding_normalization: Optional[str] = "Facenet",
-    use_tqdm: Optional[bool] = False,
-    file_index: Optional[int] = -1,
-):
-    try:
-        # FP = FrameProcessor()
+def get_embedding_model(model_name: str = "google/vit-base-patch16-224-in21k") -> Tuple:
+    """
+    Load the specified embedding model and image processor.
 
-        output_file_path = os.path.splitext(
-                video_file_path.replace(input_folder_path, output_folder_path)
-            )[0] + ".csv"
-        
+    Args:
+        model_name (str): The name of the model to load.
 
-        CSVW = CSVWriter(
-            file_path=output_file_path
-        )
+    Returns:
+        Tuple: (processor, model) for use in embedding extraction.
+    """
+    # todo : make it compatible with Facenet and other models
+    # FP = FrameProcessor()
+    # frame_embedding = [
+    #     round(x, 3)
+    #     for x in FP.represent(
+    #         img_path=frame,
+    #         model_name=embedding_model,
+    #         enforce_detection=False,
+    #         detector_backend="skip",
+    #         normalization=embedding_normalization,
+    #     )[0]["embedding"]
+    # ]
 
-        cap = cv2.VideoCapture(video_file_path)
-        if not cap.isOpened():
-            logging.error(f"Failed to open video {file_index} - {video_file_path}")
-            return
+    if "/" in model_name:
+        processor = AutoImageProcessor.from_pretrained(model_name)
+        model = AutoModel.from_pretrained(model_name)
+        model.eval()  # Set to eval mode to avoid dropout
+        return processor, model
+    else:
+        raise ValueError(f"Unsupported model: {model_name}")
 
-        fps, _, _, total_frames, _ = get_video_info(cap=cap)
-        start_frame = max(int(start_second * fps), CSVW.get_current_line_number(), 0)
-        end_frame = int(end_second * fps) if end_second is not None else total_frames
-
-        if os.path.exists(output_file_path):
-            if CSVW.get_current_line_number() == total_frames:
-                logging.info(
-                    f"--- Skipping Video {file_index} - {video_file_path} File Exists. ---"
-                )
-                return
-            if CSVW.get_current_line_number() == 0:
-                logging.info(f"--- Processing Video {file_index} - {video_file_path} ---")
-            else:
-                logging.info(
-                    f"--- Continuing processing Video {file_index} - {video_file_path} ---"
-                )
-
-        logging.info(
-            f"Video {file_index} - Start Frame: {start_frame}, End Frame: {end_frame}"
-        )
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
-        with tqdm(
-            total=end_frame,
-            initial=start_frame,
-            desc=f"Processing {os.path.basename(video_file_path)}",
-            unit="frame",
-            # miniters=1000, # steps
-            mininterval=120, # seconds
-            disable=not use_tqdm,
-        ) as progress_bar:
-            while cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame:
-                current_frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-                ret, frame = cap.read()
-                if not ret:
-                    logging.error(
-                        f"Failed to read frame {current_frame_idx} : {os.path.basename(video_file_path)}"
-                    )
-                    progress_bar.update(1)
-                    continue
-
-                # frame_embedding = [
-                #     round(x, 3)
-                #     for x in FP.represent(
-                #         img_path=frame,
-                #         model_name=embedding_model,
-                #         enforce_detection=False,
-                #         detector_backend="skip",
-                #         normalization=embedding_normalization,
-                #     )[0]["embedding"]
-                # ]
-
-                frame_embedding = np.round(np.array(pipe.predict(Image.fromarray(frame))[0][0]), 3).astype('float32')
-                # TODO : Isolate embedding function
-
-                CSVW.write(frame_embedding)
-                progress_bar.update(1)
-
-        logging.info(
-            f"--- Processing Video {file_index} - {video_file_path} Ended Successfully ---"
-        )
-
-    except Exception as e:
-        logging.error(
-            f"Error Processing Video {video_file_path}: %s", traceback.format_exc()
-        )
-        return False
-    finally:
-        cleanup(
-            var_names=[
-                "FP",
-                "CSVW",
-                "cap",
-                "fps",
-                "total_frames",
-                "progress_bar",
-                "ret",
-                "frame",
-                "frame_embedding",
-            ],
-            local_vars=locals(),
-            global_vars=globals(),
-        )
 
 
 def process_multiple_videos(
