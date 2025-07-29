@@ -260,7 +260,7 @@ class VideoReader:
                                no frame is currently loaded or video is not open.
         """
         if self.current_frame_index == -1 or not self.cap or not self.cap.isOpened():
-            return None
+            return False, None
         # Re-read the current frame to ensure it's up-to-date
         ret, frame = self._read_frame_at_index(self.current_frame_index)
         return ret, frame
@@ -274,16 +274,16 @@ class VideoReader:
                                the end of the video is reached or video is not open.
         """
         if not self.cap or not self.cap.isOpened():
-            return None
+            return False, None
 
         next_index = self.current_frame_index + 1
         if next_index < self.total_frames:
             self.current_frame_index = self.current_frame_index + 1
             ret, frame = self.get_current_frame()
             if ret:
-                return frame
+                return ret, frame
         print("Info: Reached end of video.")
-        return None
+        return False, None
 
     def get_previous_frame(self) -> Optional[np.ndarray]:
         """
@@ -294,16 +294,16 @@ class VideoReader:
                                the beginning of the video is reached or video is not open.
         """
         if not self.cap or not self.cap.isOpened():
-            return None
+            return False, None
 
         prev_index = self.current_frame_index - 1
         if prev_index >= 0:
             self.current_frame_index = self.current_frame_index - 1
             ret, frame = self.get_current_frame()
             if ret:
-                return frame
+                return ret, frame
         print("Info: Reached beginning of video.")
-        return None
+        return False, None
 
     def jump_to_frame(self, frame_index: int) -> Optional[np.ndarray]:
         """
@@ -317,17 +317,17 @@ class VideoReader:
                                None if the index is out of bounds or video is not open.
         """
         if not self.cap or not self.cap.isOpened():
-            return None
+            return False, None
 
         if 0 <= frame_index < self.total_frames:
             self.current_frame_index = frame_index
             ret, frame = self._read_frame_at_index(self.current_frame_index)
             if ret:
-                return frame
+                return True, frame
         print(
             f"Error: Frame index {frame_index} is out of bounds (0 to {self.total_frames - 1})."
         )
-        return None
+        return False, None
 
     def get_info(self) -> Dict[str, Union[int, float]]:
         """
