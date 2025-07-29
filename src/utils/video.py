@@ -81,12 +81,14 @@ def change_fps(
     if os.path.exists(output_path):
         if is_video_valid(output_path):
             return True
-        
+
     command = [
         "ffmpeg",
         "-y",  # Overwrite output if it exists
-        "-i", input_path,
-        "-r", str(target_fps),
+        "-i",
+        input_path,
+        "-r",
+        str(target_fps),
         output_path,
     ]
 
@@ -104,7 +106,7 @@ def change_fps(
             f"Error changing FPS for {os.path.basename(input_path)}: {e.stderr.decode().strip()}"
         )
         return False
-    
+
 
 def save_video(
     self,
