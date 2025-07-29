@@ -35,9 +35,9 @@ def check_metadata_consistency(existing_metadata, current_metadata):
     """
     for entry in existing_metadata:
         if (
-            entry["video_path"] != current_metadata["video_path"]
+            entry["video_file_path"] != current_metadata["video_file_path"]
             or entry["file_size"] != current_metadata["file_size"]
-            or entry["model_name"] != current_metadata["model_name"]
+            or entry["embedding_model_name"] != current_metadata["embedding_model_name"]
             or entry["start_frame"] != current_metadata["start_frame"]
             or entry["end_frame"] != current_metadata["end_frame"]
             or entry.get("frame_stride") != current_metadata.get("frame_stride")
@@ -51,11 +51,11 @@ HDF5Writer.check_metadata_consistency = staticmethod(check_metadata_consistency)
 
 
 def process_single_video(
-    video_path: str,
-    model_name: str,
+    video_file_path: str,
+    embedding_model_name: str,
     model_bundle: Tuple,
-    strategy_list: List[str],
-    output_file: str,
+    strategies: List[str],
+    output_folder_path: str,
     start_second: int = 0,
     end_second: int = -1,
     frame_stride: int = 1,
@@ -65,16 +65,16 @@ def process_single_video(
     Process a single video and write embeddings to HDF5 using multiple strategies.
 
     Args:
-        video_path (str): Path to the video file.
-        model_name (str): Name of the model used for embedding.
+        video_file_path (str): Path to the video file.
+        embedding_model_name (str): Name of the model used for embedding.
         model_bundle (Tuple): The processor and model.
-        strategy_list (List[str]): List of embedding strategies to compute.
-        output_file (str): Path to the HDF5 output file.
+        strategies (List[str]): List of embedding strategies to compute.
+        output_folder_path (str): Path to the folder where the HDF5 output file will be saved.
         start_second (int): Starting second of the video to process.
         end_second (int): Ending second of the video to process.
         frame_stride (int): Frame interval to sample the video.
     """
-    VR = VideoReader(video_path)
+    VR = VideoReader(video_file_path)
     info = VR.get_info()
     total_frames = info["total_frames"]
     video_fps = info["fps"]
@@ -83,28 +83,28 @@ def process_single_video(
     end_frame = int(end_second * video_fps) if end_second > 0 else total_frames
     expected_num_frames = (end_frame - start_frame) // frame_stride
 
-    file_size = os.path.getsize(video_path)
+    file_size = os.path.getsize(video_file_path)
     metadata = {
-        "video_path": video_path,
+        "video_file_path": video_file_path,
         "file_size": str(file_size),
-        "model_name": model_name,
+        "embedding_model_name": embedding_model_name,
         "start_frame": str(start_frame),
         "end_frame": str(end_frame),
         "frame_stride": str(frame_stride),
         "timestamp": datetime.now().isoformat(),
     }
-
+    output_file = os.path.join(output_folder_path, f"{os.path.basename(video_file_path)}.h5")
     writer = HDF5Writer(output_file)
     existing_metadata = writer.read_all_metadata()
     writer.check_metadata_consistency(existing_metadata, metadata)
 
     strategy_done = {
         strategy: writer.get_dataset_length(strategy) >= expected_num_frames
-        for strategy in strategy_list
+        for strategy in strategies
     }
 
     for frame_number in tqdm(
-        range(start_frame, end_frame, frame_stride), desc=os.path.basename(video_path)
+        range(start_frame, end_frame, frame_stride), desc=os.path.basename(video_file_path)
     ):
         ret, frame = VR.jump_to_frame(frame_number)
         if not ret:
@@ -112,25 +112,25 @@ def process_single_video(
 
         active_strategies = [s for s, done in strategy_done.items() if not done]
         if active_strategies:
-            results = get_embedding(model_name, model_bundle, frame, active_strategies)
+            results = get_embedding(embedding_model_name, model_bundle, frame, active_strategies)
             writer.batch_write(results)
 
-    lengths = [writer.get_dataset_length(s) for s in strategy_list]
+    lengths = [writer.get_dataset_length(s) for s in strategies]
     if len(set(lengths)) > 1:
         raise ValueError(
-            f"Inconsistent dataset lengths in {output_file}: {dict(zip(strategy_list, lengths))}"
+            f"Inconsistent dataset lengths in {output_file}: {dict(zip(strategies, lengths))}"
         )
 
     writer.add_metadata(metadata)
     writer.close()
 
 
-def get_embedding_model(model_name: str = "google/vit-base-patch16-224-in21k") -> Tuple:
+def get_embedding_model(embedding_model_name: str = "google/vit-base-patch16-224-in21k") -> Tuple:
     """
     Load the specified embedding model and image processor.
 
     Args:
-        model_name (str): The name of the model to load.
+        embedding_model_name (str): The name of the model to load.
 
     Returns:
         Tuple: (processor, model) for use in embedding extraction.
@@ -148,17 +148,17 @@ def get_embedding_model(model_name: str = "google/vit-base-patch16-224-in21k") -
     #     )[0]["embedding"]
     # ]
 
-    if "/" in model_name:
-        processor = AutoImageProcessor.from_pretrained(model_name)
-        model = AutoModel.from_pretrained(model_name)
+    if "/" in embedding_model_name:
+        processor = AutoImageProcessor.from_pretrained(embedding_model_name)
+        model = AutoModel.from_pretrained(embedding_model_name)
         model.eval()  # Set to eval mode to avoid dropout
         return processor, model
     else:
-        raise ValueError(f"Unsupported model: {model_name}")
+        raise ValueError(f"Unsupported model: {embedding_model_name}")
 
 
 def get_embedding(
-    model_name: str,
+    embedding_model_name: str,
     model_bundle: Tuple,
     frame: np.ndarray,
     strategies: Union[str, List[str]] = "cls",
@@ -167,7 +167,7 @@ def get_embedding(
     Get one or more embeddings for a single frame using specified strategies.
 
     Args:
-        model_name (str): Model name for validation.
+        embedding_model_name (str): Model name for validation.
         model_bundle (Tuple): (processor, model) from get_embedding_model().
         frame (np.ndarray): The input frame in HWC RGB format.
         strategies (Union[str, List[str]]): Strategy or list of strategies.
@@ -178,8 +178,8 @@ def get_embedding(
     """
     # todo : make it compatible with Facenet and other models
 
-    if "/" not in model_name:
-        raise ValueError(f"Unsupported model: {model_name}")
+    if "/" not in embedding_model_name:
+        raise ValueError(f"Unsupported model: {embedding_model_name}")
 
     if isinstance(strategies, str):
         strategies = [strategies]
