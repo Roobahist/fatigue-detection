@@ -98,3 +98,44 @@ class HDF5Writer:
         """Close the HDF5 file and release all handles."""
         self.h5file.close()
         self.datasets.clear()
+
+    def add_metadata(self, metadata: Dict[str, str]):
+        """
+        Add a metadata entry to the HDF5 file under the '__metadata__' group.
+        """
+        meta_group = self.h5file.require_group("__metadata__")
+
+        # Add timestamp automatically
+        metadata["timestamp"] = datetime.utcnow().isoformat()
+
+        next_idx = 0
+        while f"entry_{next_idx}" in meta_group:
+            next_idx += 1
+
+        meta_entry = meta_group.create_group(f"entry_{next_idx}")
+        for k, v in metadata.items():
+            meta_entry.attrs[k] = v
+
+    def read_all_metadata(self) -> List[Dict[str, str]]:
+        """
+        Read all metadata entries from the '__metadata__' group.
+        """
+        result = []
+        if "__metadata__" not in self.h5file:
+            return result
+
+        meta_group = self.h5file["__metadata__"]
+        for entry in meta_group.values():
+            entry_dict = {k: entry.attrs[k] for k in entry.attrs}
+            result.append(entry_dict)
+        return result
+
+    def check_metadata_consistency(self, existing: List[Dict[str, str]] = None, new: Dict[str, str] = None):
+        """
+        Placeholder: Task-specific metadata consistency check.
+        Override in subclass or externally as needed.
+        """
+        existing = existing or []
+        new = new or {}
+        
+        pass  # To be implemented for task-specific logic
