@@ -3,23 +3,25 @@ import multiprocessing
 import os
 import sys
 import traceback
-from typing import List, Optional
+from datetime import datetime
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 import tensorflow as tf
 import torch
-from tqdm import tqdm
-from transformers import pipeline
 from PIL import Image
+from tqdm import tqdm
+from transformers import AutoImageProcessor, AutoModel, pipeline
 
-from Zh.src.utils.setup_device import setup_tensorflow, setup_torch
 from Zh.src.process.frame_processor import FrameProcessor
 from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
+from Zh.src.utils.hdf5writer import HDF5Writer
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
-from Zh.src.utils.video import get_video_info
+from Zh.src.utils.setup_device import setup_tensorflow, setup_torch
+from Zh.src.utils.video import VideoReader, get_video_info, is_video_valid
 
 logging.basicConfig(
     level=logging.INFO,  # or DEBUG for more verbosity
@@ -32,6 +34,80 @@ device = setup_torch()
 VIDEO_EXTS = [".mp4", ".mov", ".avi"]
 
 def process_single_video(
+    video_path: str,
+    model_name: str,
+    model_bundle: Tuple,
+    strategy_list: List[str],
+    output_file: str,
+    start_second: int = 0,
+    end_second: int = -1,
+    frame_stride: int = 1,
+    **kwargs,
+) -> None:
+    """
+    Process a single video and write embeddings to HDF5 using multiple strategies.
+
+    Args:
+        video_path (str): Path to the video file.
+        model_name (str): Name of the model used for embedding.
+        model_bundle (Tuple): The processor and model.
+        strategy_list (List[str]): List of embedding strategies to compute.
+        output_file (str): Path to the HDF5 output file.
+        start_second (int): Starting second of the video to process.
+        end_second (int): Ending second of the video to process.
+        frame_stride (int): Frame interval to sample the video.
+    """
+    VR = VideoReader(video_path)
+    info = VR.get_info()
+    total_frames = info["total_frames"]
+    video_fps = info["fps"]
+
+    start_frame = int(start_second * video_fps)
+    end_frame = int(end_second * video_fps) if end_second > 0 else total_frames
+    expected_num_frames = (end_frame - start_frame) // frame_stride
+
+    file_size = os.path.getsize(video_path)
+    metadata = {
+        "video_path": video_path,
+        "file_size": str(file_size),
+        "model_name": model_name,
+        "start_frame": str(start_frame),
+        "end_frame": str(end_frame),
+        "frame_stride": str(frame_stride),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    writer = HDF5Writer(output_file)
+    existing_metadata = writer.read_all_metadata()
+    writer.check_metadata_consistency(existing_metadata, metadata)
+
+    strategy_done = {
+        strategy: writer.get_dataset_length(strategy) >= expected_num_frames
+        for strategy in strategy_list
+    }
+
+    for frame_number in tqdm(
+        range(start_frame, end_frame, frame_stride), desc=os.path.basename(video_path)
+    ):
+        ret, frame = VR.jump_to_frame(frame_number)
+        if not ret:
+            break
+
+        active_strategies = [s for s, done in strategy_done.items() if not done]
+        if active_strategies:
+            results = get_embedding(model_name, model_bundle, frame, active_strategies)
+            writer.batch_write(results)
+
+    lengths = [writer.get_dataset_length(s) for s in strategy_list]
+    if len(set(lengths)) > 1:
+        raise ValueError(
+            f"Inconsistent dataset lengths in {output_file}: {dict(zip(strategy_list, lengths))}"
+        )
+
+    writer.add_metadata(metadata)
+    writer.close()
+
+
 def get_embedding_model(model_name: str = "google/vit-base-patch16-224-in21k") -> Tuple:
     """
     Load the specified embedding model and image processor.
@@ -154,12 +230,12 @@ def process_multiple_videos(
     video_file_names: Optional[List[str]] = [],
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
-    embedding_model: Optional[str] = "Facenet",
-    embedding_normalization: Optional[str] = "Facenet",
+    embedding_model_name: Optional[str] = "Facenet",
+    strategies: Union[str, List[str]] = "cls",
+    use_tqdm: Optional[bool] = False,
     parallel: Optional[bool] = False,
     max_workers: Optional[int] = 10,
     maxtasksperchild: Optional[int] = 1,
-    use_tqdm: Optional[bool] = False,
 ):
     """
     video_file_names : relative path after the input folder should be provided,
@@ -172,7 +248,7 @@ def process_multiple_videos(
     )
 
     if video_file_names != []:
-        video_file_names = [
+        video_file_paths = [
             video_file_name
             for video_file_name in all_video_file_names
             if os.path.basename(video_file_name) in video_file_names
@@ -185,20 +261,18 @@ def process_multiple_videos(
         logging.info(
             f"Video File Paths Captured Automatically: {len(video_file_paths)}"
         )
-
-    model_path = "/work/long_lab/Mojtaba/src/process/vit-base-patch16-224-in21k"
-    pipe = pipeline(task="image-feature-extraction", model=model_path, device=0)
+    model_bundle = get_embedding_model(embedding_model_name)
 
     args_list = [
         {
-            "video_file_path": video_file_paths[i],
             "input_folder_path": input_folder_path,
             "output_folder_path": output_folder_path,
+            "video_file_path": video_file_paths[i],
             "start_second": start_second,
             "end_second": end_second,
-            "embedding_model": embedding_model,
-            "embedding_normalization": embedding_normalization,
-            "pipe":pipe,
+            "model_bundle": model_bundle,
+            "embedding_model_name": embedding_model_name,
+            "strategies": strategies,
             "use_tqdm": use_tqdm,
             "file_index": i,
         }
@@ -213,6 +287,7 @@ def process_multiple_videos(
         max_workers=max_workers,
         maxtasksperchild=maxtasksperchild,
         use_tqdm=use_tqdm,
+        auto_slice=True,
     )
 
 
