@@ -1,1 +1,0 @@
-{"general": {"units": [1], "dropout_ratio": 0.3, "batch_size": 32, "learning_rate": 0.001, "weight_decay": 0.0001, "epochs": 1, "dataset_id": "100_100_0.6_45_3", "max_slices": 50}}
