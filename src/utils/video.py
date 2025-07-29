@@ -1,12 +1,13 @@
-import subprocess
 import logging
 import os
+import subprocess
 from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
+
 
 def is_video_valid(video_path: str) -> bool:
     if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
