@@ -33,6 +33,29 @@ device = setup_torch()
 
 VIDEO_EXTS = [".mp4", ".mov", ".avi"]
 
+
+# Overwrite placeholder metadata consistency checker
+def check_metadata_consistency(existing_metadata, current_metadata):
+    """
+    Ensure all existing entries in the metadata are consistent with the current one.
+    Raises ValueError if inconsistency is found.
+    """
+    for entry in existing_metadata:
+        if (
+            entry["video_path"] != current_metadata["video_path"]
+            or entry["file_size"] != current_metadata["file_size"]
+            or entry["model_name"] != current_metadata["model_name"]
+            or entry["start_frame"] != current_metadata["start_frame"]
+            or entry["end_frame"] != current_metadata["end_frame"]
+            or entry.get("frame_stride") != current_metadata.get("frame_stride")
+        ):
+            raise ValueError(
+                f"Inconsistent metadata detected:\nExisting: {entry}\nCurrent: {current_metadata}"
+            )
+
+
+HDF5Writer.check_metadata_consistency = staticmethod(check_metadata_consistency)
+
 def process_single_video(
     video_path: str,
     model_name: str,
