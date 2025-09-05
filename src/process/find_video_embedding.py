@@ -387,3 +387,6 @@ if __name__ == "__main__":
         max_workers=args.max_workers,
         maxtasksperchild=args.maxtasksperchild,
     )
+
+
+# python -m Zh.src.process.find_video_embedding /home/mojtaba.kananisarche/Zh/temp /home/mojtaba.kananisarche/Zh/temp --video_file_names 1_04_0_bgremoved.mp4 --start_second 2 --end_second 4 --embedding_model_name google/vit-base-patch16-224-in21k --strategies cls pooled tokens
