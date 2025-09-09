@@ -163,6 +163,7 @@ def crop_face_from_frame(
     margin: float = 0.1,
     mask: bool = False,
     align: bool = False,
+    output_size: Tuple[int, int] = (224, 224),
 ) -> Optional[np.ndarray]:
     """
     Crops a square face region from a frame based on face detection results.
@@ -174,6 +175,7 @@ def crop_face_from_frame(
         height: The height of the input frame.
         margin: The margin to add around the bounding box as a fraction of the face's width/height.
         align: Whether to align the face based on eye positions.
+        output_size: The desired output size of the cropped face (width, height).
 
     Returns:
         The cropped square face region as a NumPy array, or None if cropping fails.
@@ -198,10 +200,10 @@ def crop_face_from_frame(
     face = frame[y_min:y_max, x_min:x_max]
     new_width = x_max - x_min
     new_height = y_max - y_min
-    new_size = max(new_width, new_height)
+    new_size = output_size or (max(new_width, new_height), max(new_width, new_height))
 
     square_face = cv2.resize(
-        face, (new_size, new_size), interpolation=cv2.INTER_LINEAR
+        face, new_size, interpolation=cv2.INTER_LINEAR
     )
 
     return square_face
