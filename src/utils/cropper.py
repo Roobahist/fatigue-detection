@@ -174,6 +174,7 @@ def crop_face_from_frame(
         width: The width of the input frame.
         height: The height of the input frame.
         margin: The margin to add around the bounding box as a fraction of the face's width/height.
+        mask: Whether to apply a mask to the face region.
         align: Whether to align the face based on eye positions.
         output_size: The desired output size of the cropped face (width, height).
 
