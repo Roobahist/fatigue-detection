@@ -64,6 +64,62 @@ def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> 
     masked_frame = cv2.bitwise_and(frame, frame, mask=mask_img)
     return masked_frame
 
+def align_face(frame: np.ndarray, detection_result, width: int, height: int) -> np.ndarray: 
+    """
+    Aligns the face in the frame based on eye positions.
+
+    Args:
+        frame: The input frame as a NumPy array.
+        detection_result: The face detection result containing facial landmarks.
+        width: The width of the input frame.
+        height: The height of the input frame.
+        x_min: The minimum x-coordinate of the face bounding box.
+        x_max: The maximum x-coordinate of the face bounding box.
+        y_min: The minimum y-coordinate of the face bounding box.
+        y_max: The maximum y-coordinate of the face bounding box.
+
+    Returns:
+        The aligned frame as a NumPy array.
+    """
+    try:
+        left_eye = np.array([
+            (
+                int(detection_result.face_landmarks[0][i].x * width),
+                int(detection_result.face_landmarks[0][i].y * height)
+            )
+            for i in LEFT_EYE
+        ])
+        right_eye = np.array([
+            (
+                int(detection_result.face_landmarks[0][i].x * width),
+                int(detection_result.face_landmarks[0][i].y * height)
+            )
+            for i in RIGHT_EYE
+        ])
+
+        left_eye_center = left_eye.mean(axis=0).astype("int")
+        right_eye_center = right_eye.mean(axis=0).astype("int")
+
+        # Calculate the angle between the eye centers
+        dy = right_eye_center[1] - left_eye_center[1]
+        dx = right_eye_center[0] - left_eye_center[0]
+        angle = np.degrees(np.arctan2(dy, dx))  # Corrected to use arctan2
+
+        # Calculate the center of the eyes
+        eyes_center = ((left_eye_center[0] + right_eye_center[0]) // 2,
+                       (left_eye_center[1] + right_eye_center[1]) // 2)
+
+        # Get the rotation matrix
+        M = cv2.getRotationMatrix2D(eyes_center, angle, 1)
+
+        # Rotate the entire frame
+        rotated_frame = cv2.warpAffine(frame, M, (width, height), flags=cv2.INTER_CUBIC)
+
+        return rotated_frame
+    except Exception as e:
+        logging.error(f"Error in align_face: {e}")
+        traceback.print_exc()
+        return frame  # Return original frame if alignment fails
 
 def get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, float, float]:
     """
@@ -106,6 +162,7 @@ def crop_face_from_frame(
     height: int,
     margin: float = 0.1,
     mask: bool = False,
+    align: bool = False,
 ) -> Optional[np.ndarray]:
     """
     Crops a square face region from a frame based on face detection results.
@@ -116,6 +173,7 @@ def crop_face_from_frame(
         width: The width of the input frame.
         height: The height of the input frame.
         margin: The margin to add around the bounding box as a fraction of the face's width/height.
+        align: Whether to align the face based on eye positions.
 
     Returns:
         The cropped square face region as a NumPy array, or None if cropping fails.
@@ -133,6 +191,9 @@ def crop_face_from_frame(
 
     if mask : 
         frame = mask_frame(frame, detection_result, width, height)
+
+    if align:
+        frame = align_face(frame, detection_result, width, height)
 
     face = frame[y_min:y_max, x_min:x_max]
     new_width = x_max - x_min
