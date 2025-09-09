@@ -142,7 +142,7 @@ class VideoProcessor:
             detection_result = detector.detect(mp_image)
 
             cropped_face = crop_face_from_frame(
-                frame, detection_result, width, height, margin=0.05, mask=True
+                frame, detection_result, width, height, margin=0.05, mask=True, align=True, output_size=(224, 224)
             )
             if cropped_face is not None:
                 return cropped_face, detection_result
@@ -151,7 +151,7 @@ class VideoProcessor:
                 return None, []
             
             cropped_face = crop_face_from_frame(
-                frame, temp_detection_result, width, height, margin=0.05, mask=True
+                frame, temp_detection_result, width, height, margin=0.05, mask=True, align=True, output_size=(224, 224)
             )
             return cropped_face, temp_detection_result
 
