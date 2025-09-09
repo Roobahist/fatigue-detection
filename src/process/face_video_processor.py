@@ -496,11 +496,12 @@ if __name__ == "__main__":
 
     input_folder = "/home/mojtaba.kananisarche/Zh/data/UTA/1-raw_30fps"
     output_folder='/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked'
-    # output_folder='/home/mojtaba.kananisarche/Zh/temp/out2'
     # output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
+
     vp = VideoProcessor(
         input_folder=input_folder, output_folder=output_folder, use_tqdm=False
     )
+
     augmentations = {
         "gaussianblur": [{"kernel_size": 3}, {"kernel_size": 5}],
         "brightness": [{"alpha": 1.2, "beta": 10}, {"alpha": 0.8, "beta": -10}],
@@ -509,7 +510,6 @@ if __name__ == "__main__":
             {"flip_code": 1},  # Vertical flip
         ],
         "grayscale": [{}],  # No parameters needed
-        "rotate": [{"angle": 5}, {"angle": -5}],
     }
     vp.process_multiple_videos(
         video_files=[],  # all
