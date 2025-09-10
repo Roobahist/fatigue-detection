@@ -226,6 +226,7 @@ class VideoReader:
 
         # Validate frame_index
         if frame_index < 0 or frame_index >= self.total_frames and self.cap.isOpened() and self.cap:
+            print(f"Error: frame_index {frame_index} is out of bounds 0 - {self.total_frames-1} or video not opened.")
             return False, None
 
         # Save position if peeking
