@@ -195,16 +195,16 @@ class VideoReader:
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         self.current_frame_index = 0
 
-    def get_frame_at_index(
+    def get_frame(
         self, 
-        frame_index: int,
+        frame_index: Union[int, str],
         jump: bool = False
     ) -> Tuple[bool, Optional[np.ndarray]]:
         """
         Retrieves the frame at the specified index.
 
         Args:
-            frame_index (int): The 0-based index of the frame to read.
+            frame_index (Union[int, str]): The 0-based index of the frame to read, or "next"/"prev"/"current" for relative jumps.
             jump (bool): If True, jumps to the specified frame. If False, reads the frame without jumping.
                          Defaults to False.
 
@@ -214,6 +214,16 @@ class VideoReader:
                 - np.ndarray | None: The frame image as a NumPy array if successful,
                                      None otherwise.
         """
+        if frame_index == "current":
+            frame_index = self.current_frame_index
+        elif frame_index == "next":
+            frame_index = self.current_frame_index + 1
+        elif frame_index == "prev":
+            frame_index = self.current_frame_index - 1
+        if not isinstance(frame_index, int):
+            print("Error: frame_index must be an integer or 'next'/'prev'/'current'.")
+            return False, None
+        
         if (
             not self.cap
             or not self.cap.isOpened()
@@ -221,7 +231,6 @@ class VideoReader:
             or frame_index >= self.total_frames
         ):
             return False, None
-
 
         if jump:
             if not self._jump_to_frame(frame_index):
@@ -233,50 +242,6 @@ class VideoReader:
         except Exception as e:
             print(f"Error reading frame at index {frame_index}: {e}")
             return False, None
-    
-    def get_current_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
-        """
-        Retrieves the frame at the current position.
-
-        Returns:
-            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
-                - bool: True if the frame was successfully read, False otherwise.
-                - np.ndarray | None: The frame image as a NumPy array if successful,
-                                     None otherwise.
-        """
-        return self.get_frame_at_index(self.current_frame_index, jump=False)
-
-    def get_next_frame(self, jump: bool = True) -> Tuple[bool, Optional[np.ndarray]]:
-        """
-        Reads and returns the next frame in the video sequence.
-
-        Args:
-            jump (bool): If True, jumps to the next frame. If False, reads the next frame without jumping.
-                         Defaults to True.
-
-        Returns:
-            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
-                - bool: True if the frame was successfully read, False otherwise.
-                - np.ndarray | None: The frame image as a NumPy array if successful,
-                                     None otherwise.
-        """
-        return self.get_frame_at_index(self.current_frame_index + 1, jump=jump)
-
-    def get_previous_frame(self, jump: bool = True) -> Tuple[bool, Optional[np.ndarray]]:
-        """
-        Reads and returns the previous frame in the video sequence.
-
-        Args:
-            jump (bool): If True, jumps to the previous frame. If False, reads the previous frame without jumping.
-                         Defaults to True.
-
-        Returns:
-            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
-                - bool: True if the frame was successfully read, False otherwise.
-                - np.ndarray | None: The frame image as a NumPy array if successful,
-                                     None otherwise.
-        """
-        return self.get_frame_at_index(self.current_frame_index - 1, jump=jump)
 
     def _jump_to_frame(self, frame_index: Union[int, str]) -> bool:
         """
