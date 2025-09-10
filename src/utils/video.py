@@ -110,8 +110,6 @@ def save_video(
     frames: List[np.ndarray],
     output_path: str,
     fps: float,
-    start_frame: int,
-    end_frame: int,
     use_tqdm: bool = True,
     fourcc: str = "mp4v",
 ) -> None:
@@ -122,8 +120,6 @@ def save_video(
         frames: List of processed frames (NumPy arrays).
         output_path: Path to save the output video.
         fps: Frames per second of the video.
-        start_frame: Start frame of the processing.
-        end_frame: End frame of the processing.
     """
     if not frames:
         logging.warning(f"No frames to save for {output_path}. Skipping video save.")
