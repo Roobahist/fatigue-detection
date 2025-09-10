@@ -279,29 +279,37 @@ class VideoReader:
         print("Info: Reached beginning of video.")
         return False, None
 
-    def jump_to_frame(self, frame_index: int) -> Optional[np.ndarray]:
+    def _jump_to_frame(self, frame_index: Union[int, str]) -> bool:
         """
-        Jumps to a specific frame by its index and returns it.
+        Jumps to a specific frame by its index or "next"/"prev".
 
         Args:
-            frame_index (int): The 0-based index of the frame to jump to.
+            frame_index (int, str): The 0-based index of the frame to jump to, or "next"/"prev" for relative jumps.
+            
 
         Returns:
-            Optional[np.ndarray]: The frame image as a NumPy array if successful,
-                               None if the index is out of bounds or video is not open.
+            bool: True if the jump was successful, False otherwise.
         """
         if not self.cap or not self.cap.isOpened():
-            return False, None
-
+            print("Error: Video capture is not opened.")
+            return False
+        
+        if frame_index == "next":
+            frame_index = self.current_frame_index + 1
+        elif frame_index == "prev":
+            frame_index = self.current_frame_index - 1
+        if not isinstance(frame_index, int):
+            print("Error: frame_index must be an integer or 'next'/'prev'.")
+            return False
+        
         if 0 <= frame_index < self.total_frames:
             self.current_frame_index = frame_index
-            ret, frame = self._read_frame_at_index(self.current_frame_index)
-            if ret:
-                return True, frame
+            return True
+        
         print(
             f"Error: Frame index {frame_index} is out of bounds (0 to {self.total_frames - 1})."
         )
-        return False, None
+        return False
 
     def get_info(self) -> Dict[str, Union[int, float]]:
         """
