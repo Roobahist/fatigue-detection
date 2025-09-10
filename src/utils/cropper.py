@@ -65,7 +65,7 @@ def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> 
 
     return masked_frame
 
-def align_face(frame: np.ndarray, detection_result, width: int, height: int) -> np.ndarray: 
+def align_frame(frame: np.ndarray, detection_result, width: int, height: int) -> Tuple[np.ndarray, Optional[object]]:
     """
     Aligns the face in the frame based on eye positions.
 
@@ -74,53 +74,50 @@ def align_face(frame: np.ndarray, detection_result, width: int, height: int) -> 
         detection_result: The face detection result containing facial landmarks.
         width: The width of the input frame.
         height: The height of the input frame.
-        x_min: The minimum x-coordinate of the face bounding box.
-        x_max: The maximum x-coordinate of the face bounding box.
-        y_min: The minimum y-coordinate of the face bounding box.
-        y_max: The maximum y-coordinate of the face bounding box.
 
     Returns:
-        The aligned frame as a NumPy array.
-    """
+        The aligned frame as a NumPy array and detection_result.
+        """
     try:
-        left_eye = np.array([
-            (
-                int(detection_result.face_landmarks[0][i].x * width),
-                int(detection_result.face_landmarks[0][i].y * height)
-            )
-            for i in LEFT_EYE
-        ])
-        right_eye = np.array([
-            (
-                int(detection_result.face_landmarks[0][i].x * width),
-                int(detection_result.face_landmarks[0][i].y * height)
-            )
-            for i in RIGHT_EYE
-        ])
+        # --- validate inputs ---
+        if detection_result is None or not getattr(detection_result, "face_landmarks", None):
+            return frame
+        lms = detection_result.face_landmarks[0]
 
-        left_eye_center = left_eye.mean(axis=0).astype("int")
-        right_eye_center = right_eye.mean(axis=0).astype("int")
+        # --- collect eye landmarks (pixel coords) ---
+        left_eye = np.array([(int(lms[i].x * width), int(lms[i].y * height)) for i in LEFT_EYE], dtype=np.int32)
+        right_eye = np.array([(int(lms[i].x * width), int(lms[i].y * height)) for i in RIGHT_EYE], dtype=np.int32)
 
-        # Calculate the angle between the eye centers
-        dy = right_eye_center[1] - left_eye_center[1]
-        dx = right_eye_center[0] - left_eye_center[0]
-        angle = np.degrees(np.arctan2(dy, dx))  # Corrected to use arctan2
+        # --- centers ---
+        left_eye_center  = left_eye.mean(axis=0)   # float64
+        right_eye_center = right_eye.mean(axis=0)  # float64
 
-        # Calculate the center of the eyes
-        eyes_center = ((left_eye_center[0] + right_eye_center[0]) // 2,
-                       (left_eye_center[1] + right_eye_center[1]) // 2)
+        # --- enforce left->right ordering in image coordinates ---
+        # If needed, swap to guarantee dx > 0
+        if right_eye_center[0] < left_eye_center[0]:
+            left_eye_center, right_eye_center = right_eye_center, left_eye_center
 
-        # Get the rotation matrix
-        M = cv2.getRotationMatrix2D(eyes_center, angle, 1)
+        # --- angle (small tilt) ---
+        dy = float(right_eye_center[1] - left_eye_center[1])
+        dx = float(right_eye_center[0] - left_eye_center[0])
+        angle = np.degrees(np.arctan2(dy, dx))  # small angle around 0 after enforcing dx>0
 
-        # Rotate the entire frame
-        rotated_frame = cv2.warpAffine(frame, M, (width, height), flags=cv2.INTER_CUBIC)
+        # --- eyes center (use plain Python floats) ---
+        cx = float((left_eye_center[0] + right_eye_center[0]) / 2.0)
+        cy = float((left_eye_center[1] + right_eye_center[1]) / 2.0)
 
-        return rotated_frame
+        # --- rotation ---
+        M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+        rotated_frame = cv2.warpAffine(frame, M, (int(width), int(height)), flags=cv2.INTER_CUBIC)
+        
+        # --- Update all landmarks for the first face using the same rotation matrix ---
+
+        return rotated_frame, detection_result
+
     except Exception as e:
         logging.error(f"Error in align_face: {e}")
         traceback.print_exc()
-        return frame  # Return original frame if alignment fails
+        return frame, detection_result
 
 def get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, float, float]:
     """
