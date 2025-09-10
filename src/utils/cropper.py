@@ -1,5 +1,5 @@
 import cv2
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 import mediapipe as mp
 import numpy as np
 import logging
@@ -62,6 +62,7 @@ def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> 
     
     # Apply the mask to the frame
     masked_frame = cv2.bitwise_and(frame, frame, mask=mask_img)
+
     return masked_frame
 
 def align_face(frame: np.ndarray, detection_result, width: int, height: int) -> np.ndarray: 
