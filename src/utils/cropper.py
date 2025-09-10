@@ -145,7 +145,7 @@ def _get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float,
     face_oval_landmarks_x, face_oval_landmarks_y = zip(
         *(
             (detection_result.face_landmarks[0][i].x, detection_result.face_landmarks[0][i].y)
-            for i in FACE_OVAL
+            for i in list(set(FACE_OVAL + HORIZONTAL_CENTER))
         )
     )
 
