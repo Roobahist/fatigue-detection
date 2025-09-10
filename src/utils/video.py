@@ -246,25 +246,21 @@ class VideoReader:
         """
         return self.get_frame_at_index(self.current_frame_index, jump=False)
 
-    def get_next_frame(self) -> Optional[np.ndarray]:
+    def get_next_frame(self, jump: bool = True) -> Tuple[bool, Optional[np.ndarray]]:
         """
         Reads and returns the next frame in the video sequence.
 
-        Returns:
-            Optional[np.ndarray]: The next frame image as a NumPy array, or None if
-                               the end of the video is reached or video is not open.
-        """
-        if not self.cap or not self.cap.isOpened():
-            return False, None
+        Args:
+            jump (bool): If True, jumps to the next frame. If False, reads the next frame without jumping.
+                         Defaults to True.
 
-        next_index = self.current_frame_index + 1
-        if next_index < self.total_frames:
-            self.current_frame_index = self.current_frame_index + 1
-            ret, frame = self.get_current_frame()
-            if ret:
-                return ret, frame
-        print("Info: Reached end of video.")
-        return False, None
+        Returns:
+            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
+                - bool: True if the frame was successfully read, False otherwise.
+                - np.ndarray | None: The frame image as a NumPy array if successful,
+                                     None otherwise.
+        """
+        return self.get_frame_at_index(self.current_frame_index + 1, jump=jump)
 
     def get_previous_frame(self) -> Optional[np.ndarray]:
         """
