@@ -167,8 +167,15 @@ def _get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float,
 
     return x_min, x_max, y_min, y_max
 
+def crop_frame(frame: np.ndarray, detection_result, width: int, height: int, margin: float = 0.1) -> np.ndarray:
+    x_min, x_max, y_min, y_max = _get_face_bbox(detection_result, margin)
+    frame = frame[int(y_min * height):int(y_max * height), 
+                  int(x_min * width):int(x_max * width)]
+    new_width = int((x_max - x_min) * width)
+    new_height = int((y_max - y_min) * height)
 
-def crop_face_from_frame(
+    return frame, new_width, new_height
+
     frame: np.ndarray,
     detection_result,
     width: int,
