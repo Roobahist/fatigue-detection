@@ -112,6 +112,7 @@ def save_video(
     fps: float,
     start_frame: int,
     end_frame: int,
+    use_tqdm: bool = True,
     fourcc: str = "mp4v",
 ) -> None:
     """
@@ -138,7 +139,7 @@ def save_video(
         total=end_frame - start_frame,
         desc=f"Saving {os.path.basename(output_path)}",
         unit="frame",
-        disable=not self.use_tqdm,
+        disable=not use_tqdm,
     ) as progress_bar:
         for frame in frames:
             resized_frame = cv2.resize(
