@@ -214,6 +214,13 @@ class VideoReader:
         """
 
         # Resolve frame_index to int
+        # Not currenltly in use, but could be useful
+        if frame_index == "init":
+            frame_index = -1
+            self.current_frame_index = -1
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            return True, None
+
         if frame_index == "next":
             frame_index = self.current_frame_index + 1
         elif frame_index == "prev":
