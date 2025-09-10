@@ -42,7 +42,6 @@ def is_video_valid(video_path: str) -> bool:
     except Exception:
         return False
 
-
 def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
     """
     Displays a given frame using matplotlib, suitable for Jupyter Notebooks.
@@ -61,7 +60,6 @@ def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
         plt.show()
     else:
         print("Warning: Cannot draw a None frame.")
-
 
 def change_fps(
     input_path: str,
@@ -107,7 +105,6 @@ def change_fps(
             f"Error changing FPS for {os.path.basename(input_path)}: {e.stderr.decode().strip()}"
         )
         return False
-
 
 def save_video(
     self,
