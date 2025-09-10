@@ -193,7 +193,7 @@ class VideoReader:
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
-        self.current_frame_index = 0
+        self.current_frame_index = -1
     
     def get_frame(
         self, 
@@ -226,7 +226,6 @@ class VideoReader:
 
         # Validate frame_index
         if frame_index < 0 or frame_index >= self.total_frames and self.cap.isOpened() and self.cap:
-            print(f"Error: frame_index {frame_index} is out of bounds 0 - {self.total_frames-1} or video not opened.")
             return False, None
 
         # Save position if peeking
