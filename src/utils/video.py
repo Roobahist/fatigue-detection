@@ -195,14 +195,18 @@ class VideoReader:
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         self.current_frame_index = 0
 
-    def _read_frame_at_index(
-        self, frame_index: int
+    def get_frame_at_index(
+        self, 
+        frame_index: int,
+        jump: bool = False
     ) -> Tuple[bool, Optional[np.ndarray]]:
         """
-        Helper method to read a specific frame by its index.
+        Retrieves the frame at the specified index.
 
         Args:
             frame_index (int): The 0-based index of the frame to read.
+            jump (bool): If True, jumps to the specified frame. If False, reads the frame without jumping.
+                         Defaults to False.
 
         Returns:
             Tuple[bool, Optional[np.ndarray]]: A tuple containing:
@@ -218,14 +222,18 @@ class VideoReader:
         ):
             return False, None
 
-        # Set the position to the desired frame
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-        ret, frame = self.cap.read()
-        if ret:
-            self.current_frame_index = frame_index
-        return ret, frame
 
-    def get_current_frame(self) -> Optional[np.ndarray]:
+        if jump:
+            if not self._jump_to_frame(frame_index):
+                return False, None
+        try:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+            ret, frame = self.cap.read()
+            return ret, frame
+        except Exception as e:
+            print(f"Error reading frame at index {frame_index}: {e}")
+            return False, None
+    
         """
         Retrieves the frame at the current position.
 
