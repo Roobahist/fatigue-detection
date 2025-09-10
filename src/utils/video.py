@@ -107,7 +107,6 @@ def change_fps(
         return False
 
 def save_video(
-    self,
     frames: List[np.ndarray],
     output_path: str,
     fps: float,
