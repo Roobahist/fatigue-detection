@@ -176,14 +176,16 @@ def crop_frame(frame: np.ndarray, detection_result, width: int, height: int, mar
 
     return frame, new_width, new_height
 
+def process_face_in_frame(
     frame: np.ndarray,
     detection_result,
     width: int,
     height: int,
+    mask: bool = True,
+    align: bool = True,
+    crop: bool = True,
     margin: float = 0.1,
-    mask: bool = False,
-    align: bool = False,
-    output_size: Tuple[int, int] = (224, 224),
+    output_size: Union[Tuple[int, int], str] = (224, 224), #could be set to "original" or "original_square"
 ) -> Optional[np.ndarray]:
     """
     Crops a square face region from a frame based on face detection results.
@@ -205,26 +207,23 @@ def crop_frame(frame: np.ndarray, detection_result, width: int, height: int, mar
                                                                 face_blendshapes=[],
                                                                 facial_transformation_matrixes=[]):
         return None
-    
-    x_min, x_max, y_min, y_max = get_face_bbox(detection_result, margin)
-    x_min = int(x_min * width)
-    x_max = int(x_max * width)
-    y_min = int(y_min * height)
-    y_max = int(y_max * height)
 
     if mask : 
         frame = mask_frame(frame, detection_result, width, height)
 
     if align:
-        frame = align_face(frame, detection_result, width, height)
+        frame, detection_result = align_frame(frame, detection_result, width, height)
 
-    face = frame[y_min:y_max, x_min:x_max]
-    new_width = x_max - x_min
-    new_height = y_max - y_min
-    new_size = output_size or (max(new_width, new_height), max(new_width, new_height))
+    if crop:
+        frame, width, height = crop_frame(frame, detection_result, width, height, margin)
+
+    if output_size == "original_square":
+        output_size = (max(width, height), max(width, height))
+    elif output_size == "original":
+        output_size = (width, height)
 
     square_face = cv2.resize(
-        face, new_size, interpolation=cv2.INTER_LINEAR
+        frame, output_size, interpolation=cv2.INTER_LINEAR
     )
 
     return square_face
