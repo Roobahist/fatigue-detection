@@ -76,7 +76,7 @@ def align_frame(frame: np.ndarray, detection_result, width: int, height: int) ->
         height: The height of the input frame.
 
     Returns:
-        The aligned frame as a NumPy array and detection_result.
+        The aligned frame as a NumPy array and detection_result with updated landmarks.
         """
     try:
         # --- validate inputs ---
@@ -111,6 +111,18 @@ def align_frame(frame: np.ndarray, detection_result, width: int, height: int) ->
         rotated_frame = cv2.warpAffine(frame, M, (int(width), int(height)), flags=cv2.INTER_CUBIC)
         
         # --- Update all landmarks for the first face using the same rotation matrix ---
+        # todo: other objects in the detection_result object should also be updated
+        for landmark in lms:
+            # Convert normalized to pixel coordinates
+            x_pixel = landmark.x * width
+            y_pixel = landmark.y * height
+            
+            # Apply rotation matrix (add homogeneous coordinate for transformation)
+            rotated_point = M @ np.array([x_pixel, y_pixel, 1])
+            
+            # Convert back to normalized coordinates and update
+            landmark.x = rotated_point[0] / width
+            landmark.y = rotated_point[1] / height
 
         return rotated_frame, detection_result
 
