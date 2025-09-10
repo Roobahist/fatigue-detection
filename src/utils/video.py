@@ -262,25 +262,21 @@ class VideoReader:
         """
         return self.get_frame_at_index(self.current_frame_index + 1, jump=jump)
 
-    def get_previous_frame(self) -> Optional[np.ndarray]:
+    def get_previous_frame(self, jump: bool = True) -> Tuple[bool, Optional[np.ndarray]]:
         """
         Reads and returns the previous frame in the video sequence.
 
-        Returns:
-            Optional[np.ndarray]: The previous frame image as a NumPy array, or None if
-                               the beginning of the video is reached or video is not open.
-        """
-        if not self.cap or not self.cap.isOpened():
-            return False, None
+        Args:
+            jump (bool): If True, jumps to the previous frame. If False, reads the previous frame without jumping.
+                         Defaults to True.
 
-        prev_index = self.current_frame_index - 1
-        if prev_index >= 0:
-            self.current_frame_index = self.current_frame_index - 1
-            ret, frame = self.get_current_frame()
-            if ret:
-                return ret, frame
-        print("Info: Reached beginning of video.")
-        return False, None
+        Returns:
+            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
+                - bool: True if the frame was successfully read, False otherwise.
+                - np.ndarray | None: The frame image as a NumPy array if successful,
+                                     None otherwise.
+        """
+        return self.get_frame_at_index(self.current_frame_index - 1, jump=jump)
 
     def _jump_to_frame(self, frame_index: Union[int, str]) -> bool:
         """
