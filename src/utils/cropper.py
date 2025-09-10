@@ -131,7 +131,7 @@ def align_frame(frame: np.ndarray, detection_result, width: int, height: int) ->
         traceback.print_exc()
         return frame, detection_result
 
-def get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, float, float]:
+def _get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, float, float]:
     """
     Calculates the bounding box of a face based on facial landmarks.
 
@@ -153,14 +153,17 @@ def get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, 
     x_max = max(face_oval_landmarks_x)
     y_min = min(face_oval_landmarks_y)
     y_max = max(face_oval_landmarks_y)
+    print(x_min, x_max, y_min, y_max)
 
-    face_height = y_max - y_min  # Corrected calculation
-    face_width = x_max - x_min # Corrected calculation
+    face_height = y_max - y_min 
+    face_width = x_max - x_min
+    print(face_width, face_height)
 
     x_min = max(x_min - margin * face_width, 0)
     x_max = min(x_max + margin * face_width, 1)
     y_min = max(y_min - margin * face_height, 0)
     y_max = min(y_max + margin * face_height, 1)
+    print(x_min, x_max, y_min, y_max)
 
     return x_min, x_max, y_min, y_max
 
