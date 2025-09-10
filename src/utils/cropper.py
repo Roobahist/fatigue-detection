@@ -205,7 +205,8 @@ def process_face_in_frame(
     """
     if detection_result == mp.tasks.vision.FaceLandmarkerResult(face_landmarks=[],
                                                                 face_blendshapes=[],
-                                                                facial_transformation_matrixes=[]):
+                                                                facial_transformation_matrixes=[])\
+    or detection_result is None:
         return None
 
     if mask:
