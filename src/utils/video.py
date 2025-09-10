@@ -234,18 +234,17 @@ class VideoReader:
             print(f"Error reading frame at index {frame_index}: {e}")
             return False, None
     
+    def get_current_frame(self) -> Tuple[bool, Optional[np.ndarray]]:
         """
         Retrieves the frame at the current position.
 
         Returns:
-            Optional[np.ndarray]: The current frame image as a NumPy array, or None if
-                               no frame is currently loaded or video is not open.
+            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
+                - bool: True if the frame was successfully read, False otherwise.
+                - np.ndarray | None: The frame image as a NumPy array if successful,
+                                     None otherwise.
         """
-        if self.current_frame_index == -1 or not self.cap or not self.cap.isOpened():
-            return False, None
-        # Re-read the current frame to ensure it's up-to-date
-        ret, frame = self._read_frame_at_index(self.current_frame_index)
-        return ret, frame
+        return self.get_frame_at_index(self.current_frame_index, jump=False)
 
     def get_next_frame(self) -> Optional[np.ndarray]:
         """
