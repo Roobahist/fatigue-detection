@@ -193,86 +193,61 @@ class VideoReader:
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         self.current_frame_index = 0
-
+    
     def get_frame(
         self, 
         frame_index: Union[int, str],
-        jump: bool = False
+        jump: bool = True,
     ) -> Tuple[bool, Optional[np.ndarray]]:
         """
         Retrieves the frame at the specified index.
 
         Args:
-            frame_index (Union[int, str]): The 0-based index of the frame to read, or "next"/"prev"/"current" for relative jumps.
-            jump (bool): If True, jumps to the specified frame. If False, reads the frame without jumping.
-                         Defaults to False.
+            frame_index (Union[int, str]): The 0-based index of the frame to read,
+                                        or "next"/"prev"/"current" for relative access.
+            jump (bool): If True, updates the internal current_frame_index and moves the pointer.
+                        If False, resets pointer after read. Defaults to True.
 
         Returns:
-            Tuple[bool, Optional[np.ndarray]]: A tuple containing:
-                - bool: True if the frame was successfully read, False otherwise.
-                - np.ndarray | None: The frame image as a NumPy array if successful,
-                                     None otherwise.
+            Tuple[bool, Optional[np.ndarray]]: Success flag and the frame (or None).
         """
-        if frame_index == "current":
-            frame_index = self.current_frame_index
-        elif frame_index == "next":
-            frame_index = self.current_frame_index + 1
-        elif frame_index == "prev":
-            frame_index = self.current_frame_index - 1
-        if not isinstance(frame_index, int):
-            print("Error: frame_index must be an integer or 'next'/'prev'/'current'.")
-            return False, None
-        
-        if (
-            not self.cap
-            or not self.cap.isOpened()
-            or frame_index < 0
-            or frame_index >= self.total_frames
-        ):
-            return False, None
 
-        if jump:
-            if not self._jump_to_frame(frame_index):
-                return False, None
-        try:
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-            ret, frame = self.cap.read()
-            return ret, frame
-        except Exception as e:
-            print(f"Error reading frame at index {frame_index}: {e}")
-            return False, None
-
-    def _jump_to_frame(self, frame_index: Union[int, str]) -> bool:
-        """
-        Jumps to a specific frame by its index or "next"/"prev".
-
-        Args:
-            frame_index (int, str): The 0-based index of the frame to jump to, or "next"/"prev" for relative jumps.
-            
-
-        Returns:
-            bool: True if the jump was successful, False otherwise.
-        """
-        if not self.cap or not self.cap.isOpened():
-            print("Error: Video capture is not opened.")
-            return False
-        
+        # Resolve frame_index to int
         if frame_index == "next":
             frame_index = self.current_frame_index + 1
         elif frame_index == "prev":
             frame_index = self.current_frame_index - 1
+        elif frame_index == "current":
+            frame_index = self.current_frame_index
         if not isinstance(frame_index, int):
-            print("Error: frame_index must be an integer or 'next'/'prev'.")
-            return False
-        
-        if 0 <= frame_index < self.total_frames:
-            self.current_frame_index = frame_index
-            return True
-        
-        print(
-            f"Error: Frame index {frame_index} is out of bounds (0 to {self.total_frames - 1})."
-        )
-        return False
+            print("Error: frame_index must be an int or one of 'next', 'prev', 'current'.")
+            return False, None
+
+        # Validate frame_index
+        if frame_index < 0 or frame_index >= self.total_frames and self.cap.isOpened() and self.cap:
+            return False, None
+
+        # Save position if peeking
+        original_index = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) if not jump else None
+
+        try:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+            ret, frame = self.cap.read()
+
+            if not ret:
+                return False, None
+
+            if jump:
+                self.current_frame_index = frame_index
+            else:
+                # Reset to previous position if not jumping
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, original_index)
+
+            return True, frame
+
+        except Exception as e:
+            print(f"Error reading frame at index {frame_index}: {e}")
+            return False, None
 
     def get_info(self) -> Dict[str, Union[int, float]]:
         """
