@@ -208,7 +208,7 @@ def process_face_in_frame(
                                                                 facial_transformation_matrixes=[]):
         return None
 
-    if mask : 
+    if mask:
         frame = mask_frame(frame, detection_result, width, height)
 
     if align:
