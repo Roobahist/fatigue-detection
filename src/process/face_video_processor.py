@@ -502,16 +502,22 @@ class VideoProcessor:
         except Exception as e:
             logging.error(f"Error processing {video_file}: %s", traceback.format_exc())
             return None
-
         finally:
+            processed_video_writer.release()
+
+            for aug_key in frame_augmentations.keys():
+                processed_augmented_videos_writers[aug_key].release()
+
+            vr.release()
+
             cleanup(
                 [
-                    "cap",
-                    "out_crop",
-                    "aug_writers",
-                    "cropped_frame",
+                    "vr",
+                    "processed_video_writer",
+                    "processed_augmented_videos_writers",
+                    "processed_frame",
                     "temp_detection_result",
-                    "augmented_frames",
+                    "frame_augmentations",
                     "frame",
                     "cropped_embedding_writer",
                     "aug_embedding_writers",
