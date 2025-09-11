@@ -111,48 +111,79 @@ class VideoProcessor:
 
     def _process_frame(
         self,
-        frame: cv2.Mat,
+        frame: np.ndarray,
         width: int,
         height: int,
-        temp_detection_result: Optional["mp.tasks.vision.FaceDetectorResult"] = [],
-    ) -> Optional[cv2.Mat]:
+        mask: bool = True,
+        align: bool = True,
+        crop: bool = True,
+        margin: float = 0.05,
+        output_size: Union[Tuple[int, int], str] = (224, 224),
+        temp_detection_result: Union[object, None] = None,
+    ) -> tuple[Optional[np.ndarray], Union[object, None]]:
         """
-        Processes a single frame, detecting and cropping the face.
+        Processes a single frame, detecting and cropping the face, if the face is not detected in the current frame,
+        it tries to use the previous detection result if available.
 
         Args:
             frame: The input frame.
             width: The width of the video frame.
             height: The height of the video frame.
+            mask: Whether to apply a mask to the face region.
+            align: Whether to align the face based on eye positions.
+            crop: Whether to crop the face region.
+            margin: The margin to add around the bounding box as a fraction of the face's width/height.
+            output_size: The desired output size of the cropped face (width, height).
             temp_detection_result: Previous detection result if available.
 
         Returns:
-            The cropped face frame, or None if face detection fails.
+            A tuple containing the cropped face frame and detection result, or (None, None) if face detection fails.
         """
         try:
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-            detector = FaceDetector(False, False, 1).landmarker
+            detector = FaceDetector(
+                output_face_blendshapes=False,
+                facial_transformation_matrixes=False,
+                num_faces=1,
+            ).landmarker
             detection_result = detector.detect(mp_image)
 
-            cropped_face = crop_face_from_frame(
-                frame, detection_result, width, height, margin=0.05, mask=True, align=True, output_size=(224, 224)
+            cropped_face = process_face_in_frame(
+                frame=frame,
+                detection_result=detection_result,
+                width=width,
+                height=height,
+                mask=mask,
+                align=align,
+                crop=crop,
+                margin=margin,
+                output_size=output_size,
             )
             if cropped_face is not None:
                 return cropped_face, detection_result
-            
-            if temp_detection_result == []:
-                return None, []
-            
-            cropped_face = crop_face_from_frame(
-                frame, temp_detection_result, width, height, margin=0.05, mask=True, align=True, output_size=(224, 224)
-            )
-            return cropped_face, temp_detection_result
+
+            # If current detection failed but we have a previous result, try using that
+            if temp_detection_result is not None:
+                cropped_face = process_face_in_frame(
+                    frame=frame,
+                    detection_result=temp_detection_result,
+                    width=width,
+                    height=height,
+                    mask=mask,
+                    align=align,
+                    crop=crop,
+                    margin=margin,
+                    output_size=output_size,
+                )
+                if cropped_face is not None:
+                    return cropped_face, temp_detection_result
+
+            return None, None
 
         except Exception as e:
-            logging.error(f"Error processing a frame, { traceback.format_exc()}")
-            return None, []
-
+            logging.error(f"Error processing a frame: {traceback.format_exc()}")
+            return None, None
         finally:
-            # print(locals())
             cleanup(
                 ["mp_image", "detector", "detection_result"],
                 local_vars=locals(),
