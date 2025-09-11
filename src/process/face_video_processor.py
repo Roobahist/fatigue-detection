@@ -383,6 +383,28 @@ class VideoProcessor:
                 augmentations=augmentations,
             )
 
+            # Initialize output writers
+            processed_video_writer, processed_augmented_videos_writers = (
+                self._initialize_video_output(
+                    output_base=output_base,
+                    frame_augmentations=frame_augmentations,
+                    mask=mask,
+                    align=align,
+                    crop=crop,
+                    margin=margin,
+                    fps=fps,
+                    output_size=output_size,
+                )
+            )
+
+            # Process frames
+            temp_detection_result = None
+
+            for frame_index in tqdm(
+                range(start_frame, end_frame),
+                desc=f"Processing {video_file}",
+                disable=not self.use_tqdm,
+                unit="frame",
                 total=end_frame - start_frame,
                 desc=f"Processing {os.path.basename(input_path)}",
                 unit="frame",
