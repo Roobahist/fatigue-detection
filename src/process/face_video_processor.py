@@ -310,120 +310,73 @@ class VideoProcessor:
         Returns:
             A dictionary containing the output video paths for each augmentation, or None if processing fails.
         """
+        print(f"Processing video: {video_file}")
+
         input_path = os.path.join(self.input_folder, video_file)
         output_base = os.path.splitext(video_file)[0]
 
         try:
             logging.info(f"Starting processing for video: {input_path}")
-            cap = cv2.VideoCapture(input_path)
-            if not cap.isOpened():
-                logging.warning(f"Failed to open video: {input_path}")
-                return None
 
-            fps, width, height, total_frames, _ = get_video_info(cap)
+            # Initialize VideoReader
+            vr = VideoReader(video_path=input_path)
+
+            video_info = vr.get_info()
+            fps = video_info["fps"]
+            total_frames = video_info["total_frames"]
+            width, height = video_info["width"], video_info["height"]
+
+            # Calculate start and end frames
             start_frame = int(start_second * fps)
             end_frame = (
                 int(end_second * fps) if end_second is not None else total_frames
             )
 
-            try:
-                first_frame_height, first_frame_width = -1, -1
-                cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-                temp_detection_result = []
-                while (
-                    cap.isOpened()
-                    and first_frame_width == -1
-                    and first_frame_height == -1
-                ):
-                    ret, frame = cap.read()
+            # if output_size is "original" or "original_square", we need to find the size from the first valid frame
+            if isinstance(output_size, str):
+                temp_detection_result = None
+                for frame_index in range(start_frame, end_frame):
+                    ret, frame = vr.get_frame(frame_index=frame_index, jump=False)
+
                     if not ret:
-                        logging.warning(
-                            f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
+                        continue
+
+                    processed_frame, temp_detection_result = self._process_frame(
+                        frame=frame,
+                        width=width,
+                        height=height,
+                        detection_result=temp_detection_result,
+                        mask=mask,
+                        align=align,
+                        crop=crop,
+                        margin=margin,
+                        output_size=output_size,
+                    )
+
+                    if processed_frame is None:
+                        continue
+
+                    if output_size == "original":
+                        output_size = (
+                            processed_frame.shape[1],
+                            processed_frame.shape[0],
                         )
-                        break
-                    cropped_frame, temp_detection_result = (
-                        self._process_frame(
-                            frame, width, height, temp_detection_result
+                    elif output_size == "original_square":
+                        side_length = max(
+                            processed_frame.shape[0], processed_frame.shape[1]
                         )
-                        if crop
-                        else frame
-                    )
-                    if cropped_frame is not None:
-                        first_frame_height, first_frame_width = cropped_frame.shape[
-                            :2
-                        ]
-                        augmented_frames = self._augment_frame(
-                            cropped_frame, augmentations
-                        )
-                logging.warning(
-                    f"New video dimensions found: {first_frame_height}, {first_frame_width}"
-                )
+                        output_size = (side_length, side_length)
+                    else:
+                        raise ValueError(f"Invalid output_size string: {output_size}")
 
-            except Exception as e:
-                logging.error(
-                    f"Error processing {video_file}: %s", traceback.format_exc()
+            if isinstance(output_size, str):
+                print(
+                    "No valid frame found in the video to determine output size, defaulting to (224, 224)."
                 )
-                return None
+                output_size = (224, 224)
 
-            if crop:
-                cropped_folder = os.path.join(
-                    self.output_folder, "video", f"cropped"
-                )
-                os.makedirs(cropped_folder, exist_ok=True)
-                cropped_output_path = os.path.join(
-                    cropped_folder, f"{output_base}_cropped.mp4"
-                )
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                out_crop = cv2.VideoWriter(
-                    cropped_output_path,
-                    fourcc,
-                    fps,
-                    (first_frame_width, first_frame_height),
-                )
-                if find_embedding:
-                    cropped_embedding_folder = os.path.join(
-                        self.output_folder,
-                        "embedding",
-                        f"{embedding_model}",
-                        f"cropped",
-                    )
-                    os.makedirs(cropped_embedding_folder, exist_ok=True)
-                    cropped_embedding_path = os.path.join(
-                        cropped_embedding_folder, f"{output_base}_cropped.csv"
-                    )
-                    cropped_embedding_writer = CSVWriter(cropped_embedding_path)
+            print(f"Output size set to: {output_size}")
 
-            aug_writers = {}
-            aug_embedding_writers = {}
-
-            for aug_key in augmented_frames.keys():
-                aug_folder = os.path.join(self.output_folder, "video", f"{aug_key}")
-                os.makedirs(aug_folder, exist_ok=True)
-                aug_output_path = os.path.join(
-                    aug_folder, f"{output_base}_{aug_key}.mp4"
-                )
-                aug_writers[aug_key] = cv2.VideoWriter(
-                    aug_output_path,
-                    fourcc,
-                    fps,
-                    (first_frame_width, first_frame_height),
-                )
-                if find_embedding:
-                    aug_embedding_folder = os.path.join(
-                        self.output_folder,
-                        "embedding",
-                        f"{embedding_model}",
-                        f"{aug_key}",
-                    )
-                    os.makedirs(aug_embedding_folder, exist_ok=True)
-                    aug_embedding_path = os.path.join(
-                        aug_embedding_folder, f"{output_base}_{aug_key}.csv"
-                    )
-                    aug_embedding_writers[aug_key] = CSVWriter(aug_embedding_path)
-
-            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-            temp_detection_result = []
-            with tqdm(
                 total=end_frame - start_frame,
                 desc=f"Processing {os.path.basename(input_path)}",
                 unit="frame",
