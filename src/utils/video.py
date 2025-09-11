@@ -108,44 +108,6 @@ def change_fps(
         )
         return False
 
-def save_video(
-    frames: List[np.ndarray],
-    output_path: str,
-    fps: float,
-    use_tqdm: bool = True,
-    fourcc: str = "mp4v",
-) -> None:
-    """
-    Saves processed frames as a video.
-
-    Args:
-        frames: List of processed frames (NumPy arrays).
-        output_path: Path to save the output video.
-        fps: Frames per second of the video.
-    """
-    if not frames:
-        logging.warning(f"No frames to save for {output_path}. Skipping video save.")
-        return
-
-    first_frame_height, first_frame_width = frames[0].shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*fourcc)
-    out = cv2.VideoWriter(
-        output_path, fourcc, fps, (first_frame_width, first_frame_height)
-    )
-    for frame in tqdm(frames, desc="Saving {os.path.basename(output_path)}", unit="frame", disable=not use_tqdm):
-        if frame.shape[1] != first_frame_width or frame.shape[0] != first_frame_height:
-            logging.warning(
-                f"Frame size {frame.shape[1]}x{frame.shape[0]} does not match first frame size {first_frame_width}x{first_frame_height}. Resizing."
-            )
-        resized_frame = cv2.resize(
-            frame,
-            (first_frame_width, first_frame_height),
-            interpolation=cv2.INTER_LINEAR,
-        )
-        out.write(resized_frame)
-    out.release()
-    logging.info(f"Video saved to {output_path}")
-
 
 class VideoReaderInitializationError(Exception):
     pass
@@ -339,6 +301,24 @@ class VideoWriter:
         except Exception as e:
             print(f"Error writing frame: {e}")
             return False
+
+    def write_frames(self, frames: List[np.ndarray], use_tqdm: bool = True):
+        """
+        Writes multiple frames to the video file.
+
+        Args:
+            frames (List[np.ndarray]): List of frame images (NumPy arrays) to write.
+            use_tqdm (bool): Whether to display a progress bar. Defaults to True.
+        """
+        for frame in tqdm(
+            frames,
+            desc=f"Writing to {os.path.basename(self.output_path)}",
+            unit="frame",
+            disable=not use_tqdm,
+        ):
+            if not self.write_frame(frame):
+                print("Stopping write due to error.")
+                break
 
     def release(self):
         """
