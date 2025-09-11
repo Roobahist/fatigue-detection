@@ -406,97 +406,40 @@ class VideoProcessor:
                 disable=not self.use_tqdm,
                 unit="frame",
                 total=end_frame - start_frame,
-                desc=f"Processing {os.path.basename(input_path)}",
-                unit="frame",
-                disable=not self.use_tqdm,
-            ) as progress_bar:
-                while (
-                    cap.isOpened() and cap.get(cv2.CAP_PROP_POS_FRAMES) < end_frame
-                ):
-                    ret, frame = cap.read()
-                    if not ret:
-                        logging.warning(
-                            f"Failed to read frame at position {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
-                        )
-                        break
-                    if cap.get(cv2.CAP_PROP_POS_FRAMES) % 1000 == 0:
-                        logging.info(
-                            f"frame number {cap.get(cv2.CAP_PROP_POS_FRAMES)} in video: {input_path}"
-                        )
-
-                    cropped_frame, temp_detection_result = (
-                        self._process_frame(
-                            frame, width, height, temp_detection_result
-                        )
-                        if crop
-                        else frame
+                miniters=100,
+            ):
+                ret, frame = vr.get_frame(frame_index=frame_index, jump=True)
+                if not ret:
+                    print(
+                        f"{video_file} Failed to read frame at index {frame_index}, skipping."
                     )
-                    if cropped_frame is not None:
-                        if crop:
-                            resized_frame = cv2.resize(
-                                cropped_frame,
-                                (first_frame_width, first_frame_height),
-                                interpolation=cv2.INTER_LINEAR,
-                            )
-                            out_crop.write(resized_frame)
-                            if find_embedding:
-                                cropped_embedding_writer.write(
-                                    [
-                                        round(x, 3)
-                                        for x in DF.represent(
-                                            img_path=resized_frame,
-                                            enforce_detection=False,
-                                            detector_backend="skip",
-                                            model_name=embedding_model,
-                                            normalization=(
-                                                "Facenet"
-                                                if embedding_model == "Facenet"
-                                                else "base"
-                                            ),
-                                        )[0]["embedding"]
-                                    ]
-                                )
+                    continue
 
-                        augmented_frames = self._augment_frame(
-                            cropped_frame, augmentations
-                        )
-                        for aug_key, aug_frame in augmented_frames.items():
-                            resized_frame = cv2.resize(
-                                aug_frame,
-                                (first_frame_width, first_frame_height),
-                                interpolation=cv2.INTER_LINEAR,
-                            )
-                            aug_writers[aug_key].write(resized_frame)
-                            if find_embedding:
-                                aug_embedding_writers[aug_key].write(
-                                    [
-                                        round(x, 3)
-                                        for x in DF.represent(
-                                            img_path=resized_frame,
-                                            enforce_detection=False,
-                                            detector_backend="skip",
-                                            model_name=embedding_model,
-                                            normalization=(
-                                                "Facenet"
-                                                if embedding_model == "Facenet"
-                                                else "base"
-                                            ),
-                                        )[0]["embedding"]
-                                    ]
-                                )
-                    progress_bar.update(1)
+                # Process frame
+                processed_frame, temp_detection_result = self._process_frame(
+                    frame=frame,
+                    width=width,
+                    height=height,
+                    detection_result=temp_detection_result,
+                    mask=mask,
+                    align=align,
+                    crop=crop,
+                    margin=margin,
+                    output_size=output_size,
+                )
 
-            if crop:
-                out_crop.release()
-                if find_embedding:
-                    cropped_embedding_writer.close()
+                if processed_frame is not None:
+                    processed_video_writer.write(processed_frame)
 
-            for aug_key, writer in aug_writers.items():
-                writer.release()
-                if find_embedding:
-                    aug_embedding_writers[aug_key].close()
+                    # Process and write augmented frames
+                    frame_augmentations = self._augment_frame(
+                        frame=processed_frame, augmentations=augmentations
+                    )
+                    for aug_key, aug_frame in frame_augmentations.items():
+                        processed_augmented_videos_writers[aug_key].write(aug_frame)
 
-            cap.release()
+                vr.get_next_frame()
+
             return None
 
         except Exception as e:
