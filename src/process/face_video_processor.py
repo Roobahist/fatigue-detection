@@ -469,18 +469,19 @@ class VideoProcessor:
                 global_vars=globals(),
             )
 
-    # @profile(stream=log_file)
     def process_multiple_videos(
         self,
         video_files: List[str],
         start_second: int = 0,
         end_second: Optional[int] = None,
         augmentations: Optional[Dict[str, List[Dict]]] = None,
+        mask: bool = True,
+        align: bool = True,
         crop: bool = True,
-        find_embedding: bool = True,
-        embedding_model: str = "Facenet",
+        margin: float = 0.05,
+        output_size: Union[Tuple[int, int], str] = (224, 224),
         parallel: bool = False,
-        max_workers: Optional[int] = 10,
+        max_workers: Optional[int] = None,
         maxtasksperchild: int = 1,
         use_tqdm: bool = False,
     ) -> List[Optional[Dict[str, str]]]:
@@ -489,42 +490,49 @@ class VideoProcessor:
 
         Args:
             video_files: A list of video file names.
-            parallel: If True, processes videos in parallel using threads.
             start_second: Start processing from this second.
             end_second: End processing at this second.
             augmentations: A dictionary specifying augmentations and their parameters.
-            save: If True, the outputs will be saved as videos in corresponding folders.
+            mask: Whether to apply a mask to the face region.
+            align: Whether to align the face based on eye positions.
+            crop: If True, crops the faces before applying augmentations.
+            margin: The margin to add around the bounding box as a fraction of the face's width/height.
+            output_size: The desired output size of the cropped face (width, height).
+            parallel: If True, processes videos in parallel.
+            max_workers: Maximum number of workers for parallel processing.
+            maxtasksperchild: Maximum tasks per child process.
+            use_tqdm: Whether to use tqdm progress bars.
 
         Returns:
             A list of output video paths (or None if processing failed).
         """
-        video_files = (
-            os.listdir(self.input_folder) if video_files == [] else video_files
-        )
+        video_files = os.listdir(self.input_folder) if not video_files else video_files
+        logging.info(f"Processing {len(video_files)} videos.")
 
         args_list = [
             {
-                'video_file' : video_file,
-                'start_second' : start_second,
-                'end_second' : end_second,
-                'augmentations' : augmentations,
-                'crop' : crop,
-                'find_embedding' : find_embedding,
-                'embedding_model' : embedding_model,
+                "video_file": video_file,
+                "start_second": start_second,
+                "end_second": end_second,
+                "mask": mask,
+                "align": align,
+                "crop": crop,
+                "margin": margin,
+                "augmentations": augmentations,
+                "output_size": output_size,
             }
             for video_file in video_files
         ]
 
         process(
-            worker_function = self.process_single_video,
-            worker_params_list = args_list,
-            handler_function = None,
-            parallel = parallel,
-            max_workers = max_workers,
-            maxtasksperchild = maxtasksperchild,
-            use_tqdm = use_tqdm,
+            worker_function=self.process_single_video,
+            worker_params_list=args_list,
+            handler_function=None,
+            parallel=parallel,
+            max_workers=max_workers,
+            maxtasksperchild=maxtasksperchild,
+            use_tqdm=use_tqdm,
         )
-
 
 
 if __name__ == "__main__":
