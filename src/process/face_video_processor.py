@@ -285,11 +285,13 @@ class VideoProcessor:
         self,
         video_file: str,
         start_second: int = 0,
-        end_second: Optional[Union[int, None]] = None,
-        augmentations: Optional[Dict[str, List[Dict]]] = {},
+        end_second: Optional[int] = None,
+        mask: bool = True,
+        align: bool = True,
         crop: bool = True,
-        find_embedding: bool = True,
-        embedding_model: str = "Facenet",
+        margin: float = 0.05,
+        augmentations: Optional[Dict[str, List[Dict]]] = None,
+        output_size: Union[Tuple[int, int], str] = (224, 224),
     ) -> Optional[Dict[str, str]]:
         """
         Processes a single video file, detecting and cropping faces, with configurable augmentations.
@@ -299,8 +301,11 @@ class VideoProcessor:
             start_second: Start processing from this second.
             end_second: End processing at this second.
             augmentations: A dictionary specifying augmentations and their parameters.
-            save: If True, the outputs will be saved as videos in corresponding folders.
+            mask: Whether to apply a mask to the face region.
+            align: Whether to align the face based on eye positions.
             crop: If True, crops the faces before applying augmentations.
+            margin: The margin to add around the bounding box as a fraction of the face's width/height.
+            output_size: The desired output size of the cropped face (width, height).
 
         Returns:
             A dictionary containing the output video paths for each augmentation, or None if processing fails.
