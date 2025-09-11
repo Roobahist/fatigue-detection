@@ -153,11 +153,9 @@ def _get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float,
     x_max = max(face_oval_landmarks_x)
     y_min = min(face_oval_landmarks_y)
     y_max = max(face_oval_landmarks_y)
-    print(x_min, x_max, y_min, y_max)
 
     face_height = y_max - y_min 
     face_width = x_max - x_min
-    print(face_width, face_height)
 
     x_min = max(x_min - margin * face_width, 0)
     x_max = min(x_max + margin * face_width, 1)
