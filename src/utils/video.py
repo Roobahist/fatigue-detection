@@ -130,23 +130,19 @@ def save_video(
     out = cv2.VideoWriter(
         output_path, fourcc, fps, (first_frame_width, first_frame_height)
     )
-
-    with tqdm(
-        total=end_frame - start_frame,
-        desc=f"Saving {os.path.basename(output_path)}",
-        unit="frame",
-        disable=not use_tqdm,
-    ) as progress_bar:
-        for frame in frames:
-            resized_frame = cv2.resize(
-                frame,
-                (first_frame_width, first_frame_height),
-                interpolation=cv2.INTER_LINEAR,
+    for frame in tqdm(frames, desc="Saving {os.path.basename(output_path)}", unit="frame", disable=not use_tqdm):
+        if frame.shape[1] != first_frame_width or frame.shape[0] != first_frame_height:
+            logging.warning(
+                f"Frame size {frame.shape[1]}x{frame.shape[0]} does not match first frame size {first_frame_width}x{first_frame_height}. Resizing."
             )
-            out.write(resized_frame)
-            progress_bar.update(1)
-        out.release()
-    logging.info(f"Augmented video saved at: {output_path}")
+        resized_frame = cv2.resize(
+            frame,
+            (first_frame_width, first_frame_height),
+            interpolation=cv2.INTER_LINEAR,
+        )
+        out.write(resized_frame)
+    out.release()
+    logging.info(f"Video saved to {output_path}")
 
 
 class VideoReaderInitializationError(Exception):
