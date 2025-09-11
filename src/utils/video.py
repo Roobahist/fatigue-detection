@@ -42,6 +42,7 @@ def is_video_valid(video_path: str) -> bool:
     except Exception:
         return False
 
+
 def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
     """
     Displays a given frame using matplotlib, suitable for Jupyter Notebooks.
@@ -60,6 +61,7 @@ def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
         plt.show()
     else:
         print("Warning: Cannot draw a None frame.")
+
 
 def change_fps(
     input_path: str,
@@ -186,9 +188,9 @@ class VideoReader:
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         self.current_frame_index = -1
-    
+
     def get_frame(
-        self, 
+        self,
         frame_index: Union[int, str],
         jump: bool = True,
     ) -> Tuple[bool, Optional[np.ndarray]]:
@@ -220,16 +222,27 @@ class VideoReader:
         elif frame_index == "current":
             frame_index = self.current_frame_index
         if not isinstance(frame_index, int):
-            print("Error: frame_index must be an int or one of 'next', 'prev', 'current'.")
+            print(
+                "Error: frame_index must be an int or one of 'next', 'prev', 'current'."
+            )
             return False, None
 
         # Validate frame_index
-        if frame_index < 0 or frame_index >= self.total_frames and self.cap.isOpened() and self.cap:
-            print(f"Error: frame_index {frame_index} is out of bounds 0 - {self.total_frames-1} or video not opened.")
+        if (
+            frame_index < 0
+            or frame_index >= self.total_frames
+            and self.cap.isOpened()
+            and self.cap
+        ):
+            print(
+                f"Error: frame_index {frame_index} is out of bounds 0 - {self.total_frames-1} or video not opened."
+            )
             return False, None
 
         # Save position if peeking
-        original_index = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) if not jump else None
+        original_index = (
+            int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) if not jump else None
+        )
 
         try:
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
@@ -299,9 +312,7 @@ class VideoWriter:
         self.fps = fps
         self.frame_size = frame_size  # (width, height)
         self.fourcc = cv2.VideoWriter_fourcc(*fourcc)
-        self.writer = cv2.VideoWriter(
-            output_path, self.fourcc, fps, frame_size
-        )
+        self.writer = cv2.VideoWriter(output_path, self.fourcc, fps, frame_size)
         if not self.writer.isOpened():
             raise IOError(f"Could not open video writer for {output_path}")
 
