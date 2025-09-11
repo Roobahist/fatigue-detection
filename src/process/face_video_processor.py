@@ -56,7 +56,7 @@ class VideoProcessor:
         Returns:
             A dictionary where keys are augmentation names and values are augmented frames.
         """
-        augmented_frames = {}
+        frame_augmentations = {}
         original_frame = frame.copy()
 
         for aug_name, aug_configs in augmentations.items():
@@ -105,9 +105,9 @@ class VideoProcessor:
                         augmented_frame, matrix, (width, height)
                     )
 
-                augmented_frames[aug_key] = augmented_frame
+                frame_augmentations[aug_key] = augmented_frame
 
-        return augmented_frames
+        return frame_augmentations
 
     def _process_frame(
         self,
