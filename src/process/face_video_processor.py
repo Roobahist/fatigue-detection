@@ -30,7 +30,6 @@ class VideoProcessor:
     A class to process video files, detecting and cropping faces, with support for multiple videos.
     """
 
-    # @profile(stream=log_file)
     def __init__(self, input_folder: str, output_folder: str, use_tqdm: bool = False):
         """
         Initializes the VideoProcessor.
@@ -44,7 +43,6 @@ class VideoProcessor:
         self.output_folder = output_folder
         self.use_tqdm = use_tqdm
 
-    # @profile(stream=log_file)
     def _augment_frame(
         self, frame: np.ndarray, augmentations: Dict[str, List[Dict]]
     ) -> Dict[str, np.ndarray]:
@@ -111,7 +109,6 @@ class VideoProcessor:
 
         return augmented_frames
 
-    # @profile(stream=log_file)
     def _process_frame(
         self,
         frame: cv2.Mat,
@@ -490,8 +487,8 @@ if __name__ == "__main__":
     # breakpoint()
 
     input_folder = "/home/mojtaba.kananisarche/Zh/data/UTA/1-raw_30fps"
-    output_folder='/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked'
-    # output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
+    # output_folder='/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked'
+    output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
 
     vp = VideoProcessor(
         input_folder=input_folder, output_folder=output_folder, use_tqdm=False
@@ -507,14 +504,20 @@ if __name__ == "__main__":
         "grayscale": [{}],  # No parameters needed
     }
     vp.process_multiple_videos(
-        video_files=[],  # all
-        # video_files=os.listdir(input_folder)[:2],
-        parallel=True,
+        # video_files      = [],                           # all
+        video_files=os.listdir(input_folder)[:2],
         start_second=0,
-        end_second=None,
-        # end_second=2,
-        augmentations=augmentations,
+        # end_second       = None,
+        end_second=1,
+        # augmentations    = augmentations,
+        augmentations={},
+        mask=True,
+        align=True,
+        crop=True,
+        margin=0.2,
+        output_size=(224, 224),
+        parallel=False,
         max_workers=45,
-        find_embedding=False,
-        embedding_model='Facenet'
+        maxtasksperchild=1,
+        use_tqdm=True,
     )
