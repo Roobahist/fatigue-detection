@@ -275,3 +275,54 @@ class VideoReader:
         if self.cap and self.cap.isOpened():
             self.cap.release()
             print("Video capture released.")
+
+
+class VideoWriter:
+    def __init__(
+        self,
+        output_path: str,
+        fps: float,
+        frame_size: Tuple[int, int],
+        fourcc: str = "mp4v",
+    ):
+        self.output_path = output_path
+        self.fps = fps
+        self.frame_size = frame_size  # (width, height)
+        self.fourcc = cv2.VideoWriter_fourcc(*fourcc)
+        self.writer = cv2.VideoWriter(
+            output_path, self.fourcc, fps, frame_size
+        )
+        if not self.writer.isOpened():
+            raise IOError(f"Could not open video writer for {output_path}")
+
+    def write_frame(self, frame: np.ndarray) -> bool:
+        """
+        Writes a single frame to the video file.
+
+        Args:
+            frame (np.ndarray): The frame image (NumPy array) to write.
+
+        Returns:
+            bool: True if the frame was written successfully, False otherwise.
+        """
+        if frame.shape[1] != self.frame_size[0] or frame.shape[0] != self.frame_size[1]:
+            print(
+                f"Error: Frame size {frame.shape[1]}x{frame.shape[0]} does not match writer size {self.frame_size}."
+            )
+            return False
+
+        try:
+            self.writer.write(frame)
+            return True
+        except Exception as e:
+            print(f"Error writing frame: {e}")
+            return False
+
+    def release(self):
+        """
+        Releases the video writer object. This should be called when you are
+        finished writing the video to free up resources.
+        """
+        if self.writer:
+            self.writer.release()
+            print(f"Video writer released and file saved at: {self.output_path}")
