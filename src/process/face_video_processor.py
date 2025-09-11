@@ -377,6 +377,12 @@ class VideoProcessor:
 
             print(f"Output size set to: {output_size}")
 
+            # augment the first frame to get the keys of augmentations
+            frame_augmentations = self._augment_frame(
+                frame=vr.get_frame(frame_index="next", jump=False),
+                augmentations=augmentations,
+            )
+
                 total=end_frame - start_frame,
                 desc=f"Processing {os.path.basename(input_path)}",
                 unit="frame",
