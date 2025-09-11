@@ -285,6 +285,16 @@ class VideoWriter:
         frame_size: Tuple[int, int],
         fourcc: str = "mp4v",
     ):
+        """
+        Initializes the VideoWriter object.
+        Args:
+            output_path (str): Path to save the output video.
+            fps (float): Frames per second of the video.
+            frame_size (Tuple[int, int]): Size of the video frames as (width, height).
+            fourcc (str): FourCC code for the codec (default: "mp4v").
+        Raises:
+            ValueError: If frame_size is not a tuple of two integers.
+        """
         self.output_path = output_path
         self.fps = fps
         self.frame_size = frame_size  # (width, height)
