@@ -316,10 +316,11 @@ class VideoWriter:
             bool: True if the frame was written successfully, False otherwise.
         """
         if frame.shape[1] != self.frame_size[0] or frame.shape[0] != self.frame_size[1]:
-            print(
-                f"Error: Frame size {frame.shape[1]}x{frame.shape[0]} does not match writer size {self.frame_size}."
+            frame = cv2.resize(
+                frame,
+                self.frame_size,
+                interpolation=cv2.INTER_LINEAR,
             )
-            return False
 
         try:
             self.writer.write(frame)
