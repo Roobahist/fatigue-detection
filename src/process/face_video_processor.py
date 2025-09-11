@@ -190,6 +190,75 @@ class VideoProcessor:
                 global_vars=globals(),
             )
 
+    def _initialize_video_output(
+        self,
+        output_base: str,
+        frame_augmentations: Dict[str, np.ndarray],
+        mask: bool,
+        align: bool,
+        crop: bool,
+        margin: float,
+        fps: float = 30.0,
+        fourcc: int = cv2.VideoWriter_fourcc(*"mp4v"),
+        output_size: tuple[int, int] = (224, 224),
+    ) -> tuple[
+        Optional[cv2.VideoWriter],
+        Dict[str, cv2.VideoWriter],
+        Optional[CSVWriter],
+        Dict[str, CSVWriter],
+    ]:
+        """
+        Initializes video writers and CSV writers for output.
+
+        Args:
+            output_base: Base name for output files.
+            frame_augmentations: Dictionary of augmented frames.
+            fps: Frames per second of the video.
+            output_size: Size of frames (width, height).
+
+        Returns:
+            A tuple containing video writers and CSV writers.
+        """
+
+        # Build a descriptive string for the main processing pipeline
+        process_tag = ""
+        process_tag += "_masked" if mask else "_unmasked"
+        process_tag += "_aligned" if align else "_unaligned"
+        process_tag += f"_cropped{margin}" if crop else "_uncropped"
+
+        output_base += process_tag
+
+        processed_folder = os.path.join(self.output_folder, process_tag)
+        create_folders(processed_folder)
+
+        processed_video_output_path = os.path.join(
+            processed_folder, f"{output_base}{process_tag}.mp4"
+        )
+        processed_video_writer = VideoWriter(
+            output_path=processed_video_output_path,
+            fourcc=fourcc,
+            fps=fps,
+            frame_size=output_size,
+        )
+
+        processed_augmented_videos_writers = {}
+        # Initialize augmented video writers
+        for aug_key in frame_augmentations.keys():
+            aug_folder = os.path.join(self.output_folder, aug_key)
+            create_folders(aug_folder)
+
+            processed_augmented_video_output_path = os.path.join(
+                aug_folder, f"{output_base}{process_tag}_{aug_key}.mp4"
+            )
+            processed_augmented_videos_writers[aug_key] = VideoWriter(
+                output_path=processed_augmented_video_output_path,
+                fourcc=fourcc,
+                fps=fps,
+                frame_size=output_size,
+            )
+
+        return processed_video_writer, processed_augmented_videos_writers
+
     # def _get_embedding(self, frame: np.ndarray, embedding_model: str) -> List[float]:
     #     """
     #     Gets embedding for a frame using DeepFace.
