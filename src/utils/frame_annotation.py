@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 def compute_face_regions(
     frame,
     detection_result,
@@ -50,8 +51,14 @@ def compute_face_regions(
 
         for group in landmark_groups:
             pts = np.array(
-                [[int(face_landmarks[i].x * width), int(face_landmarks[i].y * height)]
-                 for i in group if i < len(face_landmarks)],
+                [
+                    [
+                        int(face_landmarks[i].x * width),
+                        int(face_landmarks[i].y * height),
+                    ]
+                    for i in group
+                    if i < len(face_landmarks)
+                ],
                 dtype=np.int32,
             )
             if pts.shape[0] < 1:
@@ -109,17 +116,17 @@ def draw_regions(
     annotated_frame = frame.copy()
 
     if mode == "points":
-        for (x, y) in regions["points"]:
+        for x, y in regions["points"]:
             cv2.circle(annotated_frame, (x, y), radius, color, thickness)
 
     elif mode == "boxes":
-        for (x, y, w, h) in regions["boxes"]:
+        for x, y, w, h in regions["boxes"]:
             cv2.rectangle(annotated_frame, (x, y), (x + w, y + h), color, 2)
 
     elif mode == "mask":
         mask = np.zeros_like(annotated_frame)
-        for (x, y, w, h) in regions["boxes"]:
-            mask[y:y+h, x:x+w] = annotated_frame[y:y+h, x:x+w]
+        for x, y, w, h in regions["boxes"]:
+            mask[y : y + h, x : x + w] = annotated_frame[y : y + h, x : x + w]
         annotated_frame = mask
 
     return annotated_frame
