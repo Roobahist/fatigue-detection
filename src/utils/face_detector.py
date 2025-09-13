@@ -1,9 +1,13 @@
+from typing import Optional
+
+import cv2
 import mediapipe as mp
 import numpy as np
-from typing import Optional
-import cv2
 
-MODEL_PATH = '/home/mojtaba.kananisarche/Zh/src/utils/face_landmarker_v2_with_blendshapes.task'
+MODEL_PATH = (
+    "/home/mojtaba.kananisarche/Zh/src/utils/face_landmarker_v2_with_blendshapes.task"
+)
+
 
 class FaceDetector:
     """
@@ -25,7 +29,9 @@ class FaceDetector:
             num_faces: The maximum number of faces to detect.
         """
         self.output_face_blendshapes = output_face_blendshapes
-        self.output_facial_transformation_matrixes = output_facial_transformation_matrixes
+        self.output_facial_transformation_matrixes = (
+            output_facial_transformation_matrixes
+        )
         self.num_faces = num_faces
         self.landmarker = self._initialize_landmarker()
 
@@ -44,8 +50,10 @@ class FaceDetector:
             num_faces=self.num_faces,
         )
         return mp.tasks.vision.FaceLandmarker.create_from_options(options)
-    
-    def detect(self, image: np.ndarray) -> Optional[mp.tasks.vision.FaceLandmarkerResult]:
+
+    def detect(
+        self, image: np.ndarray
+    ) -> Optional[mp.tasks.vision.FaceLandmarkerResult]:
         """
         Detects faces and facial landmarks in the given image.
 
