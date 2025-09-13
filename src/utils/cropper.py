@@ -198,7 +198,7 @@ def process_face_in_frame(
     elif output_size == "original":
         output_size = (width, height)
 
-    square_face = cv2.resize(
+    processed_frame = cv2.resize(
         frame, output_size, interpolation=cv2.INTER_LINEAR
     )
 
