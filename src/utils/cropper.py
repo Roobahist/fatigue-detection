@@ -215,4 +215,4 @@ def process_face_in_frame(
         frame, output_size, interpolation=cv2.INTER_LINEAR
     )
 
-    return square_face
+    return processed_frame, detection_result
