@@ -112,8 +112,6 @@ class VideoProcessor:
     def _process_frame(
         self,
         frame: np.ndarray,
-        width: int,
-        height: int,
         mask: bool = True,
         align: bool = True,
         crop: bool = True,
@@ -127,8 +125,6 @@ class VideoProcessor:
 
         Args:
             frame: The input frame.
-            width: The width of the video frame.
-            height: The height of the video frame.
             mask: Whether to apply a mask to the face region.
             align: Whether to align the face based on eye positions.
             crop: Whether to crop the face region.
@@ -149,8 +145,6 @@ class VideoProcessor:
             cropped_face = process_face_in_frame(
                 frame=frame,
                 detection_result=detection_result,
-                width=width,
-                height=height,
                 mask=mask,
                 align=align,
                 crop=crop,
@@ -165,8 +159,6 @@ class VideoProcessor:
                 cropped_face = process_face_in_frame(
                     frame=frame,
                     detection_result=temp_detection_result,
-                    width=width,
-                    height=height,
                     mask=mask,
                     align=align,
                     crop=crop,
@@ -323,7 +315,6 @@ class VideoProcessor:
             video_info = vr.get_info()
             fps = video_info["fps"]
             total_frames = video_info["total_frames"]
-            width, height = video_info["width"], video_info["height"]
 
             # Calculate start and end frames
             start_frame = int(start_second * fps)
@@ -342,8 +333,6 @@ class VideoProcessor:
 
                     processed_frame, temp_detection_result = self._process_frame(
                         frame=frame,
-                        width=width,
-                        height=height,
                         temp_detection_result=temp_detection_result,
                         mask=mask,
                         align=align,
@@ -417,8 +406,6 @@ class VideoProcessor:
                 # Process frame
                 processed_frame, temp_detection_result = self._process_frame(
                     frame=frame,
-                    width=width,
-                    height=height,
                     temp_detection_result=temp_detection_result,
                     mask=mask,
                     align=align,

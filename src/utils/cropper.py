@@ -156,8 +156,6 @@ def crop_frame(frame: np.ndarray, detection_result, width: int, height: int, mar
 def process_face_in_frame(
     frame: np.ndarray,
     detection_result,
-    width: int,
-    height: int,
     mask: bool = True,
     align: bool = True,
     crop: bool = True,
@@ -170,8 +168,6 @@ def process_face_in_frame(
     Args:
         frame: The input frame as a NumPy array.
         detection_result: The face detection result containing facial landmarks.
-        width: The width of the input frame.
-        height: The height of the input frame.
         margin: The margin to add around the bounding box as a fraction of the face's width/height.
         mask: Whether to apply a mask to the face region.
         align: Whether to align the face based on eye positions.
@@ -185,6 +181,8 @@ def process_face_in_frame(
                                                                 facial_transformation_matrixes=[])\
     or detection_result is None:
         return None
+
+    height, width = frame.shape[:2]
 
     if mask:
         frame = mask_frame(frame, detection_result, width, height)
