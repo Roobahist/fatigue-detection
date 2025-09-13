@@ -44,3 +44,27 @@ class FaceDetector:
             num_faces=self.num_faces,
         )
         return mp.tasks.vision.FaceLandmarker.create_from_options(options)
+    
+    def detect(self, image: np.ndarray) -> Optional[mp.tasks.vision.FaceLandmarkerResult]:
+        """
+        Detects faces and facial landmarks in the given image.
+
+        Args:
+            image: The input image as a NumPy array (BGR format).
+        
+        Returns:
+            The detection result containing face landmarks, blendshapes, and transformation matrices.
+        """
+        if image is None or not isinstance(image, np.ndarray):
+            raise ValueError("Input image must be a valid NumPy array.")
+        
+        # Convert BGR to RGB
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Create MediaPipe Image
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+        
+        # Perform face landmark detection
+        detection_result = self.landmarker.detect(mp_image)
+        
+        return detection_result

@@ -140,13 +140,11 @@ class VideoProcessor:
             A tuple containing the cropped face frame and detection result, or (None, None) if face detection fails.
         """
         try:
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-            detector = FaceDetector(
+            fd = FaceDetector(
                 output_face_blendshapes=False,
                 output_facial_transformation_matrixes=False,
-                num_faces=1,
-            ).landmarker
-            detection_result = detector.detect(mp_image)
+                num_faces=1)
+            detection_result = fd.detect(frame)
 
             cropped_face = process_face_in_frame(
                 frame=frame,
