@@ -131,7 +131,7 @@ def align_frame(frame: np.ndarray, detection_result, width: int, height: int) ->
         traceback.print_exc()
         return frame, detection_result
 
-def _get_face_bbox(detection_result, margin: float = 0.1) -> Tuple[float, float, float, float]:
+def _get_face_bbox(detection_result, margin: float = 0.05) -> Tuple[float, float, float, float]:
     """
     Calculates the bounding box of a face based on facial landmarks.
 
@@ -181,7 +181,7 @@ def process_face_in_frame(
     mask: bool = True,
     align: bool = True,
     crop: bool = True,
-    margin: float = 0.1,
+    margin: float = 0.05,
     output_size: Union[Tuple[int, int], str] = (224, 224), #could be set to "original" or "original_square"
 ) -> Optional[np.ndarray]:
     """

@@ -143,7 +143,7 @@ class VideoProcessor:
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
             detector = FaceDetector(
                 output_face_blendshapes=False,
-                facial_transformation_matrixes=False,
+                output_facial_transformation_matrixes=False,
                 num_faces=1,
             ).landmarker
             detection_result = detector.detect(mp_image)
@@ -199,7 +199,7 @@ class VideoProcessor:
         crop: bool,
         margin: float,
         fps: float = 30.0,
-        fourcc: int = cv2.VideoWriter_fourcc(*"mp4v"),
+        fourcc: str = "mp4v",
         output_size: tuple[int, int] = (224, 224),
     ) -> tuple[
         Optional[cv2.VideoWriter],
@@ -225,14 +225,15 @@ class VideoProcessor:
         process_tag += "_masked" if mask else "_unmasked"
         process_tag += "_aligned" if align else "_unaligned"
         process_tag += f"_cropped{margin}" if crop else "_uncropped"
-
-        output_base += process_tag
+        # remove the first underscore
+        if process_tag.startswith("_"):
+            process_tag = process_tag[1:]
 
         processed_folder = os.path.join(self.output_folder, process_tag)
         create_folders(processed_folder)
 
         processed_video_output_path = os.path.join(
-            processed_folder, f"{output_base}{process_tag}.mp4"
+            processed_folder, f"{output_base}__{process_tag}.mp4"
         )
         processed_video_writer = VideoWriter(
             output_path=processed_video_output_path,
@@ -248,7 +249,7 @@ class VideoProcessor:
             create_folders(aug_folder)
 
             processed_augmented_video_output_path = os.path.join(
-                aug_folder, f"{output_base}{process_tag}_{aug_key}.mp4"
+                aug_folder, f"{output_base}__{process_tag}__{aug_key}.mp4"
             )
             processed_augmented_videos_writers[aug_key] = VideoWriter(
                 output_path=processed_augmented_video_output_path,
@@ -345,7 +346,7 @@ class VideoProcessor:
                         frame=frame,
                         width=width,
                         height=height,
-                        detection_result=temp_detection_result,
+                        temp_detection_result=temp_detection_result,
                         mask=mask,
                         align=align,
                         crop=crop,
@@ -379,7 +380,7 @@ class VideoProcessor:
 
             # augment the first frame to get the keys of augmentations
             frame_augmentations = self._augment_frame(
-                frame=vr.get_frame(frame_index="next", jump=False),
+                frame=vr.get_frame(frame_index="next", jump=False)[1],
                 augmentations=augmentations,
             )
 
@@ -420,7 +421,7 @@ class VideoProcessor:
                     frame=frame,
                     width=width,
                     height=height,
-                    detection_result=temp_detection_result,
+                    temp_detection_result=temp_detection_result,
                     mask=mask,
                     align=align,
                     crop=crop,
@@ -429,16 +430,14 @@ class VideoProcessor:
                 )
 
                 if processed_frame is not None:
-                    processed_video_writer.write(processed_frame)
+                    processed_video_writer.write_frame(processed_frame)
 
                     # Process and write augmented frames
                     frame_augmentations = self._augment_frame(
                         frame=processed_frame, augmentations=augmentations
                     )
                     for aug_key, aug_frame in frame_augmentations.items():
-                        processed_augmented_videos_writers[aug_key].write(aug_frame)
-
-                vr.get_next_frame()
+                        processed_augmented_videos_writers[aug_key].write_frame(aug_frame)
 
             return None
 
@@ -578,10 +577,10 @@ if __name__ == "__main__":
         mask=True,
         align=True,
         crop=True,
-        margin=0.2,
+        margin=0.05,
         output_size=(224, 224),
         parallel=False,
-        max_workers=45,
-        maxtasksperchild=1,
+        max_workers=None,
+        maxtasksperchild=None,
         use_tqdm=True,
     )
