@@ -146,12 +146,24 @@ def _get_face_bbox(detection_result, margin: float = 0.05) -> Tuple[float, float
 
 def crop_frame(frame: np.ndarray, detection_result, width: int, height: int, margin: float = 0.1) -> np.ndarray:
     x_min, x_max, y_min, y_max = _get_face_bbox(detection_result, margin)
-    frame = frame[int(y_min * height):int(y_max * height), 
-                  int(x_min * width):int(x_max * width)]
-    new_width = int((x_max - x_min) * width)
-    new_height = int((y_max - y_min) * height)
+    x1, x2 = int(x_min * width), int(x_max * width)
+    y1, y2 = int(y_min * height), int(y_max * height)
+    cropped_frame = frame[y1:y2, x1:x2]
 
-    return frame, new_width, new_height
+    # Update landmarks in detection_result
+    if detection_result and getattr(detection_result, "face_landmarks", None):
+        for landmark in detection_result.face_landmarks[0]:
+            # Convert to pixel coordinates
+            x_pixel = landmark.x * width
+            y_pixel = landmark.y * height
+            # Adjust for crop
+            x_pixel -= x1
+            y_pixel -= y1
+            # Normalize to new cropped frame size
+            landmark.x = x_pixel / max(x2 - x1, 1)
+            landmark.y = y_pixel / max(y2 - y1, 1)
+
+    return cropped_frame, detection_result
 
 def process_face_in_frame(
     frame: np.ndarray,
@@ -191,7 +203,8 @@ def process_face_in_frame(
         frame, detection_result = align_frame(frame, detection_result, width, height)
 
     if crop:
-        frame, width, height = crop_frame(frame, detection_result, width, height, margin)
+        frame, detection_result = crop_frame(frame, detection_result, width, height, margin)
+        height, width = frame.shape[:2]
 
     if output_size == "original_square":
         output_size = (max(width, height), max(width, height))
