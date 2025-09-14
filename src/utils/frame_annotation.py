@@ -50,8 +50,10 @@ def draw_regions(
     ]
 
     if mode == "points":
-        for x, y in regions["points"]:
-            cv2.circle(annotated_frame, (x, y), radius, color, thickness)
+        for idx, group_points in enumerate(regions["points"]):
+            group_color = color_palette[idx % len(color_palette)]
+            for x, y in group_points:
+                cv2.circle(annotated_frame, (x, y), radius, group_color, thickness)
 
     elif mode == "boxes":
         for idx, (x, y, w, h) in enumerate(regions["boxes"]):
