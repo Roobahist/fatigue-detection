@@ -1,4 +1,5 @@
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -130,3 +131,23 @@ def draw_regions(
         annotated_frame = mask
 
     return annotated_frame
+
+
+def draw_frame(frame: np.ndarray, title: str = "Video Frame"):
+    """
+    Displays a given frame using matplotlib, suitable for Jupyter Notebooks.
+
+    Args:
+        frame (np.ndarray): The frame image (NumPy array) to display.
+        title (str): The title for the plot. Defaults to "Video Frame".
+    """
+    if frame is not None:
+        # Convert BGR (OpenCV default) to RGB (Matplotlib default)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        plt.figure(figsize=(6, 6))  # Optional: Adjust figure size
+        plt.imshow(frame_rgb)
+        plt.title(title)
+        plt.axis("off")  # Hide axes
+        plt.show()
+    else:
+        print("Warning: Cannot draw a None frame.")
