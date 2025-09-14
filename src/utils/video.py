@@ -44,116 +44,73 @@ def is_video_valid(video_path: str) -> bool:
         return False
 
 
-def change_fps(
+def convert_video(
     input_path: str,
     output_path: str,
-    target_fps: float = 30.0,
+    target_fps: Optional[float] = None,
+    target_ext: Optional[str] = None,
     no_audio: bool = True,
 ) -> bool:
     """
-    Changes the FPS of a single video using FFmpeg.
+    Converts a video by changing its FPS, format, or both using FFmpeg.
 
     Args:
         input_path (str): Path to the input video file.
         output_path (str): Path to save the processed video file.
-        target_fps (int): Desired frames per second (default: 30).
+        target_fps (float, optional): Desired frames per second. If None, FPS is unchanged.
+        target_ext (str, optional): Target extension (e.g., ".mp4"). If None, format is unchanged.
+        no_audio (bool): Whether to remove audio (default: True).
 
     Returns:
         bool: True if processing succeeded, False otherwise.
     """
+    # --- validate ---
     if not isinstance(input_path, str) or not isinstance(output_path, str):
         raise TypeError("Input and output paths must be strings")
-    if not isinstance(target_fps, int):
-        raise TypeError("Target FPS must be a float")
-    if target_fps <= 0:
-        raise ValueError("Target FPS must be greater than 0")
 
+    if target_fps is not None:
+        if not isinstance(target_fps, (int, float)):
+            raise TypeError("Target FPS must be a number")
+        if target_fps <= 0:
+            raise ValueError("Target FPS must be greater than 0")
+
+    if target_ext is not None:
+        if not isinstance(target_ext, str):
+            raise TypeError("Target extension must be a string")
+        if not target_ext.startswith("."):
+            raise ValueError("Target extension must start with '.'")
+        output_path = str(Path(output_path).with_suffix(target_ext))
+
+    # Skip if already exists and valid
     if os.path.exists(output_path):
         if is_video_valid(output_path):
-            logging.info(f"FPS already changed for: {os.path.basename(input_path)}")
+            logging.info(f"Video already processed: {os.path.basename(input_path)}")
             return True
 
-    command = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        input_path,
-        "-r",
-        str(target_fps)] + \
-        (["-an"] if no_audio else []) + \
-        [output_path]
+    # --- build command ---
+    command = ["ffmpeg", "-y", "-i", input_path]
+    if target_fps is not None:
+        command += ["-r", str(target_fps)]
+    if no_audio:
+        command += ["-an"]
+    command.append(output_path)
 
+    # --- run ---
     try:
-        _ = subprocess.run(
-            command,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=60,
-        )
-        logging.info(f"Successfully changed FPS for: {os.path.basename(input_path)}")
-        return True
-    except Exception as e:
-        logging.error(
-            f"Error changing FPS for: {os.path.basename(input_path)}: {traceback.format_exc()}"
-        )
-        return False
-
-
-def change_format(
-    input_path: str,
-    output_path: str,
-    target_ext: str = ".mp4",
-    no_audio: bool = True,
-) -> bool:
-    """
-    Converts a video to a different format/container using FFmpeg.
-
-    Args:
-        input_path (str): Path to the input video file.
-        output_path (str): Path to save the converted video file.
-        target_ext (str): Target extension (default: ".mp4").
-
-    Returns:
-        bool: True if processing succeeded, False otherwise.
-    """
-    if not isinstance(input_path, str) or not isinstance(output_path, str):
-        raise TypeError("Input and output paths must be strings")
-    if not isinstance(target_ext, str):
-        raise TypeError("Target extension must be a string")
-    if not target_ext.startswith("."):
-        raise ValueError("Target extension must start with '.'")
-
-    # Ensure output path uses the correct extension
-    output_file = Path(output_path).with_suffix(target_ext)
-
-    if os.path.exists(output_file):
-        if is_video_valid(output_path):
-            logging.info(f"Format already converted for: {os.path.basename(input_path)}")
-            return True
-
-    command = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        input_path] + \
-        (["-an"] if no_audio else []) + \
-        [str(output_file)]
-
-    try:
-        _ = subprocess.run(
+        subprocess.run(
             command,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
         logging.info(
-            f"Successfully converted format for: {os.path.basename(input_path)}"
+            f"Successfully processed {os.path.basename(input_path)} "
+            f"(fps={target_fps}, format={target_ext})"
         )
         return True
     except Exception:
         logging.error(
-            f"Error converting format for: {os.path.basename(input_path)}: {traceback.format_exc()}"
+            f"Error processing {os.path.basename(input_path)}: {traceback.format_exc()}"
         )
         return False
 
