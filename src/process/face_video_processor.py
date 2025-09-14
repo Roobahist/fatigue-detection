@@ -139,7 +139,8 @@ class VideoProcessor:
             fd = FaceDetector(
                 output_face_blendshapes=False,
                 output_facial_transformation_matrixes=False,
-                num_faces=1)
+                num_faces=1,
+            )
             detection_result = fd.detect(frame)
 
             cropped_face, temp_detection_result = process_face(
@@ -190,6 +191,7 @@ class VideoProcessor:
         margin: float,
         fps: float = 30.0,
         fourcc: str = "mp4v",
+        fps: float = 30.0,
         output_size: tuple[int, int] = (224, 224),
     ) -> tuple[
         Optional[cv2.VideoWriter],
@@ -203,6 +205,11 @@ class VideoProcessor:
         Args:
             output_base: Base name for output files.
             frame_augmentations: Dictionary of augmented frames.
+            mask: Whether to apply a mask to the face region.
+            align: Whether to align the face based on eye positions.
+            crop: Whether to crop the face region.
+            margin: The margin to add around the bounding box as a fraction of the face's width/height.
+            fourcc: Four-character code for the video codec.
             fps: Frames per second of the video.
             output_size: Size of frames (width, height).
 
@@ -414,7 +421,9 @@ class VideoProcessor:
                         frame=processed_frame, augmentations=augmentations
                     )
                     for aug_key, aug_frame in frame_augmentations.items():
-                        processed_augmented_videos_writers[aug_key].write_frame(aug_frame)
+                        processed_augmented_videos_writers[aug_key].write_frame(
+                            aug_frame
+                        )
 
             return None
 
