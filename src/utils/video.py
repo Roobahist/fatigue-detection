@@ -202,7 +202,7 @@ class VideoReader:
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         self.current_frame_index = -1
 
-    def get_frame(
+    def read_frame(
         self,
         frame_index: Union[int, str],
         jump: bool = True,
