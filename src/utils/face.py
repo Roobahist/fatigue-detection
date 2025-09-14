@@ -13,8 +13,8 @@ def calculate_ROI_face(
     frame: np.ndarray,
     detection_result: object,
     landmark_groups: list[Optional[list[int]]] = [],
-    margin_h: float = 0.0,
-    margin_w: float = 0.0,
+    margin_h: list[Optional[float], float] = 0.0,
+    margin_w: list[Optional[float], float] = 0.0,
     return_cropped_roi: bool = False,
     cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
 ):
@@ -29,9 +29,9 @@ def calculate_ROI_face(
         Detection result containing face landmarks.
     landmark_groups : list[Optional[list[int]]]
         Groups of landmark indices. If [], use all landmarks.
-    margin_h : float
+    margin_h : list[Optional[float], float]
         Extra margin (proportion of face height).
-    margin_w : float
+    margin_w : list[Optional[float], float]
         Extra margin (proportion of face width).
     return_cropped_roi : bool
         If True, also return the cropped ROI image.
@@ -47,11 +47,26 @@ def calculate_ROI_face(
             "boxes": list of (x, y, w, h) bounding boxes
         }
     """
+
     height, width = frame.shape[:2]
     regions = {"points": [], "boxes": [], "cropped_rois": []}
-
     if not hasattr(detection_result, "face_landmarks"):
         return regions
+
+    if isinstance(margin_h, float):
+        margin_h = [margin_h] * max(len(landmark_groups), 1)
+    if len(margin_h) != len(landmark_groups):
+        raise ValueError("Length of margin_h must match length of landmark_groups.")
+    if not isinstance(margin_h, list):
+        raise ValueError("margin_h should be either float or a list of floats")
+
+    if isinstance(margin_w, float):
+        margin_w = [margin_w] * max(len(landmark_groups), 1)
+    if len(margin_w) != len(landmark_groups):
+        raise ValueError("Length of margin_w must match length of landmark_groups.")
+    if not isinstance(margin_w, list):
+        raise ValueError("margin_w should be either float or a list of floats")
+
     if (
         len(landmark_groups) != 0
         and return_cropped_roi
@@ -75,14 +90,14 @@ def calculate_ROI_face(
         ):
             landmark_groups = [list(range(len(face_landmarks)))]
 
-        for group in landmark_groups:
+        for group_idx in range(len(landmark_groups)):
             pts = np.array(
                 [
                     [
                         int(face_landmarks[i].x * width),
                         int(face_landmarks[i].y * height),
                     ]
-                    for i in group
+                    for i in landmark_groups[group_idx]
                     if i < len(face_landmarks)
                 ],
                 dtype=np.int32,
@@ -97,8 +112,8 @@ def calculate_ROI_face(
                 x, y, w, h = cv2.boundingRect(hull)
 
                 # add margins
-                dw = int(margin_w * face_w)
-                dh = int(margin_h * face_h)
+                dw = int(margin_w[group_idx] * face_w)
+                dh = int(margin_h[group_idx] * face_h)
                 x = max(x - dw // 2, 0)
                 y = max(y - dh // 2, 0)
                 w = min(w + dw, width - x)
