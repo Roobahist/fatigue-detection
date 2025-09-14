@@ -5,8 +5,87 @@ import numpy as np
 import logging
 import traceback
 from Zh.src.utils.face_indices import *
+def calculate_ROI_face(
+    frame: np.ndarray,
+    detection_result: object,
+    landmark_groups: list[Optional[list[int]]] = [],
+    margin_h: float = 0.0,
+    margin_w: float = 0.0,
+):
+    """
+    Compute landmark points or bounding boxes from face landmarks.
 
-def mask_frame(frame: np.ndarray, detection_result, width: int, height: int) -> np.ndarray:
+    Parameters
+    ----------
+    frame : np.ndarray
+        Input frame.
+    detection_result : FaceLandmarkerResult
+        Detection result containing face landmarks.
+    landmark_groups : list[Optional[list[int]]]
+        Groups of landmark indices. If [], use all landmarks.
+    margin_h : float
+        Extra margin (proportion of face height).
+    margin_w : float
+        Extra margin (proportion of face width).
+    Returns
+    -------
+    regions : dict
+        {
+            "points": list of (x,y) landmark coords,
+            "boxes": list of (x, y, w, h) bounding boxes
+        }
+    """
+    height, width = frame.shape[:2]
+    regions = {"points": [], "boxes": []}
+
+    if not hasattr(detection_result, "face_landmarks"):
+        return regions
+
+    for face_landmarks in detection_result.face_landmarks:
+        xs = [int(lm.x * width) for lm in face_landmarks]
+        ys = [int(lm.y * height) for lm in face_landmarks]
+        face_w = max(xs) - min(xs)
+        face_h = max(ys) - min(ys)
+
+        # default: use all landmarks
+        if (
+            landmark_groups is None
+            or isinstance(landmark_groups, list)
+            and len(landmark_groups) == 0
+        ):
+            landmark_groups = [list(range(len(face_landmarks)))]
+
+        for group in landmark_groups:
+            pts = np.array(
+                [
+                    [
+                        int(face_landmarks[i].x * width),
+                        int(face_landmarks[i].y * height),
+                    ]
+                    for i in group
+                    if i < len(face_landmarks)
+                ],
+                dtype=np.int32,
+            )
+            if pts.shape[0] < 1:
+                continue
+
+            regions["points"].extend(pts.tolist())
+
+            if pts.shape[0] >= 3:
+                hull = cv2.convexHull(pts)
+                x, y, w, h = cv2.boundingRect(hull)
+
+                # add margins
+                dw = int(margin_w * face_w)
+                dh = int(margin_h * face_h)
+                x = max(x - dw // 2, 0)
+                y = max(y - dh // 2, 0)
+                w = min(w + dw, width - x)
+                h = min(h + dh, height - y)
+
+                regions["boxes"].append((x, y, w, h))
+    return regions
     """
     Masks the face region using both FACE_OVAL and HORIZONTAL_CENTER landmarks to handle face rotation.
 
