@@ -13,10 +13,12 @@ def calculate_ROI_face(
     frame: np.ndarray,
     detection_result: object,
     landmark_groups: list[Optional[list[int]]] = [],
-    margin_h: list[Optional[float], float] = 0.0,
-    margin_w: list[Optional[float], float] = 0.0,
+    margin_h: Union[list[Optional[float], float], float] = 0.0,
+    margin_w: Union[list[Optional[float], float], float] = 0.0,
     return_cropped_roi: bool = False,
-    cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
+    cropped_roi_output_sizes: Union[
+        list[Optional[Union[Tuple[int, int], str]]], Tuple[int, int], str
+    ] = [],
 ):
     """
     Compute landmark points or bounding boxes from face landmarks.
@@ -53,8 +55,13 @@ def calculate_ROI_face(
     if not hasattr(detection_result, "face_landmarks"):
         return regions
 
+    if not isinstance(landmark_groups, list):
+        raise ValueError("landmark_groups should be a list of lists of integers.")
+
     if isinstance(margin_h, float):
         margin_h = [margin_h] * max(len(landmark_groups), 1)
+    if not isinstance(margin_h, list):
+        raise ValueError("margin_h should be either float or a list of floats")
     if len(margin_h) != len(landmark_groups):
         raise ValueError("Length of margin_h must match length of landmark_groups.")
     if not isinstance(margin_h, list):
@@ -62,18 +69,32 @@ def calculate_ROI_face(
 
     if isinstance(margin_w, float):
         margin_w = [margin_w] * max(len(landmark_groups), 1)
+    if not isinstance(margin_w, list):
+        raise ValueError("margin_w should be either float or a list of floats")
     if len(margin_w) != len(landmark_groups):
         raise ValueError("Length of margin_w must match length of landmark_groups.")
     if not isinstance(margin_w, list):
         raise ValueError("margin_w should be either float or a list of floats")
 
+    if isinstance(cropped_roi_output_sizes, str) and cropped_roi_output_sizes not in [
+        "original",
+        "original_square",
+    ]:
+        raise ValueError(
+            "only acceptable strings for cropped_roi_output_sizes are 'original' and 'original_square'"
+        )
+    if isinstance(cropped_roi_output_sizes, tuple):
+        cropped_roi_output_sizes = [cropped_roi_output_sizes] * max(
+            len(landmark_groups), 1
+        )
     if (
-        len(landmark_groups) != 0
+        isinstance(cropped_roi_output_sizes, list)
+        and len(landmark_groups) != 0
+        and len(cropped_roi_output_sizes) != len(landmark_groups)
         and return_cropped_roi
-        and len(landmark_groups) != len(cropped_roi_output_sizes)
     ):
         raise ValueError(
-            "Length of landmark_groups must match length of cropped_roi_output_sizes when return_cropped_roi is True."
+            "Length of cropped_roi_output_sizes must match length of landmark_groups."
         )
 
     for face_landmarks in detection_result.face_landmarks:
