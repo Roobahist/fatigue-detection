@@ -11,6 +11,8 @@ def calculate_ROI_face(
     landmark_groups: list[Optional[list[int]]] = [],
     margin_h: float = 0.0,
     margin_w: float = 0.0,
+    return_cropped_roi: bool = False,
+    cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
 ):
     """
     Compute landmark points or bounding boxes from face landmarks.
@@ -27,6 +29,12 @@ def calculate_ROI_face(
         Extra margin (proportion of face height).
     margin_w : float
         Extra margin (proportion of face width).
+    return_cropped_roi : bool
+        If True, also return the cropped ROI image.
+    cropped_roi_output_sizes : list[Optional[Union[Tuple[int, int], str]]]
+        List of sizes (width, height) to resize the cropped ROI to.
+        There should be as many sizes as there are landmark groups.
+
     Returns
     -------
     regions : dict
@@ -36,10 +44,18 @@ def calculate_ROI_face(
         }
     """
     height, width = frame.shape[:2]
-    regions = {"points": [], "boxes": []}
+    regions = {"points": [], "boxes": [], "cropped_rois": []}
 
     if not hasattr(detection_result, "face_landmarks"):
         return regions
+    if (
+        len(landmark_groups) != 0
+        and return_cropped_roi
+        and len(landmark_groups) != len(cropped_roi_output_sizes)
+    ):
+        raise ValueError(
+            "Length of landmark_groups must match length of cropped_roi_output_sizes when return_cropped_roi is True."
+        )
 
     for face_landmarks in detection_result.face_landmarks:
         xs = [int(lm.x * width) for lm in face_landmarks]
@@ -85,6 +101,21 @@ def calculate_ROI_face(
                 h = min(h + dh, height - y)
 
                 regions["boxes"].append((x, y, w, h))
+
+    if return_cropped_roi:
+        for output_size, box in zip(cropped_roi_output_sizes, regions["boxes"]):
+            x, y, w, h = box
+            cropped_roi = frame[y : y + h, x : x + w]
+            if output_size == "original_square":
+                output_size = (max(w, h), max(w, h))
+            elif output_size == "original":
+                output_size = (w, h)
+
+            cropped_roi_resized = cv2.resize(
+                cropped_roi, output_size, interpolation=cv2.INTER_LINEAR
+            )
+            regions["cropped_rois"].append(cropped_roi_resized)
+
     return regions
     """
     Masks the face region using both FACE_OVAL and HORIZONTAL_CENTER landmarks to handle face rotation.
