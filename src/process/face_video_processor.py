@@ -165,6 +165,18 @@ class VideoProcessor:
                 margin=margin,
                 output_size=output_size,
             )
+
+            if cropped_face is None:
+                cropped_face, detection_result = process_face(
+                    frame=frame,
+                    detection_result=temp_detection_result,
+                    mask=mask,
+                    align=align,
+                    crop=crop,
+                    margin=margin,
+                    output_size=output_size,
+                )
+
             if cropped_face is not None:
                 regions = calculate_ROI_face(
                     frame=cropped_face,
@@ -176,35 +188,13 @@ class VideoProcessor:
                     cropped_roi_output_sizes=cropped_roi_output_sizes,
                 )
                 return cropped_face, detection_result, regions
-
-            # If current detection failed but we have a previous result, try using that
-            if temp_detection_result is not None:
-                cropped_face, temp_detection_result = process_face(
-                    frame=frame,
-                    detection_result=temp_detection_result,
-                    mask=mask,
-                    align=align,
-                    crop=crop,
-                    margin=margin,
-                    output_size=output_size,
-                )
-                if cropped_face is not None:
-                    regions = calculate_ROI_face(
-                        frame=cropped_face,
-                        detection_result=temp_detection_result,
-                        landmark_groups=landmark_groups,
-                        margin_h=margin_h,
-                        margin_w=margin_w,
-                        return_cropped_roi=True,
-                        cropped_roi_output_sizes=cropped_roi_output_sizes,
-                    )
-                    return cropped_face, temp_detection_result, regions
-
-            return None, None
+            
+            else:
+                return None, None, None
 
         except Exception as e:
             logging.error(f"Error processing a frame: {traceback.format_exc()}")
-            return None, None
+            return None, None, None
         finally:
             cleanup(
                 ["mp_image", "detector", "detection_result"],
@@ -413,6 +403,7 @@ class VideoProcessor:
                     align=align,
                     crop=crop,
                     margin=margin,
+                    landmark_groups=landmark_groups,
                     fps=fps,
                     output_size=output_size,
                 )
