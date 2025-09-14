@@ -35,13 +35,28 @@ def draw_regions(
     """
     annotated_frame = frame.copy()
 
+    # Define a list of distinctive colors (BGR)
+    color_palette = [
+        (255, 0, 0),    # Blue
+        (0, 255, 0),    # Green
+        (0, 0, 255),    # Red
+        (255, 255, 0),  # Cyan
+        (255, 0, 255),  # Magenta
+        (0, 255, 255),  # Yellow
+        (128, 0, 128),  # Purple
+        (0, 128, 128),  # Teal
+        (128, 128, 0),  # Olive
+        (0, 0, 128),    # Maroon
+    ]
+
     if mode == "points":
         for x, y in regions["points"]:
             cv2.circle(annotated_frame, (x, y), radius, color, thickness)
 
     elif mode == "boxes":
-        for x, y, w, h in regions["boxes"]:
-            cv2.rectangle(annotated_frame, (x, y), (x + w, y + h), color, 2)
+        for idx, (x, y, w, h) in enumerate(regions["boxes"]):
+            group_color = color_palette[idx % len(color_palette)]
+            cv2.rectangle(annotated_frame, (x, y), (x + w, y + h), group_color, 2)
 
     elif mode == "mask":
         mask = np.zeros_like(annotated_frame)
