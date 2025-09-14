@@ -357,7 +357,7 @@ class VideoProcessor:
             if isinstance(output_size, str):
                 temp_detection_result = None
                 for frame_index in range(start_frame, end_frame):
-                    ret, frame = vr.get_frame(frame_index=frame_index, jump=False)
+                    ret, frame = vr.read_frame(frame_index=frame_index, jump=False)
 
                     if not ret:
                         continue
@@ -390,7 +390,7 @@ class VideoProcessor:
 
             # augment the first frame to get the keys of augmentations
             temp_frame_augmentations = self._augment_frame(
-                frame=vr.get_frame(frame_index="next", jump=False)[1],
+                frame=vr.read_frame(frame_index="next", jump=False)[1],
                 augmentations=augmentations,
             )
 
@@ -418,7 +418,7 @@ class VideoProcessor:
                 total=end_frame - start_frame,
                 miniters=100,
             ):
-                ret, frame = vr.get_frame(frame_index=frame_index, jump=True)
+                ret, frame = vr.read_frame(frame_index=frame_index, jump=True)
                 if not ret:
                     print(
                         f"{video_file} Failed to read frame at index {frame_index}, skipping."
