@@ -377,10 +377,15 @@ def process_face(
         )
         height, width = frame.shape[:2]
 
-    if output_size == "original_square":
-        output_size = (max(width, height), max(width, height))
-    elif output_size == "original":
-        output_size = (width, height)
+    if isinstance(output_size, str):
+        if output_size == "original_square":
+            output_size = (max(width, height), max(width, height))
+        elif output_size == "original":
+            output_size = (width, height)
+        else:
+            raise ValueError(
+                f"Invalid output_size: {output_size}. Must be 'original' or 'original_square'."
+            )
 
     processed_frame = cv2.resize(frame, output_size, interpolation=cv2.INTER_LINEAR)
 

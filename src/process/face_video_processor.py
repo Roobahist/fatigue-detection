@@ -344,18 +344,10 @@ class VideoProcessor:
                     if processed_frame is None:
                         continue
 
-                    if output_size == "original":
-                        output_size = (
-                            processed_frame.shape[1],
-                            processed_frame.shape[0],
-                        )
-                    elif output_size == "original_square":
-                        side_length = max(
-                            processed_frame.shape[0], processed_frame.shape[1]
-                        )
-                        output_size = (side_length, side_length)
-                    else:
-                        raise ValueError(f"Invalid output_size string: {output_size}")
+                    output_size = (
+                        processed_frame.shape[1],
+                        processed_frame.shape[0],
+                    )
 
             if isinstance(output_size, str):
                 print(
