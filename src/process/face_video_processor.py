@@ -63,7 +63,11 @@ class VideoProcessor:
             for aug_params in aug_configs:
                 augmented_frame = original_frame.copy()
 
-                if aug_name == "gaussianblur":
+                if aug_name == "base":
+                    aug_key = f"{aug_name}"
+                    frame_augmentations[aug_key] = augmented_frame
+
+                elif aug_name == "gaussianblur":
                     kernel_size = aug_params.get("kernel_size", 3)
                     aug_key = f"{aug_name}_kernelsize{kernel_size}"
                     augmented_frame = cv2.GaussianBlur(
@@ -257,29 +261,26 @@ class VideoProcessor:
         processed_folder = os.path.join(self.output_folder, process_tag)
         create_folders(processed_folder)
 
-        ROIs_names = ["base"] + [f"ROI_{i}" for i in range(len(landmark_groups))]
-        augmentations_names = ["base"] + list(frame_augmentations.keys())
+        video_writers = {}
+        for ROI_name in [f"ROI{i}" for i in range(len(landmark_groups)+1)]:
+            for aug_key in list(frame_augmentations.keys()):
+                create_folders(os.path.join(processed_folder, ROI_name, aug_key))
 
-        writers = {}
-        for ROI_name in ROIs_names:
-            for aug_name in augmentations_names:
-                create_folders(os.path.join(processed_folder, ROI_name, aug_name))
-
-                key = f"{ROI_name}__{aug_name}"
+                video_writer_key = f"{ROI_name}__{aug_key}"
                 output_path = os.path.join(
                     processed_folder,
                     ROI_name,
-                    aug_name,
-                    f"{output_base}__{process_tag}__{ROI_name}__{aug_name}.mp4",
+                    aug_key,
+                    f"{output_base}__{process_tag}__{video_writer_key}.mp4",
                 )
-                writers[key] = VideoWriter(
+                video_writers[video_writer_key] = VideoWriter(
                     output_path=output_path,
                     fourcc=fourcc,
                     fps=fps,
                     frame_size=output_size,
                 )
 
-        return writers
+        return video_writers
 
     # def _get_embedding(self, frame: np.ndarray, embedding_model: str) -> List[float]:
     #     """
@@ -398,16 +399,16 @@ class VideoProcessor:
             print(f"Output size set to: {output_size}")
 
             # augment the first frame to get the keys of augmentations
-            frame_augmentations = self._augment_frame(
+            temp_frame_augmentations = self._augment_frame(
                 frame=vr.get_frame(frame_index="next", jump=False)[1],
                 augmentations=augmentations,
             )
 
             # Initialize output writers
-            processed_video_writer, processed_augmented_videos_writers = (
+            video_writers = (
                 self._initialize_video_output(
                     output_base=output_base,
-                    frame_augmentations=frame_augmentations,
+                    frame_augmentations=temp_frame_augmentations,
                     mask=mask,
                     align=align,
                     crop=crop,
@@ -449,29 +450,26 @@ class VideoProcessor:
                     margin_w=margin_w,
                     cropped_roi_output_sizes=cropped_roi_output_sizes,
                 )
-
+                
                 if processed_frame is not None:
-                    processed_video_writer.write_frame(processed_frame)
-
-                    # Process and write augmented frames
-                    frame_augmentations = self._augment_frame(
-                        frame=processed_frame, augmentations=augmentations
-                    )
-                    for aug_key, aug_frame in frame_augmentations.items():
-                        processed_augmented_videos_writers[aug_key].write_frame(
-                            aug_frame
+                    for roi_idx in range(len([processed_frame] + regions['cropped_rois'])):
+                        roi = ([processed_frame] + regions['cropped_rois'])[roi_idx]
+                        frame_augmentations = self._augment_frame(
+                            frame=roi, 
+                            augmentations=augmentations
                         )
+                        for aug_key in list(frame_augmentations.keys()):
+                            video_writer_key = f"ROI{roi_idx}__{aug_key}"
+                            video_writers[video_writer_key].write_frame(frame_augmentations[aug_key])
 
-            return None
+            return True
 
         except Exception as e:
             logging.error(f"Error processing {video_file}: %s", traceback.format_exc())
-            return None
+            return False
         finally:
-            processed_video_writer.release()
-
-            for aug_key in frame_augmentations.keys():
-                processed_augmented_videos_writers[aug_key].release()
+            for video_writer in video_writers.values():
+                video_writer.release()
 
             vr.release()
 
@@ -594,6 +592,7 @@ if __name__ == "__main__":
     )
 
     augmentations = {
+        "base": [{}],
         "gaussianblur": [{"kernel_size": 3}, {"kernel_size": 5}],
         "brightness": [{"alpha": 1.2, "beta": 10}, {"alpha": 0.8, "beta": -10}],
         "contrast": [{"alpha": 1.5, "beta": 0}, {"alpha": 0.7, "beta": 0}],
