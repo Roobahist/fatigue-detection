@@ -90,7 +90,7 @@ def calculate_ROI_face(
             if pts.shape[0] < 1:
                 continue
 
-            regions["points"].extend(pts.tolist())
+            regions["points"].append(pts.tolist())
 
             if pts.shape[0] >= 3:
                 hull = cv2.convexHull(pts)
