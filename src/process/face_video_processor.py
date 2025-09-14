@@ -188,7 +188,7 @@ class VideoProcessor:
                     cropped_roi_output_sizes=cropped_roi_output_sizes,
                 )
                 return cropped_face, detection_result, regions
-            
+
             else:
                 return None, None, None
 
@@ -252,7 +252,7 @@ class VideoProcessor:
         create_folders(processed_folder)
 
         video_writers = {}
-        for ROI_name in [f"ROI{i}" for i in range(len(landmark_groups)+1)]:
+        for ROI_name in [f"ROI{i}" for i in range(len(landmark_groups) + 1)]:
             for aug_key in list(frame_augmentations.keys()):
                 create_folders(os.path.join(processed_folder, ROI_name, aug_key))
 
@@ -395,18 +395,16 @@ class VideoProcessor:
             )
 
             # Initialize output writers
-            video_writers = (
-                self._initialize_video_output(
-                    output_base=output_base,
-                    frame_augmentations=temp_frame_augmentations,
-                    mask=mask,
-                    align=align,
-                    crop=crop,
-                    margin=margin,
-                    landmark_groups=landmark_groups,
-                    fps=fps,
-                    output_size=output_size,
-                )
+            video_writers = self._initialize_video_output(
+                output_base=output_base,
+                frame_augmentations=temp_frame_augmentations,
+                mask=mask,
+                align=align,
+                crop=crop,
+                margin=margin,
+                landmark_groups=landmark_groups,
+                fps=fps,
+                output_size=output_size,
             )
 
             # Process frames
@@ -441,17 +439,20 @@ class VideoProcessor:
                     margin_w=margin_w,
                     cropped_roi_output_sizes=cropped_roi_output_sizes,
                 )
-                
+
                 if processed_frame is not None:
-                    for roi_idx in range(len([processed_frame] + regions['cropped_rois'])):
-                        roi = ([processed_frame] + regions['cropped_rois'])[roi_idx]
+                    for roi_idx in range(
+                        len([processed_frame] + regions["cropped_rois"])
+                    ):
+                        roi = ([processed_frame] + regions["cropped_rois"])[roi_idx]
                         frame_augmentations = self._augment_frame(
-                            frame=roi, 
-                            augmentations=augmentations
+                            frame=roi, augmentations=augmentations
                         )
                         for aug_key in list(frame_augmentations.keys()):
                             video_writer_key = f"ROI{roi_idx}__{aug_key}"
-                            video_writers[video_writer_key].write_frame(frame_augmentations[aug_key])
+                            video_writers[video_writer_key].write_frame(
+                                frame_augmentations[aug_key]
+                            )
 
             return True
 

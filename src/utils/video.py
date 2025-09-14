@@ -1,8 +1,8 @@
 import logging
 import os
 import subprocess
-from typing import Dict, List, Optional, Tuple, Union
 import traceback
+from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 import matplotlib.pyplot as plt
@@ -75,8 +75,10 @@ def change_fps(
     command = [
         "ffmpeg",
         "-y",
-        "-i", input_path,
-        "-r", str(target_fps),
+        "-i",
+        input_path,
+        "-r",
+        str(target_fps),
         output_path,
     ]
 
@@ -91,7 +93,9 @@ def change_fps(
         logging.info(f"Successfully changed FPS for: {os.path.basename(input_path)}")
         return True
     except Exception as e:
-        logging.error(f"Error changing FPS for: {os.path.basename(input_path)}: {traceback.format_exc()}")    
+        logging.error(
+            f"Error changing FPS for: {os.path.basename(input_path)}: {traceback.format_exc()}"
+        )
         return False
 
 
