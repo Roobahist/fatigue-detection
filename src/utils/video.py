@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess
 from typing import Dict, List, Optional, Tuple, Union
+import traceback
 
 import cv2
 import matplotlib.pyplot as plt
@@ -46,7 +47,7 @@ def is_video_valid(video_path: str) -> bool:
 def change_fps(
     input_path: str,
     output_path: str,
-    target_fps: int = 30,
+    target_fps: float = 30.0,
 ) -> bool:
     """
     Changes the FPS of a single video using FFmpeg.
@@ -59,33 +60,38 @@ def change_fps(
     Returns:
         bool: True if processing succeeded, False otherwise.
     """
+    if not isinstance(input_path, str) or not isinstance(output_path, str):
+        raise TypeError("Input and output paths must be strings")
+    if not isinstance(target_fps, int):
+        raise TypeError("Target FPS must be a float")
+    if target_fps <= 0:
+        raise ValueError("Target FPS must be greater than 0")
+
     if os.path.exists(output_path):
         if is_video_valid(output_path):
+            logging.info(f"FPS already changed for: {os.path.basename(input_path)}")
             return True
 
     command = [
         "ffmpeg",
-        "-y",  # Overwrite output if it exists
-        "-i",
-        input_path,
-        "-r",
-        str(target_fps),
+        "-y",
+        "-i", input_path,
+        "-r", str(target_fps),
         output_path,
     ]
 
     try:
-        result = subprocess.run(
+        _ = subprocess.run(
             command,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            timeout=60,
         )
         logging.info(f"Successfully changed FPS for: {os.path.basename(input_path)}")
         return True
-    except subprocess.CalledProcessError as e:
-        logging.error(
-            f"Error changing FPS for {os.path.basename(input_path)}: {e.stderr.decode().strip()}"
-        )
+    except Exception as e:
+        logging.error(f"Error changing FPS for: {os.path.basename(input_path)}: {traceback.format_exc()}")    
         return False
 
 
