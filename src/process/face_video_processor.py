@@ -16,7 +16,7 @@ import numpy as np
 from deepface import DeepFace as DF
 from tqdm import tqdm
 
-from Zh.src.utils.cropper import process_face_in_frame
+from Zh.src.utils.face import process_face_in_frame
 from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.file_folder import create_folders
