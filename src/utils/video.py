@@ -33,7 +33,6 @@ def is_video_valid(video_path: str) -> bool:
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=10,
             check=True,
         )
         output = result.stdout.decode("utf-8").strip().split("\n")
@@ -147,7 +146,6 @@ def change_format(
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=60,
         )
         logging.info(
             f"Successfully converted format for: {os.path.basename(input_path)}"
