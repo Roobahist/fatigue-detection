@@ -14,7 +14,7 @@ from transformers import pipeline
 from PIL import Image
 from transformers import AutoVideoProcessor, AutoModel
 
-from Zh.src.process.frame_processor import FrameProcessor
+from Zh.src.utils.frame_processor import FrameProcessor
 from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
 from Zh.src.utils.memory import cleanup
