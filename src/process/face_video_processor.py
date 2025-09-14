@@ -16,8 +16,8 @@ import numpy as np
 from deepface import DeepFace as DF
 from tqdm import tqdm
 
-from Zh.src.utils.face import process_face
 from Zh.src.utils.csvwriter import CSVWriter
+from Zh.src.utils.face import calculate_ROI_face, process_face
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.memory import cleanup
