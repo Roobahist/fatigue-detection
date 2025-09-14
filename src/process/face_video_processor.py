@@ -118,6 +118,10 @@ class VideoProcessor:
         margin: float = 0.05,
         output_size: Union[Tuple[int, int], str] = (224, 224),
         temp_detection_result: Union[object, None] = None,
+        landmark_groups: list[Optional[list[int]]] = [],
+        margin_h: list[Optional[float], float] = 0.0,
+        margin_w: list[Optional[float], float] = 0.0,
+        cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
     ) -> tuple[Optional[np.ndarray], Union[object, None]]:
         """
         Processes a single frame, detecting and cropping the face, if the face is not detected in the current frame,
@@ -131,6 +135,11 @@ class VideoProcessor:
             margin: The margin to add around the bounding box as a fraction of the face's width/height.
             output_size: The desired output size of the cropped face (width, height).
             temp_detection_result: Previous detection result if available.
+            landmark_groups: A list of landmark groups to consider for cropping the regions of interest.
+            margin_h: The margin to add around the bounding box as a fraction of the face's height.
+            margin_w: The margin to add around the bounding box as a fraction of the face's width.
+            return_cropped_roi: Whether to return the cropped region of interest.
+            cropped_roi_output_sizes: A list of output sizes for the cropped region of interest.
 
         Returns:
             A tuple containing the cropped face frame and detection result, or (None, None) if face detection fails.
@@ -143,7 +152,7 @@ class VideoProcessor:
             )
             detection_result = fd.detect(frame)
 
-            cropped_face, temp_detection_result = process_face(
+            cropped_face, detection_result = process_face(
                 frame=frame,
                 detection_result=detection_result,
                 mask=mask,
@@ -153,7 +162,16 @@ class VideoProcessor:
                 output_size=output_size,
             )
             if cropped_face is not None:
-                return cropped_face, detection_result
+                regions = calculate_ROI_face(
+                    frame=cropped_face,
+                    detection_result=detection_result,
+                    landmark_groups=landmark_groups,
+                    margin_h=margin_h,
+                    margin_w=margin_w,
+                    return_cropped_roi=True,
+                    cropped_roi_output_sizes=cropped_roi_output_sizes,
+                )
+                return cropped_face, detection_result, regions
 
             # If current detection failed but we have a previous result, try using that
             if temp_detection_result is not None:
@@ -167,7 +185,16 @@ class VideoProcessor:
                     output_size=output_size,
                 )
                 if cropped_face is not None:
-                    return cropped_face, temp_detection_result
+                    regions = calculate_ROI_face(
+                        frame=cropped_face,
+                        detection_result=temp_detection_result,
+                        landmark_groups=landmark_groups,
+                        margin_h=margin_h,
+                        margin_w=margin_w,
+                        return_cropped_roi=True,
+                        cropped_roi_output_sizes=cropped_roi_output_sizes,
+                    )
+                    return cropped_face, temp_detection_result, regions
 
             return None, None
 
