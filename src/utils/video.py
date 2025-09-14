@@ -49,6 +49,7 @@ def change_fps(
     input_path: str,
     output_path: str,
     target_fps: float = 30.0,
+    no_audio: bool = True,
 ) -> bool:
     """
     Changes the FPS of a single video using FFmpeg.
@@ -79,9 +80,9 @@ def change_fps(
         "-i",
         input_path,
         "-r",
-        str(target_fps),
-        output_path,
-    ]
+        str(target_fps)] + \
+        (["-an"] if no_audio else []) + \
+        [output_path]
 
     try:
         _ = subprocess.run(
@@ -104,6 +105,7 @@ def change_format(
     input_path: str,
     output_path: str,
     target_ext: str = ".mp4",
+    no_audio: bool = True,
 ) -> bool:
     """
     Converts a video to a different format/container using FFmpeg.
@@ -135,9 +137,9 @@ def change_format(
         "ffmpeg",
         "-y",
         "-i",
-        input_path,
-        str(output_file),
-    ]
+        input_path] + \
+        (["-an"] if no_audio else []) + \
+        [str(output_file)]
 
     try:
         _ = subprocess.run(
