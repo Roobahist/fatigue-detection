@@ -16,7 +16,7 @@ import numpy as np
 from deepface import DeepFace as DF
 from tqdm import tqdm
 
-from Zh.src.utils.face import process_face_in_frame
+from Zh.src.utils.face import process_face
 from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.file_folder import create_folders
@@ -142,7 +142,7 @@ class VideoProcessor:
                 num_faces=1)
             detection_result = fd.detect(frame)
 
-            cropped_face, temp_detection_result = process_face_in_frame(
+            cropped_face, temp_detection_result = process_face(
                 frame=frame,
                 detection_result=detection_result,
                 mask=mask,
@@ -156,7 +156,7 @@ class VideoProcessor:
 
             # If current detection failed but we have a previous result, try using that
             if temp_detection_result is not None:
-                cropped_face, temp_detection_result = process_face_in_frame(
+                cropped_face, temp_detection_result = process_face(
                     frame=frame,
                     detection_result=temp_detection_result,
                     mask=mask,
