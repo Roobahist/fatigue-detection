@@ -189,7 +189,7 @@ class VideoProcessor:
         align: bool,
         crop: bool,
         margin: float,
-        fps: float = 30.0,
+        landmark_groups: list[Optional[list[int]]],
         fourcc: str = "mp4v",
         fps: float = 30.0,
         output_size: tuple[int, int] = (224, 224),
@@ -209,6 +209,7 @@ class VideoProcessor:
             align: Whether to align the face based on eye positions.
             crop: Whether to crop the face region.
             margin: The margin to add around the bounding box as a fraction of the face's width/height.
+            landmark_groups: List of landmark groups to consider for creating writers.
             fourcc: Four-character code for the video codec.
             fps: Frames per second of the video.
             output_size: Size of frames (width, height).
@@ -229,33 +230,29 @@ class VideoProcessor:
         processed_folder = os.path.join(self.output_folder, process_tag)
         create_folders(processed_folder)
 
-        processed_video_output_path = os.path.join(
-            processed_folder, f"{output_base}__{process_tag}.mp4"
-        )
-        processed_video_writer = VideoWriter(
-            output_path=processed_video_output_path,
-            fourcc=fourcc,
-            fps=fps,
-            frame_size=output_size,
-        )
+        ROIs_names = ["base"] + [f"ROI_{i}" for i in range(len(landmark_groups))]
+        augmentations_names = ["base"] + list(frame_augmentations.keys())
 
-        processed_augmented_videos_writers = {}
-        # Initialize augmented video writers
-        for aug_key in frame_augmentations.keys():
-            aug_folder = os.path.join(self.output_folder, aug_key)
-            create_folders(aug_folder)
+        writers = {}
+        for ROI_name in ROIs_names:
+            for aug_name in augmentations_names:
+                create_folders(os.path.join(processed_folder, ROI_name, aug_name))
 
-            processed_augmented_video_output_path = os.path.join(
-                aug_folder, f"{output_base}__{process_tag}__{aug_key}.mp4"
-            )
-            processed_augmented_videos_writers[aug_key] = VideoWriter(
-                output_path=processed_augmented_video_output_path,
-                fourcc=fourcc,
-                fps=fps,
-                frame_size=output_size,
-            )
+                key = f"{ROI_name}__{aug_name}"
+                output_path = os.path.join(
+                    processed_folder,
+                    ROI_name,
+                    aug_name,
+                    f"{output_base}__{process_tag}__{ROI_name}__{aug_name}.mp4",
+                )
+                writers[key] = VideoWriter(
+                    output_path=output_path,
+                    fourcc=fourcc,
+                    fps=fps,
+                    frame_size=output_size,
+                )
 
-        return processed_video_writer, processed_augmented_videos_writers
+        return writers
 
     # def _get_embedding(self, frame: np.ndarray, embedding_model: str) -> List[float]:
     #     """
