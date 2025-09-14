@@ -314,6 +314,10 @@ class VideoProcessor:
         margin: float = 0.05,
         augmentations: Optional[Dict[str, List[Dict]]] = None,
         output_size: Union[Tuple[int, int], str] = (224, 224),
+        landmark_groups: list[Optional[list[int]]] = [],
+        margin_h: list[Optional[float], float] = 0.0,
+        margin_w: list[Optional[float], float] = 0.0,
+        cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
     ) -> Optional[Dict[str, str]]:
         """
         Processes a single video file, detecting and cropping faces, with configurable augmentations.
@@ -328,6 +332,11 @@ class VideoProcessor:
             crop: If True, crops the faces before applying augmentations.
             margin: The margin to add around the bounding box as a fraction of the face's width/height.
             output_size: The desired output size of the cropped face (width, height).
+            landmark_groups: A list of landmark groups to consider for cropping the regions of interest.
+            margin_h: The margin to add around the bounding box as a fraction of the face's height.
+            margin_w: The margin to add around the bounding box as a fraction of the face's width.
+            return_cropped_roi: Whether to return the cropped region of interest.
+            cropped_roi_output_sizes: A list of output sizes for the cropped region of interest.
 
         Returns:
             A dictionary containing the output video paths for each augmentation, or None if processing fails.
@@ -362,7 +371,7 @@ class VideoProcessor:
                     if not ret:
                         continue
 
-                    processed_frame, temp_detection_result = self._process_frame(
+                    processed_frame, _, _ = self._process_frame(
                         frame=frame,
                         temp_detection_result=temp_detection_result,
                         mask=mask,
@@ -427,7 +436,7 @@ class VideoProcessor:
                     continue
 
                 # Process frame
-                processed_frame, temp_detection_result = self._process_frame(
+                processed_frame, temp_detection_result, regions = self._process_frame(
                     frame=frame,
                     temp_detection_result=temp_detection_result,
                     mask=mask,
@@ -435,6 +444,10 @@ class VideoProcessor:
                     crop=crop,
                     margin=margin,
                     output_size=output_size,
+                    landmark_groups=landmark_groups,
+                    margin_h=margin_h,
+                    margin_w=margin_w,
+                    cropped_roi_output_sizes=cropped_roi_output_sizes,
                 )
 
                 if processed_frame is not None:
@@ -489,6 +502,10 @@ class VideoProcessor:
         crop: bool = True,
         margin: float = 0.05,
         output_size: Union[Tuple[int, int], str] = (224, 224),
+        landmark_groups: list[Optional[list[int]]] = [],
+        margin_h: list[Optional[float], float] = 0.0,
+        margin_w: list[Optional[float], float] = 0.0,
+        cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
         parallel: bool = False,
         max_workers: Optional[int] = None,
         maxtasksperchild: int = 1,
@@ -507,6 +524,11 @@ class VideoProcessor:
             crop: If True, crops the faces before applying augmentations.
             margin: The margin to add around the bounding box as a fraction of the face's width/height.
             output_size: The desired output size of the cropped face (width, height).
+            landmark_groups: A list of landmark groups to consider for cropping the regions of interest.
+            margin_h: The margin to add around the bounding box as a fraction of the face's height.
+            margin_w: The margin to add around the bounding box as a fraction of the face's width.
+            return_cropped_roi: Whether to return the cropped region of interest.
+            cropped_roi_output_sizes: A list of output sizes for the cropped region of interest.
             parallel: If True, processes videos in parallel.
             max_workers: Maximum number of workers for parallel processing.
             maxtasksperchild: Maximum tasks per child process.
@@ -529,6 +551,10 @@ class VideoProcessor:
                 "margin": margin,
                 "augmentations": augmentations,
                 "output_size": output_size,
+                "landmark_groups": landmark_groups,
+                "margin_h": margin_h,
+                "margin_w": margin_w,
+                "cropped_roi_output_sizes": cropped_roi_output_sizes,
             }
             for video_file in video_files
         ]
@@ -589,6 +615,10 @@ if __name__ == "__main__":
         crop=True,
         margin=0.05,
         output_size=(224, 224),
+        landmark_groups=[],
+        margin_h=0.0,
+        margin_w=0.0,
+        cropped_roi_output_sizes=[(224, 224)],
         parallel=False,
         max_workers=None,
         maxtasksperchild=None,
