@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess
 import traceback
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -95,6 +96,64 @@ def change_fps(
     except Exception as e:
         logging.error(
             f"Error changing FPS for: {os.path.basename(input_path)}: {traceback.format_exc()}"
+        )
+        return False
+
+
+def change_format(
+    input_path: str,
+    output_path: str,
+    target_ext: str = ".mp4",
+) -> bool:
+    """
+    Converts a video to a different format/container using FFmpeg.
+
+    Args:
+        input_path (str): Path to the input video file.
+        output_path (str): Path to save the converted video file.
+        target_ext (str): Target extension (default: ".mp4").
+
+    Returns:
+        bool: True if processing succeeded, False otherwise.
+    """
+    if not isinstance(input_path, str) or not isinstance(output_path, str):
+        raise TypeError("Input and output paths must be strings")
+    if not isinstance(target_ext, str):
+        raise TypeError("Target extension must be a string")
+    if not target_ext.startswith("."):
+        raise ValueError("Target extension must start with '.'")
+
+    # Ensure output path uses the correct extension
+    output_file = Path(output_path).with_suffix(target_ext)
+
+    if os.path.exists(output_file):
+        if is_video_valid(output_path):
+            logging.info(f"Format already converted for: {os.path.basename(input_path)}")
+            return True
+
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        str(output_file),
+    ]
+
+    try:
+        _ = subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+        logging.info(
+            f"Successfully converted format for: {os.path.basename(input_path)}"
+        )
+        return True
+    except Exception:
+        logging.error(
+            f"Error converting format for: {os.path.basename(input_path)}: {traceback.format_exc()}"
         )
         return False
 
