@@ -1,22 +1,38 @@
-import os
-import subprocess
 import logging
+import os
+import shutil
+import subprocess
 import traceback
 from pathlib import Path
 from typing import Optional
-import shutil
+
+from Zh.src.utils.cpu_gpu import detect_gpu_capability
+from Zh.src.utils.video import is_video_valid
 
 
 def get_video_info(input_path: str) -> dict:
     """Get basic video information using ffprobe."""
     try:
         cmd = [
-            "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", 
-            "-show_streams", "-select_streams", "v:0", input_path
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            "-select_streams",
+            "v:0",
+            input_path,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         import json
+
         data = json.loads(result.stdout)
+
+        video_stream = data["streams"][0] if data["streams"] else {}
+        format_info = data.get("format", {})
+
         # Check for rotation metadata
         rotation = 0
         side_data = video_stream.get('side_data_list', [])
@@ -29,6 +45,11 @@ def get_video_info(input_path: str) -> dict:
                     rotation = 0
 
         return {
+            "fps": eval(video_stream.get("r_frame_rate", "0/1")),
+            "duration": float(format_info.get("duration", 0)),
+            "width": int(video_stream.get("width", 0)),
+            "height": int(video_stream.get("height", 0)),
+            "codec": video_stream.get("codec_name", "unknown"),
             "rotation": rotation
         }
     except Exception as e:
@@ -97,6 +118,7 @@ def convert_video(
     width = video_info.get('width', 0)
     height = video_info.get('height', 0)
     rotation = video_info.get('rotation', 0)
+    duration = video_info.get('duration', 0)
     
     # Detect GPU capabilities
     gpu_caps = detect_gpu_capability() if use_gpu else {}
@@ -167,7 +189,7 @@ def convert_video(
     # Apply filters
     if filters:
         if use_gpu and gpu_caps.get('nvenc_available'):
-            # Use GPU-accelerated filtering when possible
+            # GPU filtering
             filter_str = ",".join(filters)
             command += ["-vf", filter_str]
         else:
@@ -186,18 +208,18 @@ def convert_video(
     if no_audio:
         command += ["-an"]
     else:
-        command += ["-c:a", "aac", "-b:a", "128k"]  # Fast audio encoding
+        command += ["-c:a", "aac", "-b:a", "128k"]
 
     # Video encoding optimization
     if use_gpu and gpu_caps.get('nvenc_available'):
         # Optimized NVENC settings
         command += [
             "-c:v", "h264_nvenc",
-            "-preset", "p1" if optimize_for_speed else "p4",  # p1 = fastest
-            "-tune", "ll",  # Low latency
-            "-rc", "vbr",   # Variable bitrate
+            "-preset", "p1" if optimize_for_speed else "p4",
+            "-tune", "ll",
+            "-rc", "vbr",
             "-cq", "28",
-            "-b:v", "0",    # Let CQ control bitrate
+            "-b:v", "0",
             "-maxrate", "10M",
             "-bufsize", "20M"
         ]
@@ -213,10 +235,10 @@ def convert_video(
         if optimize_for_speed:
             command += [
                 "-c:v", "libx264",
-                "-preset", "veryfast",  # Fastest preset
-                "-tune", "fastdecode",  # Optimize for fast decode
+                "-preset", "veryfast",
+                "-tune", "fastdecode",
                 "-crf", "28",
-                "-x264opts", "ref=1:bframes=0:me=dia:subme=1:trellis=0"  # Speed optimizations
+                "-x264opts", "ref=1:bframes=0:me=dia:subme=1:trellis=0"
             ]
         else:
             command += [
@@ -230,7 +252,7 @@ def convert_video(
     
     # Container optimization
     if target_ext == '.mp4':
-        command += ["-movflags", "+faststart"]  # Enable streaming
+        command += ["-movflags", "+faststart"]
     
     # Memory and I/O optimization
     command += [
@@ -246,10 +268,11 @@ def convert_video(
         # Log the command for debugging
         logging.debug(f"FFmpeg command: {' '.join(command)}")
         
-        # Run with minimal stderr buffering for better performance
+        # Run with error capture for better debugging
         process = subprocess.run(
             command, 
             check=True,
+            capture_output=True,
             text=True
         )
         
@@ -268,14 +291,23 @@ def convert_video(
         
         logging.info(
             f"Successfully processed {os.path.basename(input_path)} "
-            f"(fps={target_fps}, format={target_ext}, gpu={use_gpu})"
+            f"(fps: {source_fps:.1f}->{actual_fps:.1f}, duration: {duration:.1f}s->{actual_duration:.1f}s, gpu={use_gpu})"
         )
         return True
         
     except subprocess.CalledProcessError as e:
-        logging.error(
-            f"FFmpeg error processing {os.path.basename(input_path)}: {e.stderr}"
-        )
+        error_msg = e.stderr if e.stderr else str(e)
+        
+        # Check for specific error patterns
+        if any(pattern in error_msg.lower() for pattern in [
+            "moov atom not found", 
+            "invalid data found",
+            "width not divisible by 2",
+            "height not divisible by 2"
+        ]):
+            logging.warning(f"Format/dimension error: {os.path.basename(input_path)}")
+        
+        logging.error(f"FFmpeg error processing {os.path.basename(input_path)}: {error_msg}")
         return False
     except Exception as e:
         logging.error(f"Error processing {os.path.basename(input_path)}: {traceback.format_exc()}")
