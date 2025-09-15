@@ -145,13 +145,20 @@ def convert_video(
     
     # Handle odd dimensions (H.264 requirement: even width/height)
     if width > 0 and height > 0:
-        needs_padding = (width % 2 != 0) or (height % 2 != 0)
-        if needs_padding:
-            # Pad to even dimensions
-            new_width = width + (width % 2)
-            new_height = height + (height % 2)
-            filters.append(f"pad={new_width}:{new_height}:(ow-iw)/2:(oh-ih)/2:black")
-            logging.info(f"Padding video from {width}x{height} to {new_width}x{new_height}")
+        # Calculate target dimensions (ensure even numbers)
+        target_width = width + (width % 2)  # Make even by adding 1 if odd
+        target_height = height + (height % 2)  # Make even by adding 1 if odd
+        
+        # Scale filter optimization for large videos with proper dimension handling
+        if optimize_for_speed and width > 1920 and height > 1080:
+            # Scale down large videos and ensure even dimensions
+            filters.append("scale='2*trunc(min(1920,iw)/2)':'2*trunc(min(1080,ih)/2)':flags=fast_bilinear")
+            logging.info(f"Scaling down large video from {width}x{height}")
+        else:
+            # Ensure even dimensions for all videos (H.264 requirement)
+            if width % 2 != 0 or height % 2 != 0:
+                filters.append(f"scale={target_width}:{target_height}:flags=fast_bilinear")
+                logging.info(f"Adjusting dimensions from {width}x{height} to {target_width}x{target_height}")
     
     # FPS handling - CRITICAL FIX for duration preservation
     if target_fps is not None and source_fps > 0:
@@ -169,15 +176,6 @@ def convert_video(
                     logging.info(f"Dropping frames: {source_fps} -> {target_fps} (duration will change)")
             else:
                 filters.append(f"fps={target_fps}")
-    
-    # Scale filter optimization for large videos
-    if optimize_for_speed and width > 1920 and height > 1080:
-        # Ensure even dimensions with fast scaling
-        filters.append("scale='2*trunc(min(1920,iw)/2)':'2*trunc(min(1080,ih)/2)':flags=fast_bilinear")
-    else:
-        # Ensure even dimensions for all videos (H.264 requirement)
-        if not any('pad=' in f for f in filters):  # Only add if not already padded
-            filters.append("scale='2*trunc(iw/2)':'2*trunc(ih/2)'")
 
     # Apply filters
     if filters:
@@ -299,7 +297,8 @@ def convert_video(
             "moov atom not found", 
             "invalid data found",
             "width not divisible by 2",
-            "height not divisible by 2"
+            "height not divisible by 2",
+            "padded dimensions cannot be smaller"
         ]):
             logging.warning(f"Format/dimension error: {os.path.basename(input_path)}")
         
