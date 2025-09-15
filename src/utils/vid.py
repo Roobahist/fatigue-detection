@@ -33,35 +33,6 @@ def get_video_info(input_path: str) -> dict:
         return {}
 
 
-def detect_gpu_capability() -> dict:
-    """Detect available GPU encoding capabilities."""
-    gpu_info = {
-        'nvenc_available': False,
-        'qsv_available': False,
-        'vaapi_available': False
-    }
-    
-    try:
-        # Check for NVENC
-        result = subprocess.run(
-            ["ffmpeg", "-hide_banner", "-encoders"], 
-            capture_output=True, text=True, timeout=10
-        )
-        output = result.stdout
-        
-        if 'h264_nvenc' in output:
-            gpu_info['nvenc_available'] = True
-        if 'h264_qsv' in output:
-            gpu_info['qsv_available'] = True
-        if 'h264_vaapi' in output:
-            gpu_info['vaapi_available'] = True
-            
-    except Exception as e:
-        logging.warning(f"Could not detect GPU capabilities: {e}")
-    
-    return gpu_info
-
-
 def convert_video(
     input_path: str,
     output_directory_path: str,
