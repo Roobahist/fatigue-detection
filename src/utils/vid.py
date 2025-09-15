@@ -225,20 +225,5 @@ def convert_video(
         )
         return False
     except Exception as e:
-        logging.error(
-            f"Error processing {os.path.basename(input_path)}: {traceback.format_exc()}"
-        )
-        return False
-
-
-def is_video_valid(video_path: str) -> bool:
-    """Check if video file is valid and readable."""
-    try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "v:0", 
-             "-show_entries", "stream=codec_name", "-of", "csv=p=0", video_path],
-            capture_output=True, text=True, timeout=10
-        )
-        return result.returncode == 0 and result.stdout.strip() != ""
-    except:
+        logging.error(f"Error processing {os.path.basename(input_path)}: {traceback.format_exc()}")
         return False

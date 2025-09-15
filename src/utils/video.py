@@ -10,39 +10,58 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-
-def is_video_valid(video_path: str) -> bool:
-    if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+def is_video_valid(video_path: str, timeout: int = 10) -> bool:
+    """
+    Check if video file is valid and readable.
+    
+    Args:
+        video_path: Path to the video file
+        timeout: Timeout in seconds for ffprobe command
+        
+    Returns:
+        bool: True if video is valid, False otherwise
+    """
+    # Basic file checks
+    if not os.path.exists(video_path):
         return False
-
+    
+    if os.path.getsize(video_path) == 0:
+        return False
+    
+    # Use ffprobe to validate video streams
     command = [
         "ffprobe",
-        "-v",
-        "error",
-        "-select_streams",
-        "v",
-        "-show_entries",
-        "stream=codec_type,nb_read_frames,nb_frames",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=codec_name,duration,nb_frames",
+        "-of", "csv=p=0",
         video_path,
     ]
-
+    
     try:
         result = subprocess.run(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=True
         )
-        output = result.stdout.decode("utf-8").strip().split("\n")
-        if "video" in output:
-            frame_counts = [int(s) for s in output if s.isdigit()]
-            return any(f > 0 for f in frame_counts)
+        
+        output = result.stdout.strip()
+        if not output:
+            return False
+            
+        # Parse the CSV output: codec_name,duration,nb_frames
+        parts = output.split(',')
+        if len(parts) >= 1:
+            codec_name = parts[0].strip()
+            # Valid if we have a codec name (indicates video stream exists)
+            return bool(codec_name and codec_name != "N/A")
+            
         return False
-    except Exception:
+        
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, Exception):
         return False
-
 
 def convert_video(
     input_path: str,
