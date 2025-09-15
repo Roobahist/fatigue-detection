@@ -45,6 +45,7 @@ def convert_video(
     no_audio: bool = True,
     use_gpu: bool = False,
     optimize_for_speed: bool = True,
+    preserve_duration: bool = True,
 ) -> bool:
     """
     Converts a video by changing its FPS, format, or both using FFmpeg.
@@ -59,6 +60,7 @@ def convert_video(
         no_audio (bool): Whether to remove audio (default: True).
         use_gpu (bool): Use GPU acceleration. Defaults to False.
         optimize_for_speed (bool): Use fastest settings (may reduce quality slightly).
+        preserve_duration (bool): Keep same duration when changing FPS (default: True).
 
     Returns:
         bool: True if processing succeeded, False otherwise.
@@ -136,16 +138,22 @@ def convert_video(
             filters.append("transpose=2")
         logging.info(f"Applying rotation correction: {rotation} degrees")
     
+    # FPS handling - CRITICAL FIX for duration preservation
     if target_fps is not None and source_fps > 0:
-        if source_fps > target_fps:
-            # Use select filter for frame dropping (more efficient than fps filter)
-            step = int(source_fps / target_fps)
-            if step > 1:
-                filters.append(f"select='not(mod(n,{step}))'")
-                command += ["-vsync", "vfr"]  # Variable frame rate for efficiency
-        else:
-            # Only use fps filter if upsampling
+        if preserve_duration:
+            # Method 1: Use fps filter to resample (preserves duration)
             filters.append(f"fps={target_fps}")
+            logging.info(f"Converting FPS from {source_fps} to {target_fps} (duration preserved)")
+        else:
+            # Method 2: Drop/duplicate frames (changes duration)
+            if source_fps > target_fps:
+                step = int(source_fps / target_fps)
+                if step > 1:
+                    filters.append(f"select='not(mod(n,{step}))'")
+                    command += ["-vsync", "vfr"]
+                    logging.info(f"Dropping frames: {source_fps} -> {target_fps} (duration will change)")
+            else:
+                filters.append(f"fps={target_fps}")
     
     # Scale filter optimization for large videos
     if optimize_for_speed and width > 1920 and height > 1080:
@@ -165,7 +173,11 @@ def convert_video(
         else:
             command += ["-vf", ",".join(filters)]
     elif target_fps is not None:
+        # Fallback: use -r flag if no filters applied
         command += ["-r", str(target_fps)]
+        if preserve_duration:
+            # Force frame duplication/dropping to match target duration
+            command += ["-video_track_timescale", str(int(target_fps * 1000))]
 
     # Remove rotation metadata to prevent conflicts
     command += ["-metadata:s:v", "rotate=0"]
@@ -240,6 +252,19 @@ def convert_video(
             check=True,
             text=True
         )
+        
+        # Verify the output has correct properties
+        output_info = get_video_info(output_path)
+        actual_fps = output_info.get('fps', 0)
+        actual_duration = output_info.get('duration', 0)
+        
+        if preserve_duration and duration > 0:
+            duration_diff = abs(actual_duration - duration)
+            if duration_diff > 1.0:  # Allow 1 second tolerance
+                logging.warning(f"Duration changed: {duration:.2f}s -> {actual_duration:.2f}s")
+        
+        if target_fps and abs(actual_fps - target_fps) > 0.5:
+            logging.warning(f"FPS not exact: target={target_fps}, actual={actual_fps:.2f}")
         
         logging.info(
             f"Successfully processed {os.path.basename(input_path)} "
