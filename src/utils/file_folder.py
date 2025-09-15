@@ -12,11 +12,13 @@ def create_folders(to_create_folder_paths: Union[str, List[str]]) -> bool:
         
         for to_create_folder_path in to_create_folder_paths:
             if os.path.exists(to_create_folder_path):
-                # print(f"Folder already exists: {to_create_folder_path}")
+                print(f"Folder already exists: {to_create_folder_path}")
                 pass
             else:
                 os.makedirs(to_create_folder_path)
-                print(f"Folder created: {to_create_folder_path}")
+                logging.info(f"Folder created: {to_create_folder_path}")
+    except FileExistsError:
+        logging.info(f"Folder already exists: {to_create_folder_path}")
     except Exception as e:
         logging.error(f"Error Creating Folders: %s", traceback.format_exc())
 
