@@ -82,9 +82,9 @@ def convert_video(
             raise ValueError("Target extension must start with '.'")
 
     target_ext = target_ext if target_ext is not None else Path(input_path).suffix
-    output_file_name = output_file_name if output_file_name is not None else Path(input_path).stem
+    output_file_name = Path(output_file_name).stem if output_file_name is not None else Path(input_path).stem
+    output_file_name = output_file_name + f"_{target_fps}fps" + target_ext
     output_path = str(Path(output_directory_path, output_file_name).with_suffix(target_ext))
-
     # Skip if already exists and valid
     if os.path.exists(output_path):
         if is_video_valid(output_path):
