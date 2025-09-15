@@ -1,0 +1,273 @@
+import os
+import subprocess
+import logging
+import traceback
+from pathlib import Path
+from typing import Optional
+import shutil
+
+
+def get_video_info(input_path: str) -> dict:
+    """Get basic video information using ffprobe."""
+    try:
+        cmd = [
+            "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", 
+            "-show_streams", "-select_streams", "v:0", input_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        import json
+        data = json.loads(result.stdout)
+        
+        video_stream = data['streams'][0] if data['streams'] else {}
+        format_info = data.get('format', {})
+        
+        return {
+            'fps': eval(video_stream.get('r_frame_rate', '0/1')),
+            'duration': float(format_info.get('duration', 0)),
+            'width': int(video_stream.get('width', 0)),
+            'height': int(video_stream.get('height', 0)),
+            'codec': video_stream.get('codec_name', 'unknown')
+        }
+    except Exception as e:
+        logging.warning(f"Could not get video info: {e}")
+        return {}
+
+
+def detect_gpu_capability() -> dict:
+    """Detect available GPU encoding capabilities."""
+    gpu_info = {
+        'nvenc_available': False,
+        'qsv_available': False,
+        'vaapi_available': False
+    }
+    
+    try:
+        # Check for NVENC
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"], 
+            capture_output=True, text=True, timeout=10
+        )
+        output = result.stdout
+        
+        if 'h264_nvenc' in output:
+            gpu_info['nvenc_available'] = True
+        if 'h264_qsv' in output:
+            gpu_info['qsv_available'] = True
+        if 'h264_vaapi' in output:
+            gpu_info['vaapi_available'] = True
+            
+    except Exception as e:
+        logging.warning(f"Could not detect GPU capabilities: {e}")
+    
+    return gpu_info
+
+
+def convert_video(
+    input_path: str,
+    output_directory_path: str,
+    output_file_name: Optional[str] = None,
+    target_fps: Optional[float] = 15,
+    target_ext: Optional[str] = ".mp4",
+    no_audio: bool = True,
+    use_gpu: bool = False,
+    optimize_for_speed: bool = True,
+) -> bool:
+    """
+    Converts a video by changing its FPS, format, or both using FFmpeg.
+    Heavily optimized for speed with intelligent parameter selection.
+
+    Args:
+        input_path (str): Path to the input video file.
+        output_directory_path (str): Directory to save the processed video.
+        output_file_name (str, optional): Base name for the output file.
+        target_fps (float, optional): Desired frames per second. If None, FPS is unchanged.
+        target_ext (str, optional): Target extension (e.g., ".mp4"). If None, format is unchanged.
+        no_audio (bool): Whether to remove audio (default: True).
+        use_gpu (bool): Use GPU acceleration. Defaults to False.
+        optimize_for_speed (bool): Use fastest settings (may reduce quality slightly).
+
+    Returns:
+        bool: True if processing succeeded, False otherwise.
+    """
+    # --- validate ---
+    if not isinstance(input_path, str) or not isinstance(output_directory_path, str):
+        raise TypeError("Input and output paths must be strings")
+
+    if target_fps is not None:
+        if not isinstance(target_fps, (int, float)):
+            raise TypeError("Target FPS must be a number")
+        if target_fps <= 0:
+            raise ValueError("Target FPS must be greater than 0")
+
+    if target_ext is not None:
+        if not isinstance(target_ext, str):
+            raise TypeError("Target extension must be a string")
+        if not target_ext.startswith("."):
+            raise ValueError("Target extension must start with '.'")
+
+    target_ext = target_ext if target_ext is not None else Path(input_path).suffix
+    output_file_name = output_file_name if output_file_name is not None else Path(input_path).stem
+    output_path = str(Path(output_directory_path, output_file_name).with_suffix(target_ext))
+
+    # Skip if already exists and valid
+    if os.path.exists(output_path):
+        if is_video_valid(output_path):
+            logging.info(f"Video already processed: {os.path.basename(input_path)}")
+            return True
+
+    # Get video info for optimization decisions
+    video_info = get_video_info(input_path)
+    source_fps = video_info.get('fps', 0)
+    width = video_info.get('width', 0)
+    height = video_info.get('height', 0)
+    
+    # Detect GPU capabilities
+    gpu_caps = detect_gpu_capability() if use_gpu else {}
+
+    # --- build optimized command ---
+    command = ["ffmpeg", "-y"]
+    
+    # Input optimization
+    if use_gpu and gpu_caps.get('nvenc_available'):
+        # Use CUDA for decoding when available
+        command += ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
+    
+    # Threading optimization
+    thread_count = min(os.cpu_count() or 4, 16)  # Cap at 16 threads
+    command += ["-threads", str(thread_count)]
+    
+    command += ["-i", input_path]
+    
+    # Video filter optimizations
+    filters = []
+    
+    # FPS handling with smart decimation
+    if target_fps is not None and source_fps > 0:
+        if source_fps > target_fps:
+            # Use select filter for frame dropping (more efficient than fps filter)
+            step = int(source_fps / target_fps)
+            if step > 1:
+                filters.append(f"select='not(mod(n,{step}))'")
+                command += ["-vsync", "vfr"]  # Variable frame rate for efficiency
+        else:
+            # Only use fps filter if upsampling
+            filters.append(f"fps={target_fps}")
+    
+    # Scale filter optimization for large videos
+    if optimize_for_speed and width > 1920 and height > 1080:
+        # Add fast scaling algorithm for large videos
+        if filters:
+            filters[-1] += ":flags=fast_bilinear"
+        else:
+            filters.append("scale=flags=fast_bilinear")
+    
+    if filters:
+        if use_gpu and gpu_caps.get('nvenc_available'):
+            # Use GPU-accelerated filtering when possible
+            filter_str = ",".join(filters)
+            command += ["-vf", filter_str]
+        else:
+            command += ["-vf", ",".join(filters)]
+    elif target_fps is not None:
+        command += ["-r", str(target_fps)]
+
+    # Audio handling
+    if no_audio:
+        command += ["-an"]
+    else:
+        command += ["-c:a", "aac", "-b:a", "128k"]  # Fast audio encoding
+
+    # Video encoding optimization
+    if use_gpu and gpu_caps.get('nvenc_available'):
+        # Optimized NVENC settings
+        command += [
+            "-c:v", "h264_nvenc",
+            "-preset", "p1" if optimize_for_speed else "p4",  # p1 = fastest
+            "-tune", "ll",  # Low latency
+            "-rc", "vbr",   # Variable bitrate
+            "-cq", "28",
+            "-b:v", "0",    # Let CQ control bitrate
+            "-maxrate", "10M",
+            "-bufsize", "20M"
+        ]
+    elif use_gpu and gpu_caps.get('qsv_available'):
+        # Intel Quick Sync optimization
+        command += [
+            "-c:v", "h264_qsv",
+            "-preset", "veryfast",
+            "-global_quality", "28"
+        ]
+    else:
+        # Optimized CPU encoding
+        if optimize_for_speed:
+            command += [
+                "-c:v", "libx264",
+                "-preset", "veryfast",  # Fastest preset
+                "-tune", "fastdecode",  # Optimize for fast decode
+                "-crf", "28",
+                "-x264opts", "ref=1:bframes=0:me=dia:subme=1:trellis=0"  # Speed optimizations
+            ]
+        else:
+            command += [
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "28"
+            ]
+
+    # Output format optimizations
+    command += ["-pix_fmt", "yuv420p"]
+    
+    # Container optimization
+    if target_ext == '.mp4':
+        command += ["-movflags", "+faststart"]  # Enable streaming
+    
+    # Memory and I/O optimization
+    command += [
+        "-avoid_negative_ts", "make_zero",
+        "-fflags", "+genpts",
+        "-max_muxing_queue_size", "9999"
+    ]
+
+    command.append(output_path)
+
+    # --- run with progress monitoring ---
+    try:
+        # Log the command for debugging
+        logging.debug(f"FFmpeg command: {' '.join(command)}")
+        
+        # Run with minimal stderr buffering for better performance
+        process = subprocess.run(
+            command, 
+            check=True,
+            text=True
+        )
+        
+        logging.info(
+            f"Successfully processed {os.path.basename(input_path)} "
+            f"(fps={target_fps}, format={target_ext}, gpu={use_gpu})"
+        )
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        logging.error(
+            f"FFmpeg error processing {os.path.basename(input_path)}: {e.stderr}"
+        )
+        return False
+    except Exception as e:
+        logging.error(
+            f"Error processing {os.path.basename(input_path)}: {traceback.format_exc()}"
+        )
+        return False
+
+
+def is_video_valid(video_path: str) -> bool:
+    """Check if video file is valid and readable."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", 
+             "-show_entries", "stream=codec_name", "-of", "csv=p=0", video_path],
+            capture_output=True, text=True, timeout=10
+        )
+        return result.returncode == 0 and result.stdout.strip() != ""
+    except:
+        return False
