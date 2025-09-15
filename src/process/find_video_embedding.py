@@ -13,7 +13,7 @@ from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
 from Zh.src.utils.hdf5writer import HDF5Writer
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
-from Zh.src.utils.setup_device import setup_tensorflow, setup_torch
+from Zh.src.utils.cpu_gpu import setup_tensorflow, setup_torch
 from Zh.src.utils.video import VideoReader
 
 logging.basicConfig(
