@@ -44,7 +44,6 @@ def get_video_info(input_path: str) -> dict:
         logging.warning(f"Could not get video info: {e}")
         return {}
 
-
 def convert_video(
     input_path: str,
     output_directory_path: str,
@@ -55,6 +54,7 @@ def convert_video(
     use_gpu: bool = False,
     optimize_for_speed: bool = True,
     preserve_duration: bool = True,
+    quality_level: str = "fast",  # New parameter: "fast", "medium", "high", "best"
 ) -> bool:
     """
     Converts a video by changing its FPS, format, or both using FFmpeg.
@@ -70,6 +70,7 @@ def convert_video(
         use_gpu (bool): Use GPU acceleration. Defaults to False.
         optimize_for_speed (bool): Use fastest settings (may reduce quality slightly).
         preserve_duration (bool): Keep same duration when changing FPS (default: True).
+        quality_level (str): Quality preset - "fast", "medium", "high", "best" (default: "medium").
 
     Returns:
         bool: True if processing succeeded, False otherwise.
@@ -94,6 +95,7 @@ def convert_video(
     output_file_name = Path(output_file_name).stem if output_file_name is not None else Path(input_path).stem
     output_file_name = output_file_name + f"_{target_fps}fps" + target_ext
     output_path = str(Path(output_directory_path, output_file_name).with_suffix(target_ext))
+
     # Skip if already exists and valid
     if os.path.exists(output_path):
         if is_video_valid(output_path):
@@ -109,6 +111,20 @@ def convert_video(
     
     # Detect GPU capabilities
     gpu_caps = detect_gpu_capability() if use_gpu else {}
+
+    # Quality settings based on level
+    quality_settings = {
+        "fast": {"crf": 28, "preset_cpu": "veryfast", "preset_gpu": "p1", "cq": 28},
+        "medium": {"crf": 23, "preset_cpu": "fast", "preset_gpu": "p4", "cq": 23}, 
+        "high": {"crf": 20, "preset_cpu": "medium", "preset_gpu": "p5", "cq": 20},
+        "best": {"crf": 18, "preset_cpu": "slow", "preset_gpu": "p6", "cq": 18}
+    }
+    
+    if quality_level not in quality_settings:
+        quality_level = "fast"
+        logging.warning(f"Invalid quality_level, using 'fast'")
+    
+    q_settings = quality_settings[quality_level]
 
     # --- build optimized command ---
     command = ["ffmpeg", "-y"]
@@ -186,40 +202,45 @@ def convert_video(
 
     # Video encoding optimization
     if use_gpu and gpu_caps.get('nvenc_available'):
-        # Optimized NVENC settings
+        # Optimized NVENC settings with quality control
         command += [
             "-c:v", "h264_nvenc",
-            "-preset", "p1" if optimize_for_speed else "p4",
-            "-tune", "ll",
-            "-rc", "vbr",
-            "-cq", "28",
+            "-preset", q_settings["preset_gpu"],
+            "-tune", "hq" if quality_level in ["high", "best"] else "ll",
+            "-rc", "vbr_hq" if quality_level in ["high", "best"] else "vbr",
+            "-cq", str(q_settings["cq"]),
             "-b:v", "0",
-            "-maxrate", "10M",
-            "-bufsize", "20M"
+            "-maxrate", "20M" if quality_level in ["high", "best"] else "10M",
+            "-bufsize", "40M" if quality_level in ["high", "best"] else "20M"
         ]
     elif use_gpu and gpu_caps.get('qsv_available'):
-        # Intel Quick Sync optimization
+        # Intel Quick Sync optimization with quality control
         command += [
             "-c:v", "h264_qsv",
-            "-preset", "veryfast",
-            "-global_quality", "28"
+            "-preset", "medium" if quality_level in ["high", "best"] else "veryfast",
+            "-global_quality", str(q_settings["cq"])
         ]
     else:
-        # Optimized CPU encoding
-        if optimize_for_speed:
-            command += [
-                "-c:v", "libx264",
-                "-preset", "veryfast",
-                "-tune", "fastdecode",
-                "-crf", "28",
-                "-x264opts", "ref=1:bframes=0:me=dia:subme=1:trellis=0"
-            ]
-        else:
-            command += [
-                "-c:v", "libx264",
-                "-preset", "fast",
-                "-crf", "28"
-            ]
+        # CPU encoding with quality control
+        command += [
+            "-c:v", "libx264",
+            "-preset", q_settings["preset_cpu"],
+            "-crf", str(q_settings["crf"])
+        ]
+        
+        # Add quality-specific x264 options
+        if quality_level == "fast":
+            command += ["-tune", "fastdecode"]
+            command += ["-x264opts", "ref=1:bframes=0:me=dia:subme=1:trellis=0"]
+        elif quality_level == "medium":
+            # Use defaults (good balance)
+            pass
+        elif quality_level in ["high", "best"]:
+            command += ["-tune", "film"]
+            if quality_level == "best":
+                command += ["-x264opts", "ref=5:bframes=5:me=umh:subme=8:trellis=2"]
+            else:
+                command += ["-x264opts", "ref=3:bframes=3:me=hex:subme=6:trellis=1"]
 
     # Output format optimizations
     command += ["-pix_fmt", "yuv420p"]
@@ -265,7 +286,8 @@ def convert_video(
         
         logging.info(
             f"Successfully processed {os.path.basename(input_path)} "
-            f"(fps: {source_fps:.1f}->{actual_fps:.1f}, duration: {duration:.1f}s->{actual_duration:.1f}s, gpu={use_gpu})"
+            f"(fps: {source_fps:.1f}->{actual_fps:.1f}, duration: {duration:.1f}s->{actual_duration:.1f}s, "
+            f"quality: {quality_level}, gpu={use_gpu})"
         )
         return True
         
