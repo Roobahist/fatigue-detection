@@ -68,7 +68,7 @@ def process(
     if auto_slice:
         start, end, task_id, total_tasks = get_task_slice(len(worker_params_list))
         if total_tasks > 1:  # Only slice if we're actually in a distributed environment
-            print(f"[SLURM] Task {task_id}/{total_tasks} → processing items {start}:{end}")
+            logging.info(f"[SLURM] Task {task_id}/{total_tasks} → processing items {start}:{end}")
             worker_params_list = worker_params_list[start:end]
 
     results = []
