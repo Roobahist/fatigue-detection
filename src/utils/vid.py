@@ -33,24 +33,12 @@ def get_video_info(input_path: str) -> dict:
         video_stream = data["streams"][0] if data["streams"] else {}
         format_info = data.get("format", {})
 
-        # Check for rotation metadata
-        rotation = 0
-        side_data = video_stream.get('side_data_list', [])
-        for side in side_data:
-            if side.get('side_data_type') == 'Display Matrix':
-                rotation_str = side.get('rotation', '0')
-                try:
-                    rotation = float(rotation_str)
-                except:
-                    rotation = 0
-
         return {
             "fps": eval(video_stream.get("r_frame_rate", "0/1")),
             "duration": float(format_info.get("duration", 0)),
             "width": int(video_stream.get("width", 0)),
             "height": int(video_stream.get("height", 0)),
             "codec": video_stream.get("codec_name", "unknown"),
-            "rotation": rotation
         }
     except Exception as e:
         logging.warning(f"Could not get video info: {e}")
@@ -117,7 +105,6 @@ def convert_video(
     source_fps = video_info.get('fps', 0)
     width = video_info.get('width', 0)
     height = video_info.get('height', 0)
-    rotation = video_info.get('rotation', 0)
     duration = video_info.get('duration', 0)
     
     # Detect GPU capabilities
@@ -149,16 +136,6 @@ def convert_video(
             new_height = height + (height % 2)
             filters.append(f"pad={new_width}:{new_height}:(ow-iw)/2:(oh-ih)/2:black")
             logging.info(f"Padding video from {width}x{height} to {new_width}x{new_height}")
-
-    # Handle rotation metadata if present
-    if abs(rotation) > 1:  # Only handle significant rotations
-        if abs(rotation - 90) < 1:
-            filters.append("transpose=1")
-        elif abs(rotation - 180) < 1 or abs(rotation + 180) < 1:
-            filters.append("transpose=2,transpose=2")
-        elif abs(rotation - 270) < 1 or abs(rotation + 90) < 1:
-            filters.append("transpose=2")
-        logging.info(f"Applying rotation correction: {rotation} degrees")
     
     # FPS handling - CRITICAL FIX for duration preservation
     if target_fps is not None and source_fps > 0:
@@ -200,9 +177,6 @@ def convert_video(
         if preserve_duration:
             # Force frame duplication/dropping to match target duration
             command += ["-video_track_timescale", str(int(target_fps * 1000))]
-
-    # Remove rotation metadata to prevent conflicts
-    command += ["-metadata:s:v", "rotate=0"]
 
     # Audio handling
     if no_audio:
