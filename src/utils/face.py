@@ -144,9 +144,12 @@ def calculate_ROI_face(
                 regions["boxes"].append((x, y, w, h))
 
     if return_cropped_roi:
-        for output_size, box in zip(cropped_roi_output_sizes, regions["boxes"]):
+        for i, (output_size, box) in enumerate(
+            zip(cropped_roi_output_sizes, regions["boxes"])
+        ):
             x, y, w, h = box
             cropped_roi = frame[y : y + h, x : x + w]
+
             if output_size == "original_square":
                 output_size = (max(w, h), max(w, h))
             elif output_size == "original":
@@ -156,6 +159,9 @@ def calculate_ROI_face(
                 cropped_roi, output_size, interpolation=cv2.INTER_LINEAR
             )
             regions["cropped_rois"].append(cropped_roi_resized)
+
+            # update the list element
+            cropped_roi_output_sizes[i] = output_size
 
     return regions
 
