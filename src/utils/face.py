@@ -20,6 +20,7 @@ def calculate_ROI_face(
     cropped_roi_output_sizes: Union[
         list[Optional[Union[Tuple[int, int], str]]], Tuple[int, int], str
     ] = [],
+    crop_mode: str = "center_based",
 ):
     """
     Compute landmark points or bounding boxes from face landmarks.
@@ -41,6 +42,10 @@ def calculate_ROI_face(
     cropped_roi_output_sizes : list[Optional[Union[Tuple[int, int], str]]]
         List of sizes (width, height) to resize the cropped ROI to.
         There should be as many sizes as there are landmark groups.
+    crop_mode : str
+        "center_based" or "hull_based".
+        in center_based mode, the bounding box is computed from the center of the landmarks.
+        in hull_based mode, the bounding box is computed from the convex hull of the landmarks.
 
     Returns
     -------
@@ -97,6 +102,8 @@ def calculate_ROI_face(
         raise ValueError(
             "Length of cropped_roi_output_sizes must match length of landmark_groups."
         )
+    if isinstance(crop_mode, str) and crop_mode not in ["hull_based", "center_based"]:
+        raise ValueError("crop_mode must be either 'hull_based' or 'center_based'")
 
     for face_landmarks in detection_result.face_landmarks:
         xs = [int(lm.x * width) for lm in face_landmarks]
@@ -130,16 +137,26 @@ def calculate_ROI_face(
             regions["points"].append(pts.tolist())
 
             if pts.shape[0] >= 3:
-                hull = cv2.convexHull(pts)
-                x, y, w, h = cv2.boundingRect(hull)
+                if crop_mode == "hull_based":
+                    hull = cv2.convexHull(pts)
+                    x, y, w, h = cv2.boundingRect(hull)
 
-                # add margins
-                dw = int(margin_w[group_idx] * face_w)
-                dh = int(margin_h[group_idx] * face_h)
-                x = max(x - dw // 2, 0)
-                y = max(y - dh // 2, 0)
-                w = min(w + dw, width - x)
-                h = min(h + dh, height - y)
+                    # add margins
+                    extra_width = int(margin_w[group_idx] * face_w)
+                    extra_height = int(margin_h[group_idx] * face_h)
+                    x = max(x - extra_width // 2, 0)
+                    y = max(y - extra_height // 2, 0)
+                    w = min(w + extra_width, width - x)
+                    h = min(h + extra_height, height - y)
+                
+                elif crop_mode == "center_based":
+                    cx, cy = np.mean(pts, axis=0).astype(int)
+                    extra_width = int(margin_w[group_idx] * face_w)
+                    extra_height = int(margin_h[group_idx] * face_h)
+                    x = max(cx - extra_width // 2, 0)
+                    y = max(cy - extra_height // 2, 0)
+                    w = min(extra_width, width - x)
+                    h = min(extra_height, height - y)
 
                 regions["boxes"].append((x, y, w, h))
 
