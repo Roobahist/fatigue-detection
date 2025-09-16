@@ -85,3 +85,12 @@ def save_obj(obj, output_path, file_type):
         import json
         with open(output_path, 'w') as f:
             json.dump(obj, f, indent=4)
+
+
+def get_frame_size(frame) -> tuple[int, int]:
+    """
+    Returns the (width, height) of a frame,
+    formatted for cv2.VideoWriter.
+    """
+    h, w = frame.shape[:2]
+    return (w, h)

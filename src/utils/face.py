@@ -7,6 +7,7 @@ import mediapipe as mp
 import numpy as np
 
 from Zh.src.utils.face_indices import *
+from Zh.src.utils.common import get_frame_size
 
 
 def calculate_ROI_face(
@@ -50,7 +51,7 @@ def calculate_ROI_face(
         }
     """
 
-    height, width = frame.shape[:2]
+    width, height = get_frame_size(frame)
     regions = {"points": [], "boxes": [], "cropped_rois": []}
     if not hasattr(detection_result, "face_landmarks"):
         return regions
@@ -384,7 +385,7 @@ def process_face(
     ):
         return None
 
-    height, width = frame.shape[:2]
+    width, height = get_frame_size(frame)
 
     if mask:
         frame = mask_face(frame, detection_result, width, height)
@@ -396,7 +397,7 @@ def process_face(
         frame, detection_result = crop_face(
             frame, detection_result, width, height, margin
         )
-        height, width = frame.shape[:2]
+        width, height = get_frame_size(frame)
 
     if isinstance(output_size, str):
         if output_size == "original_square":

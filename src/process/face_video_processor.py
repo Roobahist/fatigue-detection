@@ -23,6 +23,7 @@ from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader, VideoWriter
+from Zh.src.utils.common import get_frame_size
 
 
 class VideoProcessor:
@@ -103,7 +104,7 @@ class VideoProcessor:
                 elif aug_name == "rotate":
                     angle = aug_params.get("angle", 10)
                     aug_key = f"{aug_name}_angle{angle}"
-                    height, width = augmented_frame.shape[:2]
+                    width, height = get_frame_size(augmented_frame)
                     matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1)
                     augmented_frame = cv2.warpAffine(
                         augmented_frame, matrix, (width, height)
@@ -263,6 +264,8 @@ class VideoProcessor:
                     aug_key,
                     f"{output_base}__{process_tag}__{video_writer_key}.mp4",
                 )
+
+                video_output_size = output_size if ROI_idx == 0 else get_frame_size(regions['cropped_rois'][ROI_idx-1])
                 video_writers[video_writer_key] = VideoWriter(
                     output_path=output_path,
                     fourcc=fourcc,
