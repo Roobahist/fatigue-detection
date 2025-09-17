@@ -64,7 +64,7 @@ def calculate_ROI_face(
     if not isinstance(landmark_groups, list):
         raise ValueError("landmark_groups should be a list of lists of integers.")
 
-    if isinstance(margin_h, float):
+    if isinstance(margin_h, float) or isinstance(margin_h, int):
         margin_h = [margin_h] * max(len(landmark_groups), 1)
     if not isinstance(margin_h, list):
         raise ValueError("margin_h should be either float or a list of floats")
@@ -73,7 +73,7 @@ def calculate_ROI_face(
     if not isinstance(margin_h, list):
         raise ValueError("margin_h should be either float or a list of floats")
 
-    if isinstance(margin_w, float):
+    if isinstance(margin_w, float) or isinstance(margin_w, int):
         margin_w = [margin_w] * max(len(landmark_groups), 1)
     if not isinstance(margin_w, list):
         raise ValueError("margin_w should be either float or a list of floats")
