@@ -5,6 +5,7 @@ from typing import Optional, Tuple, Union
 import cv2
 import mediapipe as mp
 import numpy as np
+import copy
 
 from Zh.src.utils.face_indices import *
 from Zh.src.utils.common import get_frame_size
@@ -399,26 +400,28 @@ def process_face(
     Returns:
         The cropped square face region as a NumPy array, or None if cropping fails.
     """
+    updated_detection_result = copy.deepcopy(detection_result)
+    
     if (
-        detection_result
+        updated_detection_result
         == mp.tasks.vision.FaceLandmarkerResult(
             face_landmarks=[], face_blendshapes=[], facial_transformation_matrixes=[]
         )
-        or detection_result is None
+        or updated_detection_result is None
     ):
-        return None
+        return None, None
 
     width, height = get_frame_size(frame)
 
     if mask:
-        frame = mask_face(frame, detection_result, width, height)
+        frame = mask_face(frame, updated_detection_result, width, height)
 
     if align:
-        frame, detection_result = align_face(frame, detection_result, width, height)
+        frame, updated_detection_result = align_face(frame, updated_detection_result, width, height)
 
     if crop:
-        frame, detection_result = crop_face(
-            frame, detection_result, width, height, margin
+        frame, updated_detection_result = crop_face(
+            frame, updated_detection_result, width, height, margin
         )
         width, height = get_frame_size(frame)
 
@@ -434,4 +437,4 @@ def process_face(
 
     processed_frame = cv2.resize(frame, output_size, interpolation=cv2.INTER_LINEAR)
 
-    return processed_frame, detection_result
+    return processed_frame, updated_detection_result
