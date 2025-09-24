@@ -7,7 +7,6 @@ def draw_regions(
     frame,
     regions,
     mode="points",
-    color=(0, 255, 0),
     radius=2,
     thickness=-1,
 ):
@@ -22,8 +21,6 @@ def draw_regions(
         Output from `compute_face_regions`.
     mode : {"points", "boxes", "mask"}
         Drawing mode.
-    color : tuple[int]
-        BGR color.
     radius : int
         Circle radius for points.
     thickness : int
