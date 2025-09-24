@@ -24,26 +24,52 @@ def create_folders(to_create_folder_paths: Union[str, List[str]]) -> bool:
 
 
 def get_file_paths(
-    input_path: str, depth: int = 1, EXT_LIST: List[str] = []
+    input_path: str, 
+    full_path: bool = True,
+    depth: int = 1, 
+    EXT_LIST: List[str] = []
 ) -> List[str]:
+    """
+    Collect file paths under the given input_path with filtering options.
+
+    Args:
+        input_path (str): The root directory to search.
+        full_path (bool): 
+            - True: return absolute paths.
+            - False: return relative paths (relative to input_path).
+        depth (int): Maximum depth of subdirectories to explore. Must be >= 1.
+        EXT_LIST (List[str]): List of file extensions to filter by (case-insensitive). 
+                              Example: ['.jpg', 'png'].
+
+    Returns:
+        List[str]: List of file paths matching the criteria.
+    """
+
+    # Normalize extension list
     EXT_LIST = [
-        ext.lower() if ext.startswith(".") else "." + ext.lower() for ext in EXT_LIST
+        ext.lower() if ext.startswith(".") else "." + ext.lower()
+        for ext in EXT_LIST
     ]
 
     if depth < 1:
         depth = 1
 
     file_paths = []
+    input_path = os.path.abspath(input_path)
+
     for dirpath, _, file_names in os.walk(input_path):
-        if dirpath[len(input_path) :].count(os.sep) < depth:
-            file_paths.extend(
-                [
-                    os.path.join(dirpath, file_name)
-                    for file_name in file_names
-                    if not EXT_LIST
-                    or os.path.splitext(file_name)[1].lower() in EXT_LIST
-                ]
-            )
+        # Count how deep we are relative to the root
+        relative_depth = dirpath[len(input_path):].count(os.sep)
+        if relative_depth < depth:
+            for file_name in file_names:
+                ext = os.path.splitext(file_name)[1].lower()
+                if not EXT_LIST or ext in EXT_LIST:
+                    full_path = os.path.join(dirpath, file_name)
+                    if full_path:
+                        file_paths.append(full_path)
+                    else:
+                        file_paths.append(os.path.relpath(full_path, input_path))
+
     return file_paths
 
 
