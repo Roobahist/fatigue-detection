@@ -1,7 +1,7 @@
 import logging
+import math
 import multiprocessing
-import os, math
-
+import os
 from typing import Any, Callable, Dict, List, Optional
 
 from tqdm import tqdm
@@ -49,7 +49,7 @@ def process(
 ) -> List[Any]:
     """
     Process a list of tasks with optional automatic SLURM task slicing.
-    
+
     Args:
         worker_function: Function to execute for each task
         worker_params_list: List of parameter dictionaries for worker_function
@@ -59,22 +59,24 @@ def process(
         maxtasksperchild: Maximum tasks per child process
         use_tqdm: Whether to show progress bar
         auto_slice: Whether to automatically slice work for SLURM distributed execution
-    
+
     Returns:
         List of results from processing
     """
-    
+
     # Automatically slice the work if running in SLURM environment
     if auto_slice:
         start, end, task_id, total_tasks = get_task_slice(len(worker_params_list))
         if total_tasks > 1:  # Only slice if we're actually in a distributed environment
-            logging.info(f"[SLURM] Task {task_id}/{total_tasks} → processing items {start}:{end}")
+            logging.info(
+                f"[SLURM] Task {task_id}/{total_tasks} → processing items {start}:{end}"
+            )
             worker_params_list = worker_params_list[start:end]
 
     results = []
     if parallel:
         logging.info("Processing in Parallel Mode ...")
-        multiprocessing.set_start_method('spawn')
+        multiprocessing.set_start_method("spawn")
         with multiprocessing.Pool(
             processes=max_workers, maxtasksperchild=maxtasksperchild
         ) as pool:
@@ -83,7 +85,7 @@ def process(
                 pool.imap_unordered(wrapped_worker_function, tasks),
                 total=len(worker_params_list),
                 disable=not use_tqdm,
-            ):  
+            ):
                 if handler_function:
                     processed_result = handler_function(**result)
                     if processed_result is not None:
