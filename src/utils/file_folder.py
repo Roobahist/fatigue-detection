@@ -25,7 +25,7 @@ def create_folders(to_create_folder_paths: Union[str, List[str]]) -> bool:
 
 def get_file_paths(
     input_path: str, 
-    full_path: bool = True,
+    return_full_path: bool = True,
     depth: int = 1, 
     EXT_LIST: List[str] = []
 ) -> List[str]:
@@ -65,7 +65,7 @@ def get_file_paths(
                 ext = os.path.splitext(file_name)[1].lower()
                 if not EXT_LIST or ext in EXT_LIST:
                     full_path = os.path.join(dirpath, file_name)
-                    if full_path:
+                    if return_full_path:
                         file_paths.append(full_path)
                     else:
                         file_paths.append(os.path.relpath(full_path, input_path))
