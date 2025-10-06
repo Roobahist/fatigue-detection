@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import gc
 import logging
 import os
-import sys
 import traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
@@ -196,12 +194,6 @@ class VideoProcessor:
         except Exception as e:
             logging.error(f"Error processing a frame: {traceback.format_exc()}")
             return None, None, None
-        finally:
-            cleanup(
-                ["mp_image", "detector", "detection_result"],
-                local_vars=locals(),
-                global_vars=globals(),
-            )
 
     def _initialize_video_output(
         self,
@@ -456,33 +448,14 @@ class VideoProcessor:
                             video_writers[video_writer_key].write_frame(
                                 frame_augmentations[aug_key]
                             )
-
+            for video_writer in video_writers.values():
+                video_writer.release()
+            vr.release()
             return True
 
         except Exception as e:
             logging.error(f"Error processing {video_file}: %s", traceback.format_exc())
             return False
-        finally:
-            for video_writer in video_writers.values():
-                video_writer.release()
-
-            vr.release()
-
-            cleanup(
-                [
-                    "vr",
-                    "processed_video_writer",
-                    "processed_augmented_videos_writers",
-                    "processed_frame",
-                    "temp_detection_result",
-                    "frame_augmentations",
-                    "frame",
-                    "cropped_embedding_writer",
-                    "aug_embedding_writers",
-                ],
-                local_vars=locals(),
-                global_vars=globals(),
-            )
 
     def process_multiple_videos(
         self,
