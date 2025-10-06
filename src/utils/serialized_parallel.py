@@ -78,7 +78,8 @@ def process(
         logging.info("Processing in Parallel Mode ...")
         multiprocessing.set_start_method("spawn")
         with multiprocessing.Pool(
-            processes=max_workers, maxtasksperchild=maxtasksperchild
+            processes=max_workers or int(os.environ.get("SLURM_CPUS_PER_TASK", "1")),
+            maxtasksperchild=maxtasksperchild,
         ) as pool:
             tasks = [(worker_function, params) for params in worker_params_list]
             for result in tqdm(
