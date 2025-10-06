@@ -198,6 +198,7 @@ class VideoProcessor:
         self,
         output_base: str,
         frame_augmentations: Dict[str, np.ndarray],
+        regions: Dict[str, np.ndarray],
         mask: bool,
         align: bool,
         crop: bool,
@@ -218,6 +219,7 @@ class VideoProcessor:
         Args:
             output_base: Base name for output files.
             frame_augmentations: Dictionary of augmented frames.
+            regions: Dictionary of regions of interest to be used for finding the size of each ROI video.
             mask: Whether to apply a mask to the face region.
             align: Whether to align the face based on eye positions.
             crop: Whether to crop the face region.
@@ -245,8 +247,9 @@ class VideoProcessor:
         create_folders(processed_folder)
 
         video_writers = {}
-        for ROI_name in [f"ROI{i}" for i in range(len(landmark_groups) + 1)]:
+        for ROI_idx in range(len(landmark_groups)+1):
             for aug_key in list(frame_augmentations.keys()):
+                ROI_name = f"ROI{ROI_idx}"
                 create_folders(os.path.join(processed_folder, ROI_name, aug_key))
 
                 video_writer_key = f"{ROI_name}__{aug_key}"
@@ -262,7 +265,7 @@ class VideoProcessor:
                     output_path=output_path,
                     fourcc=fourcc,
                     fps=fps,
-                    frame_size=output_size,
+                    frame_size=video_output_size,
                 )
 
         return video_writers
@@ -393,6 +396,7 @@ class VideoProcessor:
             video_writers = self._initialize_video_output(
                 output_base=output_base,
                 frame_augmentations=temp_frame_augmentations,
+                regions=temp_regions,
                 mask=mask,
                 align=align,
                 crop=crop,
