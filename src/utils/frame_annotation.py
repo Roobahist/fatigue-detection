@@ -18,7 +18,7 @@ def draw_regions(
     frame : np.ndarray
         Input frame.
     regions : dict
-        Output from `compute_face_regions`.
+        Output from `face.calculate_ROI_face`.
     mode : {"points", "boxes", "mask"}
         Drawing mode.
     radius : int
