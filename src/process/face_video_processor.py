@@ -564,26 +564,91 @@ class VideoProcessor:
 
 
 if __name__ == "__main__":
-    import os
-    import tracemalloc
+    import argparse
 
-    import memory_profiler
-    import objgraph as o
+    from Zh.src.utils.face_indices import *
 
-    from Zh.src.process.face_video_processor import *
-    from Zh.src.utils.memory import print_all_memory as vm
+    logging.info("Process ID:", os.getpid())
 
-    pid = os.getpid()
-    print(pid)
-
-    # breakpoint()
-
-    input_folder = "/home/mojtaba.kananisarche/Zh/data/UTA/1-raw_30fps"
-    # output_folder='/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked'
-    output_folder = "/home/mojtaba.kananisarche/Zh/temp/out"
+    parser = argparse.ArgumentParser(description="Process video files.")
+    parser.add_argument(
+        "input_folder",
+        type=str,
+        help="Path to the input folder containing video files.",
+    )
+    parser.add_argument(
+        "output_folder",
+        type=str,
+        help="Path to the output folder to save processed videos.",
+    )
+    parser.add_argument(
+        "video_files",
+        nargs="*",
+        help="List of video file names to process.",
+    )
+    parser.add_argument(
+        "--start_second",
+        type=int,
+        default=0,
+        help="Start processing from this second.",
+    )
+    parser.add_argument(
+        "--end_second",
+        type=int,
+        default=None,
+        help="End processing at this second.",
+    )
+    parser.add_argument(
+        "--mask",
+        action="store_true",
+        help="Apply a mask to the face region.",
+    )
+    parser.add_argument(
+        "--align",
+        action="store_true",
+        help="Align the face based on eye positions.",
+    )
+    parser.add_argument(
+        "--crop",
+        action="store_true",
+        help="Crop the face region.",
+    )
+    parser.add_argument(
+        "--margin",
+        type=float,
+        default=0.05,
+        help="Margin to add around the bounding box as a fraction of the face's width/height.",
+    )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Process videos in parallel.",
+    )
+    parser.add_argument(
+        "--max_workers",
+        type=int,
+        default=None,
+        help="Maximum number of workers for parallel processing.",
+    )
+    parser.add_argument(
+        "--maxtasksperchild",
+        type=int,
+        default=None,
+        help="Maximum tasks per child process.",
+    )
+    parser.add_argument(
+        "--no_tqdm",
+        action="store_false",
+        dest="use_tqdm",
+        default=True,
+        help="Disable tqdm progress bars.",
+    )
+    args = parser.parse_args()
 
     vp = VideoProcessor(
-        input_folder=input_folder, output_folder=output_folder, use_tqdm=False
+        input_folder=args.input_folder,
+        output_folder=args.output_folder,
+        use_tqdm=args.use_tqdm,
     )
 
     augmentations = {
@@ -596,25 +661,36 @@ if __name__ == "__main__":
         ],
         "grayscale": [{}],  # No parameters needed
     }
+
+    landmark_groups = [LEFT_EYE, RIGHT_EYE, LIPS]
+
+    cropped_roi_output_sizes = (224, 224)
+
+    output_size = (224, 224)
+
+    margin_h=[0.3,0.3,0.4]
+    
+    margin_w=[0.3,0.3,0.5]
+
+    crop_mode = "center_based"
+
     vp.process_multiple_videos(
-        # video_files      = [],                           # all
-        video_files=os.listdir(input_folder)[:2],
-        start_second=0,
-        # end_second       = None,
-        end_second=1,
-        # augmentations    = augmentations,
-        augmentations={},
-        mask=True,
-        align=True,
-        crop=True,
-        margin=0.05,
-        output_size=(224, 224),
-        landmark_groups=[],
-        margin_h=0.0,
-        margin_w=0.0,
-        cropped_roi_output_sizes=[(224, 224)],
-        parallel=False,
-        max_workers=None,
-        maxtasksperchild=None,
-        use_tqdm=True,
+        video_files=args.video_files,
+        start_second=args.start_second,
+        end_second=args.end_second,
+        augmentations=augmentations,
+        mask=args.mask,
+        align=args.align,
+        crop=args.crop,
+        margin=args.margin,
+        output_size=output_size,
+        landmark_groups=landmark_groups,
+        margin_h=margin_h,
+        margin_w=margin_w,
+        cropped_roi_output_sizes=cropped_roi_output_sizes,
+        crop_mode=crop_mode,
+        parallel=args.parallel,
+        max_workers=args.max_workers,
+        maxtasksperchild=args.maxtasksperchild,
+        use_tqdm=args.use_tqdm,
     )
