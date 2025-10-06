@@ -3,15 +3,10 @@ from __future__ import annotations
 import logging
 import os
 import traceback
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from functools import partial
-from multiprocessing import Pool
 from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
-import mediapipe as mp
 import numpy as np
-from deepface import DeepFace as DF
 from tqdm import tqdm
 
 from Zh.src.utils.csvwriter import CSVWriter
@@ -97,7 +92,7 @@ class VideoProcessor:
                 elif aug_name == "grayscale":
                     aug_key = f"{aug_name}"
                     augmented_frame = cv2.cvtColor(augmented_frame, cv2.COLOR_BGR2GRAY)
-                    augmented_frame = cv2.cvtColor(augmented_frame, cv2.COLOR_GRAY2BGR)
+                    augmented_frame = cv2.cvtColor(augmented_frame, cv2.COLOR_GRAY2BGR) # to go back to 3 channels
 
                 elif aug_name == "rotate":
                     angle = aug_params.get("angle", 10)
@@ -227,6 +222,7 @@ class VideoProcessor:
             fourcc: Four-character code for the video codec.
             fps: Frames per second of the video.
             output_size: Size of frames (width, height).
+
 
         Returns:
             A tuple containing video writers and CSV writers.
@@ -402,6 +398,10 @@ class VideoProcessor:
                 output_size=output_size,
             )
 
+            # create_folders("/home/mojtaba.kananisarche/Zh/temp/pkls")
+            # for file in os.listdir("/home/mojtaba.kananisarche/Zh/temp/pkls"):
+            #     os.remove(f"/home/mojtaba.kananisarche/Zh/temp/pkls/{file}")
+
             # Process frames
             temp_detection_result = None
 
@@ -421,6 +421,14 @@ class VideoProcessor:
                     continue
 
                 # Process frame
+                # import pickle
+                # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/temp_detection_result_before.pkl", "wb") as f:
+                #     pickle.dump(temp_detection_result, f)
+                # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/frame.pkl", "wb") as f:
+                #     pickle.dump(frame, f)
+                # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/frame_index.pkl", "wb") as f:
+                #     pickle.dump(frame_index, f)
+
                 processed_frame, temp_detection_result, regions = self._process_frame(
                     frame=frame,
                     temp_detection_result=temp_detection_result,
@@ -434,6 +442,11 @@ class VideoProcessor:
                     margin_w=margin_w,
                     cropped_roi_output_sizes=cropped_roi_output_sizes,
                 )
+
+                # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/temp_detection_result_after.pkl", "wb") as f:
+                #     pickle.dump(temp_detection_result, f)
+                # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/processed_frame.pkl", "wb") as f:
+                #     pickle.dump(processed_frame, f)
 
                 if processed_frame is not None:
                     for roi_idx in range(
