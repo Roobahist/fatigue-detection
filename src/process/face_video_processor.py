@@ -152,7 +152,7 @@ class VideoProcessor:
             )
             detection_result = fd.detect(frame)
 
-            cropped_face, detection_result = process_face(
+            cropped_face, updated_detection_result = process_face(
                 frame=frame,
                 detection_result=detection_result,
                 mask=mask,
@@ -163,9 +163,10 @@ class VideoProcessor:
             )
 
             if cropped_face is None:
-                cropped_face, detection_result = process_face(
+                detection_result = temp_detection_result
+                cropped_face, updated_detection_result = process_face(
                     frame=frame,
-                    detection_result=temp_detection_result,
+                    detection_result=detection_result,
                     mask=mask,
                     align=align,
                     crop=crop,
@@ -176,7 +177,7 @@ class VideoProcessor:
             if cropped_face is not None:
                 regions = calculate_ROI_face(
                     frame=cropped_face,
-                    detection_result=detection_result,
+                    detection_result=updated_detection_result,
                     landmark_groups=landmark_groups,
                     margin_h=margin_h,
                     margin_w=margin_w,
@@ -349,35 +350,44 @@ class VideoProcessor:
                 int(end_second * fps) if end_second is not None else total_frames
             )
 
-            # if output_size is "original" or "original_square", we need to find the size from the first valid frame
-            if isinstance(output_size, str):
-                temp_detection_result = None
-                for frame_index in range(start_frame, end_frame):
-                    ret, frame = vr.read_frame(frame_index=frame_index, jump=False)
+            for frame_index in range(start_frame, end_frame):
+                ret, frame = vr.read_frame(frame_index=frame_index, jump=False)
 
-                    if not ret:
-                        continue
+                if not ret:
+                    continue
 
+                temp_processed_frame, _, temp_regions = self._process_frame(
+                    frame=frame,
+                    mask=mask,
+                    align=align,
+                    crop=crop,
+                    margin=margin,
+                    output_size=output_size,
+                    temp_detection_result=None,
+                    landmark_groups=landmark_groups,
+                    margin_h=margin_h,
+                    margin_w=margin_w,
+                    cropped_roi_output_sizes=cropped_roi_output_sizes,
                     crop_mode=crop_mode,
+                )
 
-                    output_size = (
-                        processed_frame.shape[1],
-                        processed_frame.shape[0],
-                    )
+                if temp_processed_frame is None:
+                    continue
+
+                output_size = get_frame_size(temp_processed_frame)
+
+                temp_frame_augmentations = self._augment_frame(
+                    frame=frame,
+                    augmentations=augmentations,
+                )
+
+                break
 
             if isinstance(output_size, str):
-                print(
-                    "No valid frame found in the video to determine output size, defaulting to (224, 224)."
+                logging.error(
+                    f"Invalid output_size: {output_size}. Please provide a tuple or 'original' or 'original_square'."
                 )
-                output_size = (224, 224)
-
-            print(f"Output size set to: {output_size}")
-
-            # augment the first frame to get the keys of augmentations
-            temp_frame_augmentations = self._augment_frame(
-                frame=vr.read_frame(frame_index="next", jump=False)[1],
-                augmentations=augmentations,
-            )
+                return False
 
             # Initialize output writers
             video_writers = self._initialize_video_output(
@@ -425,12 +435,12 @@ class VideoProcessor:
 
                 processed_frame, temp_detection_result, regions = self._process_frame(
                     frame=frame,
-                    temp_detection_result=temp_detection_result,
                     mask=mask,
                     align=align,
                     crop=crop,
                     margin=margin,
                     output_size=output_size,
+                    temp_detection_result=temp_detection_result,
                     landmark_groups=landmark_groups,
                     margin_h=margin_h,
                     margin_w=margin_w,
