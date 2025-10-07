@@ -369,7 +369,7 @@ class VideoWriter:
         Returns:
             bool: True if the frame was written successfully, False otherwise.
         """
-        
+
         if get_frame_size(frame) != self.frame_size:
             frame = cv2.resize(
                 frame,
