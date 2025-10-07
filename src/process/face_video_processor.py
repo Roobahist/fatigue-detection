@@ -270,28 +270,6 @@ class VideoProcessor:
 
         return video_writers
 
-    # def _get_embedding(self, frame: np.ndarray, embedding_model: str) -> List[float]:
-    #     """
-    #     Gets embedding for a frame using DeepFace.
-
-    #     Args:
-    #         frame: Input frame.
-    #         embedding_model: Name of the embedding model.
-
-    #     Returns:
-    #         List of embedding values.
-    #     """
-    #     return [
-    #         round(x, 3)
-    #         for x in DF.represent(
-    #             img_path=frame,
-    #             enforce_detection=False,
-    #             detector_backend="skip",
-    #             model_name=embedding_model,
-    #             normalization="Facenet" if embedding_model == "Facenet" else "base",
-    #         )[0]["embedding"]
-    #     ]
-
     def process_single_video(
         self,
         video_file: str,
