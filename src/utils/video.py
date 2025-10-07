@@ -72,28 +72,37 @@ def is_video_valid(video_path: str) -> bool:
         )
         return False
 
+
 def convert_video(
     input_path: str,
-    output_path: str,
-    target_fps: Optional[float] = None,
-    target_ext: Optional[str] = None,
+    output_directory_path: str,
+    output_file_name: Optional[str] = None,
+    target_fps: Optional[float] = 15,
+    target_ext: Optional[str] = ".mp4",
     no_audio: bool = True,
+    use_gpu: bool = False,
 ) -> bool:
     """
     Converts a video by changing its FPS, format, or both using FFmpeg.
+    Supports CPU (libx264) and GPU (NVIDIA NVENC) encoding.
+
+    Optimized for ML preprocessing: defaults to higher CRF/lower bitrate
+    for smaller file sizes without caring about archival quality.
 
     Args:
         input_path (str): Path to the input video file.
-        output_path (str): Path to save the processed video file.
+        output_directory_path (str): Directory to save the processed video.
+        output_file_name (str, optional): Base name for the output file.
         target_fps (float, optional): Desired frames per second. If None, FPS is unchanged.
         target_ext (str, optional): Target extension (e.g., ".mp4"). If None, format is unchanged.
         no_audio (bool): Whether to remove audio (default: True).
+        use_gpu (bool): Use GPU acceleration (NVIDIA NVENC). Defaults to False.
 
     Returns:
         bool: True if processing succeeded, False otherwise.
     """
     # --- validate ---
-    if not isinstance(input_path, str) or not isinstance(output_path, str):
+    if not isinstance(input_path, str) or not isinstance(output_directory_path, str):
         raise TypeError("Input and output paths must be strings")
 
     if target_fps is not None:
@@ -107,7 +116,14 @@ def convert_video(
             raise TypeError("Target extension must be a string")
         if not target_ext.startswith("."):
             raise ValueError("Target extension must start with '.'")
-        output_path = str(Path(output_path).with_suffix(target_ext))
+
+    target_ext = target_ext if target_ext is not None else Path(input_path).suffix
+    output_file_name = (
+        output_file_name if output_file_name is not None else Path(input_path).stem
+    )
+    output_path = str(
+        Path(output_directory_path, output_file_name).with_suffix(target_ext)
+    )
 
     # Skip if already exists and valid
     if os.path.exists(output_path):
@@ -116,11 +132,29 @@ def convert_video(
             return True
 
     # --- build command ---
-    command = ["ffmpeg", "-y", "-i", input_path]
+    command = ["ffmpeg", "-y"]
+
+    if use_gpu:
+        command += ["-hwaccel", "cuda"]
+
+    command += ["-i", input_path]
+
     if target_fps is not None:
         command += ["-r", str(target_fps)]
     if no_audio:
         command += ["-an"]
+
+    # encoder settings
+    if use_gpu:
+        # NVIDIA NVENC H.264 encoder (lightweight quality)
+        command += ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "28"]
+    else:
+        # CPU x264 encoder (lighter CRF for smaller files)
+        command += ["-c:v", "libx264", "-preset", "fast", "-crf", "28"]
+
+    # enforce pixel format for compatibility
+    command += ["-pix_fmt", "yuv420p"]
+
     command.append(output_path)
 
     # --- run ---
@@ -128,12 +162,10 @@ def convert_video(
         subprocess.run(
             command,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
         )
         logging.info(
             f"Successfully processed {os.path.basename(input_path)} "
-            f"(fps={target_fps}, format={target_ext})"
+            f"(fps={target_fps}, format={target_ext}, gpu={use_gpu})"
         )
         return True
     except Exception:
