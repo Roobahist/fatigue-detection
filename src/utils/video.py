@@ -275,6 +275,7 @@ class VideoReader:
             "fps": self.fps,
             "width": self.width,
             "height": self.height,
+            "aspect_ratio": self.width / self.height,
             "fourcc": self.fourcc,
             "current_frame_index": self.current_frame_index,
         }
