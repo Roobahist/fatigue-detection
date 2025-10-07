@@ -136,6 +136,16 @@ def convert_video(
         return False
 
 
+def fourcc_to_str(fourcc: Union[str, int]) -> str:
+    if not isinstance(fourcc, int) and not isinstance(fourcc, str):
+        raise TypeError("fourcc must be a string or integer")
+    if isinstance(fourcc, str):
+        return fourcc
+    fourcc_bytes = fourcc.to_bytes(4, "little")
+    fourcc_str = fourcc_bytes.decode("latin-1")
+    return fourcc_str
+
+
 class VideoReaderInitializationError(Exception):
     pass
 
@@ -285,7 +295,7 @@ class VideoWriter:
         output_path: str,
         fps: float,
         frame_size: Tuple[int, int],
-        fourcc: str = "mp4v",
+        fourcc: Union[str, int] = "mp4v",
     ):
         """
         Initializes the VideoWriter object.
@@ -293,14 +303,14 @@ class VideoWriter:
             output_path (str): Path to save the output video.
             fps (float): Frames per second of the video.
             frame_size (Tuple[int, int]): Size of the video frames as (width, height).
-            fourcc (str): FourCC code for the codec (default: "mp4v").
+            fourcc (str, int): FourCC code for the codec (default: "mp4v").
         Raises:
             ValueError: If frame_size is not a tuple of two integers.
         """
         self.output_path = output_path
         self.fps = fps
         self.frame_size = frame_size  # (width, height)
-        self.fourcc = cv2.VideoWriter_fourcc(*fourcc)
+        self.fourcc = cv2.VideoWriter_fourcc(*fourcc_to_str(fourcc))
         self.writer = cv2.VideoWriter(output_path, self.fourcc, fps, frame_size)
         if not self.writer.isOpened():
             raise IOError(f"Could not open video writer for {output_path}")
