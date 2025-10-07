@@ -222,9 +222,11 @@ class VideoReader:
         # metadata
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.duration = self.total_frames / self.fps if self.fps > 0 else 0
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
+        self.codec = "".join([chr((self.fourcc >> 8 * i) & 0xFF) for i in range(4)])
         self.current_frame_index = -1
 
     def read_frame(
@@ -312,10 +314,12 @@ class VideoReader:
         return {
             "total_frames": self.total_frames,
             "fps": self.fps,
+            "duration": self.duration,
             "width": self.width,
             "height": self.height,
             "aspect_ratio": self.width / self.height,
             "fourcc": self.fourcc,
+            "codec": self.codec,
             "current_frame_index": self.current_frame_index,
         }
 
