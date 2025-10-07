@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
+from Zh.src.utils.common import get_frame_size
 from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.face import calculate_ROI_face, process_face
 from Zh.src.utils.face_detector import FaceDetector
@@ -16,7 +17,6 @@ from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader, VideoWriter
-from Zh.src.utils.common import get_frame_size
 
 
 class VideoProcessor:
@@ -92,7 +92,9 @@ class VideoProcessor:
                 elif aug_name == "grayscale":
                     aug_key = f"{aug_name}"
                     augmented_frame = cv2.cvtColor(augmented_frame, cv2.COLOR_BGR2GRAY)
-                    augmented_frame = cv2.cvtColor(augmented_frame, cv2.COLOR_GRAY2BGR) # to go back to 3 channels
+                    augmented_frame = cv2.cvtColor(
+                        augmented_frame, cv2.COLOR_GRAY2BGR
+                    )  # to go back to 3 channels
 
                 elif aug_name == "rotate":
                     angle = aug_params.get("angle", 10)
@@ -247,7 +249,7 @@ class VideoProcessor:
         create_folders(processed_folder)
 
         video_writers = {}
-        for ROI_idx in range(len(landmark_groups)+1):
+        for ROI_idx in range(len(landmark_groups) + 1):
             for aug_key in list(frame_augmentations.keys()):
                 ROI_name = f"ROI{ROI_idx}"
                 create_folders(os.path.join(processed_folder, ROI_name, aug_key))
@@ -260,7 +262,11 @@ class VideoProcessor:
                     f"{output_base}__{process_tag}__{video_writer_key}.mp4",
                 )
 
-                video_output_size = output_size if ROI_idx == 0 else get_frame_size(regions['cropped_rois'][ROI_idx-1])
+                video_output_size = (
+                    output_size
+                    if ROI_idx == 0
+                    else get_frame_size(regions["cropped_rois"][ROI_idx - 1])
+                )
                 video_writers[video_writer_key] = VideoWriter(
                     output_path=output_path,
                     fourcc=fourcc,
@@ -644,9 +650,9 @@ if __name__ == "__main__":
 
     output_size = (224, 224)
 
-    margin_h=[0.3,0.3,0.4]
-    
-    margin_w=[0.3,0.3,0.5]
+    margin_h = [0.3, 0.3, 0.4]
+
+    margin_w = [0.3, 0.3, 0.5]
 
     crop_mode = "center_based"
 
