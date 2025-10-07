@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-def is_video_valid(video_path: str, timeout: int = 10) -> bool:
+from Zh.src.utils.common import get_frame_size
+
+
     """
     Check if video file is valid and readable.
     
@@ -313,7 +315,8 @@ class VideoWriter:
         Returns:
             bool: True if the frame was written successfully, False otherwise.
         """
-        if frame.shape[1] != self.frame_size[0] or frame.shape[0] != self.frame_size[1]:
+        
+        if get_frame_size(frame) != self.frame_size:
             frame = cv2.resize(
                 frame,
                 self.frame_size,
