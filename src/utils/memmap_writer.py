@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import json
-import numpy as np
-# import torch
-import pandas as pd
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pandas as pd
+import torch
 
 
 class MemmapHandler:
@@ -45,6 +47,7 @@ class MemmapHandler:
         self.auto_metadata = auto_metadata
         self.shape = shape
         self._memmap: Optional[np.memmap] = None
+        self._column_names: Optional[List[str]] = None
 
         if mode.startswith("w"):
             if shape is None:
@@ -73,6 +76,7 @@ class MemmapHandler:
             meta = json.loads(self.meta_path.read_text())
             self.shape = tuple(meta["shape"])
             self.dtype = np.dtype(meta["dtype"])
+            self._column_names = meta.get("column_names")
         elif self.shape is None:
             raise ValueError("Shape required if metadata file is missing.")
         self._memmap = np.memmap(
@@ -95,35 +99,78 @@ class MemmapHandler:
         meta.update(kwargs)
         self._save_metadata(meta)
 
+    # -------------------- New dict handling --------------------
+
+    def _prepare_data(
+        self, data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]]
+    ) -> np.ndarray:
+        """
+        Normalize input data into a 2D NumPy array and update/check column metadata.
+        """
+        # Single dict
+        if isinstance(data, dict):
+            keys = list(data.keys())
+            values = np.array(list(data.values()), dtype=self.dtype).reshape(1, -1)
+            self._validate_or_set_columns(keys)
+            return values
+
+        # List of dicts
+        elif isinstance(data, list) and all(isinstance(d, dict) for d in data):
+            for _, d in enumerate(data):
+                keys = list(d.keys())
+                self._validate_or_set_columns(keys)
+            arr = np.array([[d[k] for k in keys] for d in data], dtype=self.dtype)
+            return arr
+
+        # Already NumPy
+        elif isinstance(data, np.ndarray):
+            return data.astype(self.dtype)
+
+        else:
+            raise TypeError("Data must be a NumPy array, dict, or list of dicts.")
+
+    def _validate_or_set_columns(self, keys: List[str]):
+        """Ensure consistency of column names across writes."""
+        if self._column_names is None:
+            self._column_names = keys
+            if self.auto_metadata:
+                self.update_metadata(column_names=keys)
+        elif keys != self._column_names:
+            raise ValueError(
+                f"Inconsistent keys: expected {self._column_names}, got {keys}"
+            )
+
     # -------------------- Writing --------------------
 
-    def write(self, data: np.ndarray, start: int = 0):
+    def write(
+        self,
+        data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]],
+        start: int = 0,
+    ):
         """Overwrite a segment of the memmap starting from a given index."""
-        end = start + len(data)
-        self._memmap[start:end] = data
+        arr = self._prepare_data(data)
+        end = start + len(arr)
+        self._memmap[start:end] = arr
         self._memmap.flush()
 
-    def append(self, data: np.ndarray):
+    def append(self, data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]]):
         """
         Append new data to the end of the file (auto-resizing).
         Only valid for 2D arrays.
         """
-        data = np.asarray(data, dtype=self.dtype)
-        if self._memmap is None:
-            raise RuntimeError("Memmap not initialized.")
-
+        arr = self._prepare_data(data)
         old_shape = self._memmap.shape
         if len(old_shape) != 2:
             raise ValueError("Append supported only for 2D arrays.")
-        new_rows = data.shape[0]
-
-        # Resize file and remap
+        new_rows = arr.shape[0]
         new_shape = (old_shape[0] + new_rows, old_shape[1])
         self._memmap.flush()
-        self._memmap._mmap.close()  # close old mapping
+        self._memmap._mmap.close()
         with open(self.path, "ab") as f:
-            f.write(data.tobytes())
-        self._memmap = np.memmap(self.path, dtype=self.dtype, mode="r+", shape=new_shape)
+            f.write(arr.tobytes())
+        self._memmap = np.memmap(
+            self.path, dtype=self.dtype, mode="r+", shape=new_shape
+        )
         self.shape = new_shape
         if self.auto_metadata:
             self.update_metadata(shape=new_shape)
