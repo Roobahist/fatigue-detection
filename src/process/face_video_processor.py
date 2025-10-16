@@ -148,11 +148,19 @@ class VideoProcessor:
         """
         try:
             fd = FaceDetector(
-                output_face_blendshapes=False,
+                output_face_blendshapes=True,
                 output_facial_transformation_matrixes=False,
                 num_faces=1,
             )
             detection_result = fd.detect(frame)
+            face_blendshapes = (
+                detection_result.face_blendshapes[0]
+                if len(detection_result.face_blendshapes) > 0
+                else None
+            )
+            blendshape_features = {
+                i.category_name: round(i.score, 2) for i in face_blendshapes
+            }
 
             cropped_face, process_features, updated_detection_result = process_face(
                 frame=frame,
@@ -187,14 +195,24 @@ class VideoProcessor:
                     cropped_roi_output_sizes=cropped_roi_output_sizes,
                     crop_mode=crop_mode,
                 )
-                return cropped_face, detection_result, regions
+
+                return (
+                    cropped_face,
+                    detection_result,
+                    regions,
+                    {
+                        "frame_index": frame_index,
+                        **process_features,
+                        **blendshape_features,
+                    },
+                )
 
             else:
-                return None, None, None
+                return None, None, None, None
 
         except Exception as e:
             logging.error(f"Error processing a frame: {traceback.format_exc()}")
-            return None, None, None
+            return None, None, None, None
 
     def _initialize_video_output(
         self,
@@ -275,6 +293,38 @@ class VideoProcessor:
                 )
 
         return video_writers
+
+    def _initialize_feature_output(
+        self,
+        output_base: str,
+        process_tag: str,
+        shape: tuple[int, int],
+        dtype: str = "float32",
+        mode: str = "w+",
+    ) -> MemmapHandler:
+        """
+        Initializes a MemmapHandler for feature output.
+
+        Args:
+            output_base: Base name for output files.
+            process_tag: Tag for the current processing step.
+            shape: Shape of the feature array.
+            dtype: Data type for the feature array.
+            mode: File mode for the MemmapHandler.
+
+        Returns:
+            A MemmapHandler object for feature output.
+        """
+        processed_folder = os.path.join(self.output_folder, process_tag)
+        features_folder = os.path.join(processed_folder, "features")
+        create_folders(features_folder)
+
+        return MemmapHandler(
+            path=os.path.join(features_folder, f"{output_base}__features.dat"),
+            shape=shape,
+            dtype=dtype,
+            mode=mode,
+        )
 
     def process_single_video(
         self,
