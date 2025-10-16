@@ -14,6 +14,7 @@ from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.face import calculate_ROI_face, process_face
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.file_folder import create_folders
+from Zh.src.utils.memmap_writer import MemmapHandler
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader, VideoWriter
@@ -111,6 +112,7 @@ class VideoProcessor:
 
     def _process_frame(
         self,
+        frame_index: int,
         frame: np.ndarray,
         mask: bool = True,
         align: bool = True,
@@ -123,12 +125,13 @@ class VideoProcessor:
         margin_w: list[Optional[float], float] = 0.0,
         cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
         crop_mode: str = "center_based",
-    ) -> tuple[Optional[np.ndarray], Union[object, None]]:
+    ) -> tuple[Optional[np.ndarray], Union[object, None], dict, dict]:
         """
         Processes a single frame, detecting and cropping the face, if the face is not detected in the current frame,
         it tries to use the previous detection result if available.
 
         Args:
+            frame_index: The index of the frame in the video.
             frame: The input frame.
             mask: Whether to apply a mask to the face region.
             align: Whether to align the face based on eye positions.
@@ -219,10 +222,7 @@ class VideoProcessor:
         output_base: str,
         frame_augmentations: Dict[str, np.ndarray],
         regions: Dict[str, np.ndarray],
-        mask: bool,
-        align: bool,
-        crop: bool,
-        margin: float,
+        process_tag: str,
         landmark_groups: list[Optional[list[int]]],
         fourcc: str = "mp4v",
         fps: float = 30.0,
@@ -253,15 +253,6 @@ class VideoProcessor:
         Returns:
             A tuple containing video writers and CSV writers.
         """
-
-        # Build a descriptive string for the main processing pipeline
-        process_tag = ""
-        process_tag += "_masked" if mask else "_unmasked"
-        process_tag += "_aligned" if align else "_unaligned"
-        process_tag += f"_cropped{margin}" if crop else "_uncropped"
-        # remove the first underscore
-        if process_tag.startswith("_"):
-            process_tag = process_tag[1:]
 
         processed_folder = os.path.join(self.output_folder, process_tag)
         create_folders(processed_folder)
@@ -342,6 +333,8 @@ class VideoProcessor:
         margin_w: list[Optional[float], float] = 0.0,
         cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
         crop_mode: str = "center_based",
+        export_videos: bool = True,
+        export_features: bool = True,
     ) -> Optional[Dict[str, str]]:
         """
         Processes a single video file, detecting and cropping faces, with configurable augmentations.
@@ -362,6 +355,8 @@ class VideoProcessor:
             return_cropped_roi: Whether to return the cropped region of interest.
             cropped_roi_output_sizes: A list of output sizes for the cropped region of interest.
             crop_mode: The mode for cropping the region of interest.
+            export_videos: If True, exports the processed videos.
+            export_features: If True, exports the extracted features.
 
         Returns:
             A dictionary containing the output video paths for each augmentation, or None if processing fails.
@@ -387,28 +382,40 @@ class VideoProcessor:
                 int(end_second * fps) if end_second is not None else total_frames
             )
 
+            process_tag = ""
+            process_tag += "_masked" if mask else "_unmasked"
+            process_tag += "_aligned" if align else "_unaligned"
+            process_tag += f"_cropped{margin}" if crop else "_uncropped"
+            # remove the first underscore
+            if process_tag.startswith("_"):
+                process_tag = process_tag[1:]
+
             for frame_index in range(start_frame, end_frame):
                 ret, frame = vr.read_frame(frame_index=frame_index, jump=False)
 
                 if not ret:
                     continue
 
-                temp_processed_frame, _, temp_regions = self._process_frame(
-                    frame=frame,
-                    mask=mask,
-                    align=align,
-                    crop=crop,
-                    margin=margin,
-                    output_size=output_size,
-                    temp_detection_result=None,
-                    landmark_groups=landmark_groups,
-                    margin_h=margin_h,
-                    margin_w=margin_w,
-                    cropped_roi_output_sizes=cropped_roi_output_sizes,
-                    crop_mode=crop_mode,
+                temp_processed_frame, _, temp_regions, temp_features = (
+                    self._process_frame(
+                        frame_index=frame_index,
+                        frame=frame,
+                        mask=mask,
+                        align=align,
+                        crop=crop,
+                        margin=margin,
+                        output_size=output_size,
+                        temp_detection_result=None,
+                        landmark_groups=landmark_groups,
+                        margin_h=margin_h,
+                        margin_w=margin_w,
+                        cropped_roi_output_sizes=cropped_roi_output_sizes,
+                        crop_mode=crop_mode,
+                    )
                 )
 
                 if temp_processed_frame is None:
+                    # no face found
                     continue
 
                 output_size = get_frame_size(temp_processed_frame)
@@ -426,23 +433,32 @@ class VideoProcessor:
                 )
                 return False
 
-            # Initialize output writers
-            video_writers = self._initialize_video_output(
-                output_base=output_base,
-                frame_augmentations=temp_frame_augmentations,
-                regions=temp_regions,
-                mask=mask,
-                align=align,
-                crop=crop,
-                margin=margin,
-                landmark_groups=landmark_groups,
-                fps=fps,
-                output_size=output_size,
-            )
+            if export_videos:
+                # Initialize output writers
+                video_writers = self._initialize_video_output(
+                    output_base=output_base,
+                    frame_augmentations=temp_frame_augmentations,
+                    regions=temp_regions,
+                    process_tag=process_tag,
+                    landmark_groups=landmark_groups,
+                    fps=fps,
+                    output_size=output_size,
+                )
 
+            if export_features:
+                feature_writer = self._initialize_feature_output(
+                    output_base=output_base,
+                    process_tag=process_tag,
+                    shape=(end_frame - start_frame, len(temp_features)),
+                    dtype="float32",
+                    mode="w+",
+                )
+
+            # region Debug
             # create_folders("/home/mojtaba.kananisarche/Zh/temp/pkls")
             # for file in os.listdir("/home/mojtaba.kananisarche/Zh/temp/pkls"):
             #     os.remove(f"/home/mojtaba.kananisarche/Zh/temp/pkls/{file}")
+            # endregion
 
             # Process frames
             temp_detection_result = None
@@ -463,6 +479,7 @@ class VideoProcessor:
                     continue
 
                 # Process frame
+                # region Debug
                 # import pickle
                 # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/temp_detection_result_before.pkl", "wb") as f:
                 #     pickle.dump(temp_detection_result, f)
@@ -470,43 +487,59 @@ class VideoProcessor:
                 #     pickle.dump(frame, f)
                 # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/frame_index.pkl", "wb") as f:
                 #     pickle.dump(frame_index, f)
+                # endregion
 
-                processed_frame, temp_detection_result, regions = self._process_frame(
-                    frame=frame,
-                    mask=mask,
-                    align=align,
-                    crop=crop,
-                    margin=margin,
-                    output_size=output_size,
-                    temp_detection_result=temp_detection_result,
-                    landmark_groups=landmark_groups,
-                    margin_h=margin_h,
-                    margin_w=margin_w,
-                    cropped_roi_output_sizes=cropped_roi_output_sizes,
-                    crop_mode=crop_mode,
+                processed_frame, temp_detection_result, regions, features = (
+                    self._process_frame(
+                        frame_index=frame_index,
+                        frame=frame,
+                        mask=mask,
+                        align=align,
+                        crop=crop,
+                        margin=margin,
+                        output_size=output_size,
+                        temp_detection_result=temp_detection_result,
+                        landmark_groups=landmark_groups,
+                        margin_h=margin_h,
+                        margin_w=margin_w,
+                        cropped_roi_output_sizes=cropped_roi_output_sizes,
+                        crop_mode=crop_mode,
+                    )
                 )
 
+                # region Debug
                 # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/temp_detection_result_after.pkl", "wb") as f:
                 #     pickle.dump(temp_detection_result, f)
                 # with open("/home/mojtaba.kananisarche/Zh/temp/pkls/processed_frame.pkl", "wb") as f:
                 #     pickle.dump(processed_frame, f)
+                # endregion
 
-                if processed_frame is not None:
-                    for roi_idx in range(
-                        len([processed_frame] + regions["cropped_rois"])
-                    ):
-                        roi = ([processed_frame] + regions["cropped_rois"])[roi_idx]
-                        frame_augmentations = self._augment_frame(
-                            frame=roi, augmentations=augmentations
-                        )
-                        for aug_key in list(frame_augmentations.keys()):
-                            video_writer_key = f"ROI{roi_idx}__{aug_key}"
-                            video_writers[video_writer_key].write_frame(
-                                frame_augmentations[aug_key]
+                if export_features:
+                    feature_writer.write(data=features, start=frame_index - start_frame)
+
+                if export_videos:
+                    if processed_frame is not None:
+                        for roi_idx in range(
+                            len([processed_frame] + regions["cropped_rois"])
+                        ):
+                            roi = ([processed_frame] + regions["cropped_rois"])[roi_idx]
+                            frame_augmentations = self._augment_frame(
+                                frame=roi, augmentations=augmentations
                             )
-            for video_writer in video_writers.values():
-                video_writer.release()
+                            for aug_key in list(frame_augmentations.keys()):
+                                video_writer_key = f"ROI{roi_idx}__{aug_key}"
+                                video_writers[video_writer_key].write_frame(
+                                    frame_augmentations[aug_key]
+                                )
+
+            if export_features:
+                feature_writer.close()
+
+            if export_videos:
+                for video_writer in video_writers.values():
+                    video_writer.release()
             vr.release()
+
             return True
 
         except Exception as e:
@@ -529,6 +562,8 @@ class VideoProcessor:
         margin_w: list[Optional[float], float] = 0.0,
         cropped_roi_output_sizes: list[Optional[Union[Tuple[int, int], str]]] = [],
         crop_mode: str = "center_based",
+        export_videos: bool = True,
+        export_features: bool = True,
         parallel: bool = False,
         max_workers: Optional[int] = None,
         maxtasksperchild: int = 1,
@@ -553,6 +588,8 @@ class VideoProcessor:
             return_cropped_roi: Whether to return the cropped region of interest.
             cropped_roi_output_sizes: A list of output sizes for the cropped region of interest.
             crop_mode: The mode to use for cropping the region of interest.
+            export_videos: If True, exports the processed videos.
+            export_features: If True, exports the extracted features.
             parallel: If True, processes videos in parallel.
             max_workers: Maximum number of workers for parallel processing.
             maxtasksperchild: Maximum tasks per child process.
@@ -580,6 +617,8 @@ class VideoProcessor:
                 "margin_w": margin_w,
                 "cropped_roi_output_sizes": cropped_roi_output_sizes,
                 "crop_mode": crop_mode,
+                "export_videos": export_videos,
+                "export_features": export_features,
             }
             for video_file in video_files
         ]
@@ -652,6 +691,16 @@ if __name__ == "__main__":
         help="Margin to add around the bounding box as a fraction of the face's width/height.",
     )
     parser.add_argument(
+        "--export_videos",
+        action="store_true",
+        help="Export processed videos to the output folder.",
+    )
+    parser.add_argument(
+        "--export_features",
+        action="store_true",
+        help="Export extracted features to the output folder.",
+    )
+    parser.add_argument(
         "--parallel",
         action="store_true",
         help="Process videos in parallel.",
@@ -721,6 +770,8 @@ if __name__ == "__main__":
         margin_w=margin_w,
         cropped_roi_output_sizes=cropped_roi_output_sizes,
         crop_mode=crop_mode,
+        export_videos=args.export_videos,
+        export_features=args.export_features,
         parallel=args.parallel,
         max_workers=args.max_workers,
         maxtasksperchild=args.maxtasksperchild,
