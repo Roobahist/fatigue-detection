@@ -186,9 +186,10 @@ def calculate_ROI_face(
 
 def mask_face(
     frame: np.ndarray, detection_result, width: int, height: int
-) -> np.ndarray:
+) -> tuple[np.ndarray, float]:
     """
-    Masks the face region using both FACE_OVAL and HORIZONTAL_CENTER landmarks to handle face rotation.
+    Masks the face region using both FACE_OVAL and HORIZONTAL_CENTER landmarks.
+    Returns the masked frame and the average light level of the background.
 
     Args:
         frame: The input frame as a NumPy array.
@@ -197,7 +198,8 @@ def mask_face(
         height: The height of the input frame.
 
     Returns:
-        The masked frame as a NumPy array.
+        masked_frame: The frame with only the face region visible (background black).
+        background_light: The average brightness of the background before masking.
     """
     # Get all landmarks needed for the mask
     all_landmarks = list(set(FACE_OVAL + HORIZONTAL_CENTER))  # Remove duplicates
@@ -214,19 +216,26 @@ def mask_face(
         dtype=np.int32,
     )
 
-    # Find the convex hull of all points to create a complete face mask
+    # Convex hull of landmarks
     hull = cv2.convexHull(points)
 
-    # Create a mask of zeros (black)
+    # Mask of face region
     mask_img = np.zeros(frame.shape[:2], dtype=np.uint8)
-
-    # Fill the convex hull with white (255)
     cv2.fillConvexPoly(mask_img, hull, 255)
 
-    # Apply the mask to the frame
+    # Inverse mask → background region
+    background_mask = cv2.bitwise_not(mask_img)
+
+    # Compute average brightness of background
+    # Convert to grayscale first, then average over background pixels
+    gray_img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    background_pixels = gray_img[background_mask == 255]
+    background_light = float(np.mean(background_pixels)) if background_pixels.size > 0 else 0.0
+
+    # Apply mask to keep only the face region
     masked_frame = cv2.bitwise_and(frame, frame, mask=mask_img)
 
-    return masked_frame
+    return masked_frame, background_light
 
 
 def align_face(
@@ -302,7 +311,7 @@ def align_face(
             landmark.x = rotated_point[0] / width
             landmark.y = rotated_point[1] / height
 
-        return rotated_frame, detection_result
+        return rotated_frame, angle, detection_result
 
     except Exception as e:
         logging.error(f"Error in align_face: {e}")
@@ -357,6 +366,10 @@ def crop_face(
     x1, x2 = int(x_min * width), int(x_max * width)
     y1, y2 = int(y_min * height), int(y_max * height)
     cropped_frame = frame[y1:y2, x1:x2]
+    x_position = (x2 - x1) / 2 + x1
+    y_position = (y2 - y1) / 2 + y1
+    face_width = x2 - x1
+    face_height = y2 - y1
 
     # Update landmarks in detection_result
     if detection_result and getattr(detection_result, "face_landmarks", None):
@@ -371,7 +384,7 @@ def crop_face(
             landmark.x = x_pixel / max(x2 - x1, 1)
             landmark.y = y_pixel / max(y2 - y1, 1)
 
-    return cropped_frame, detection_result
+    return cropped_frame, (x_position, y_position), (face_width, face_height), detection_result
 
 
 def process_face(
@@ -409,20 +422,32 @@ def process_face(
         )
         or updated_detection_result is None
     ):
-        return None, None
+        return None, None, None
 
     width, height = get_frame_size(frame)
+    features = {
+        "background_light": 0.0,
+        "angle": 0.0,
+        "x_position": 0,
+        "y_position": 0,
+    }
 
     if mask:
-        frame = mask_face(frame, updated_detection_result, width, height)
+        frame, background_light = mask_face(frame, updated_detection_result, width, height)
+        features["background_light"] = background_light
 
     if align:
-        frame, updated_detection_result = align_face(frame, updated_detection_result, width, height)
+        frame, angle, updated_detection_result = align_face(frame, updated_detection_result, width, height)
+        features["angle"] = angle
 
     if crop:
-        frame, updated_detection_result = crop_face(
+        frame, (x_position, y_position), (face_width, face_height), updated_detection_result = crop_face(
             frame, updated_detection_result, width, height, margin
         )
+        features["x_position"] = x_position
+        features["y_position"] = y_position
+        features["face_width"] = face_width
+        features["face_height"] = face_height
         width, height = get_frame_size(frame)
 
     if isinstance(output_size, str):
@@ -437,4 +462,4 @@ def process_face(
 
     processed_frame = cv2.resize(frame, output_size, interpolation=cv2.INTER_LINEAR)
 
-    return processed_frame, updated_detection_result
+    return processed_frame, features, updated_detection_result
