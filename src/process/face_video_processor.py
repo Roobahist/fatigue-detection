@@ -154,7 +154,7 @@ class VideoProcessor:
             )
             detection_result = fd.detect(frame)
 
-            cropped_face, updated_detection_result = process_face(
+            cropped_face, process_features, updated_detection_result = process_face(
                 frame=frame,
                 detection_result=detection_result,
                 mask=mask,
@@ -166,7 +166,7 @@ class VideoProcessor:
 
             if cropped_face is None:
                 detection_result = temp_detection_result
-                cropped_face, updated_detection_result = process_face(
+                cropped_face, process_features, updated_detection_result = process_face(
                     frame=frame,
                     detection_result=detection_result,
                     mask=mask,
