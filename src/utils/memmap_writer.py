@@ -99,35 +99,7 @@ class MemmapHandler:
         meta.update(kwargs)
         self._save_metadata(meta)
 
-    # -------------------- New dict handling --------------------
-
-    def _prepare_data(
-        self, data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]]
-    ) -> np.ndarray:
-        """
-        Normalize input data into a 2D NumPy array and update/check column metadata.
-        """
-        # Single dict
-        if isinstance(data, dict):
-            keys = list(data.keys())
-            values = np.array(list(data.values()), dtype=self.dtype).reshape(1, -1)
-            self._validate_or_set_columns(keys)
-            return values
-
-        # List of dicts
-        elif isinstance(data, list) and all(isinstance(d, dict) for d in data):
-            for _, d in enumerate(data):
-                keys = list(d.keys())
-                self._validate_or_set_columns(keys)
-            arr = np.array([[d[k] for k in keys] for d in data], dtype=self.dtype)
-            return arr
-
-        # Already NumPy
-        elif isinstance(data, np.ndarray):
-            return data.astype(self.dtype)
-
-        else:
-            raise TypeError("Data must be a NumPy array, dict, or list of dicts.")
+    # -------------------- Data Preparation --------------------
 
     def _validate_or_set_columns(self, keys: List[str]):
         """Ensure consistency of column names across writes."""
@@ -139,6 +111,53 @@ class MemmapHandler:
             raise ValueError(
                 f"Inconsistent keys: expected {self._column_names}, got {keys}"
             )
+
+    def _check_array_size(self, arr: np.ndarray):
+        """
+        Ensure that the incoming array has the same number of columns as existing metadata.
+        """
+        # Skip for 1D arrays (must be reshaped)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+
+        num_cols = arr.shape[1]
+
+        if self.shape[1] != num_cols:
+            raise ValueError(f"Expected {self.shape[1]} columns but got {num_cols}")
+
+    def _prepare_data(
+        self, data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]]
+    ) -> np.ndarray:
+        """
+        Normalize input data into a 2D NumPy array and update/check column metadata.
+        """
+        # Single dict
+        if data is None:
+            arr = np.empty((1, self.shape[1]), dtype=self.dtype)
+
+        elif isinstance(data, dict):
+            keys = list(data.keys())
+            arr = np.array(list(data.values()), dtype=self.dtype).reshape(1, -1)
+            self._validate_or_set_columns(keys)
+
+        # List of dicts
+        elif isinstance(data, list) and all(isinstance(d, dict) for d in data):
+            for _, d in enumerate(data):
+                keys = list(d.keys())
+                self._validate_or_set_columns(keys)
+            arr = np.array([[d[k] for k in keys] for d in data], dtype=self.dtype)
+
+        # Already NumPy
+        elif isinstance(data, np.ndarray):
+            arr = data.astype(self.dtype)
+
+        else:
+            raise TypeError(
+                "Data must be a NumPy array, dict, or list of dicts or None."
+            )
+
+        self._check_array_size(arr)
+        return arr
 
     # -------------------- Writing --------------------
 
