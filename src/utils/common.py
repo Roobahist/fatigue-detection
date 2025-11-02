@@ -1,8 +1,13 @@
+from typing import Optional
+
+
 def set_seed(seed=42):
     import os
     import random
+
     import numpy as np
     import tensorflow as tf
+
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -21,7 +26,9 @@ def flatten(lst) -> list:
 
 
 def order_dict_by_key_list(d, key_order):
-    return {k: d[k] for k in key_order if k in d} | {k: d[k] for k in d if k not in key_order}
+    return {k: d[k] for k in key_order if k in d} | {
+        k: d[k] for k in d if k not in key_order
+    }
 
 
 def pattern(lst):
@@ -35,7 +42,7 @@ def matches_pattern(list1, list2):
     # c = ['x', 'y', 'y', 'y', 'y', 'y']
     # print(matches_pattern(a, b))  # True
     # print(matches_pattern(a, c))  # False
-    
+
     return pattern(list1) == pattern(list2)
 
 
@@ -63,7 +70,7 @@ def has_multiple_mappings(list1, list2):
         if b not in mapping:
             mapping[b] = set()
         mapping[b].add(a)
-    
+
     # Check if any element in list2 maps to more than one unique element in list1
     return any(len(values) > 1 for values in mapping.values())
 
@@ -78,12 +85,14 @@ def save_obj(obj, output_path, file_type):
     """
     if file_type == "pickle":
         import pickle
-        with open(output_path, 'wb') as file:
+
+        with open(output_path, "wb") as file:
             pickle.dump(obj, file)
 
     if file_type == "json":
         import json
-        with open(output_path, 'w') as f:
+
+        with open(output_path, "w") as f:
             json.dump(obj, f, indent=4)
 
 
