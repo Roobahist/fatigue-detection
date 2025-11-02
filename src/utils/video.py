@@ -388,6 +388,62 @@ def fourcc_to_str(fourcc: Union[str, int]) -> str:
     return fourcc_str
 
 
+def video_to_gif(
+    input_path: str,
+    output_path: str,
+    start_time: Optional[float] = None,
+    duration: Optional[float] = None,
+    fps: Optional[float] = 10,
+    scale_width: Optional[int] = None,
+) -> bool:
+    """
+    Converts a video segment to GIF using FFmpeg.
+
+    Args:
+        input_path (str): Path to the input video file.
+        output_path (str): Path to save the output GIF file.
+        start_time (float, optional): Start time in seconds for the segment.
+        duration (float, optional): Duration in seconds for the segment.
+        fps (float, optional): Frames per second for the GIF. Defaults to 10.
+        scale_width (int, optional): Width to scale the GIF. Height is auto-calculated to maintain aspect ratio.
+
+    Returns:
+        bool: True if conversion succeeded, False otherwise.
+    """
+    if os.path.isdir(output_path):
+        output_path = os.path.join(output_path, Path(input_path).stem + ".gif")
+
+    command = ["ffmpeg", "-y"]
+
+    if start_time is not None:
+        command += ["-ss", str(start_time)]
+    if duration is not None:
+        command += ["-t", str(duration)]
+
+    command += ["-i", input_path]
+
+    filters = []
+    if scale_width is not None:
+        filters.append(f"scale={scale_width}:-1")
+    if fps is not None:
+        filters.append(f"fps={fps}")
+
+    if filters:
+        command += ["-vf", ",".join(filters)]
+
+    command += ["-loop", "0", output_path]
+
+    try:
+        subprocess.run(command, check=True)
+        logging.info(f"Successfully converted video to GIF: {output_path}")
+        return True
+    except Exception as e:
+        logging.error(
+            f"Error converting video to GIF {output_path}: {traceback.format_exc()}"
+        )
+        return False
+    
+
 class VideoReaderInitializationError(Exception):
     pass
 
