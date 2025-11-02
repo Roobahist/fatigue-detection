@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -23,6 +24,7 @@ class MemmapHandler:
         dtype: str = "float32",
         mode: str = "r+",
         auto_metadata: bool = True,
+        misc: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize or open a memory-mapped file.
@@ -39,6 +41,8 @@ class MemmapHandler:
             File mode: 'r+' (read/write), 'r' (read-only), 'w+' (overwrite), or 'c' (copy-on-write).
         auto_metadata : bool
             Whether to load/save metadata.json automatically.
+        misc : dict, optional
+            Additional metadata to store.
         """
         self.path = Path(path)
         self.meta_path = self.path.with_suffix(".json")
@@ -54,6 +58,10 @@ class MemmapHandler:
                 raise ValueError("Shape must be provided when creating a new file.")
             self._create_new()
         else:
+            if misc is not None:
+                logging.info(
+                    "Misc metadata provided will be ignored when loading existing file."
+                )
             self._load_existing()
 
     # -------------------- Core setup --------------------
@@ -66,7 +74,9 @@ class MemmapHandler:
         )
         self._memmap.flush()
         if self.auto_metadata:
-            self._save_metadata({"shape": self.shape, "dtype": str(self.dtype)})
+            self._save_metadata(
+                {"shape": self.shape, "dtype": str(self.dtype), "misc": self.misc}
+            )
 
     def _load_existing(self):
         """Open an existing memmap file and load shape from metadata."""
@@ -76,7 +86,8 @@ class MemmapHandler:
             meta = json.loads(self.meta_path.read_text())
             self.shape = tuple(meta["shape"])
             self.dtype = np.dtype(meta["dtype"])
-            self._column_names = meta.get("column_names")
+            self._column_names = meta.get("column_names", None)
+            self.misc = meta.get("misc", {})
         elif self.shape is None:
             raise ValueError("Shape required if metadata file is missing.")
         self._memmap = np.memmap(
@@ -196,9 +207,9 @@ class MemmapHandler:
 
     # -------------------- Reading --------------------
 
-    def read(self, start: int = 0, stop: Optional[int] = None) -> np.ndarray:
+    def read(self, slice=slice(None)) -> np.ndarray:
         """Read a slice of the data."""
-        return np.array(self._memmap[start:stop])
+        return np.array(self._memmap[slice])
 
     def __getitem__(self, idx: Union[int, slice, Tuple]) -> np.ndarray:
         """Array-style indexing."""
