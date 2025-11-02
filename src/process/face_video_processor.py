@@ -14,7 +14,7 @@ from Zh.src.utils.csvwriter import CSVWriter
 from Zh.src.utils.face import calculate_ROI_face, process_face
 from Zh.src.utils.face_detector import FaceDetector
 from Zh.src.utils.file_folder import create_folders
-from Zh.src.utils.memmap_writer import MemmapHandler
+from Zh.src.utils.memmap_handler import MemmapHandler
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader, VideoWriter
