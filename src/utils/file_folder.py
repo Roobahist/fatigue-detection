@@ -85,11 +85,27 @@ def pick_selected_file_paths(
     )
 
     if relative_selected_paths:
-        selected_file_paths = [
-            file_path
-            for file_path in all_file_paths
-            if os.path.relpath(file_path, input_folder) in relative_selected_paths
-        ]
+        selected_file_paths = []
+        for relative_selected_path in relative_selected_paths:
+            if os.path.isdir(os.path.join(input_folder, relative_selected_path)):
+                # If it's a directory, add all files under it
+                dir_full_path = os.path.join(input_folder, relative_selected_path)
+                dir_file_paths = get_file_paths(
+                    input_path=dir_full_path,
+                    depth=depth,
+                    EXT_LIST=EXT_LIST,
+                )
+                selected_file_paths.extend(dir_file_paths)
+            else:
+                # If it's a file, add it directly
+                full_path = os.path.join(input_folder, relative_selected_path)
+                if os.path.exists(full_path):
+                    selected_file_paths.append(full_path)
+                else:
+                    logging.warning(f"Selected path does not exist: {full_path}")
+
+        selected_file_paths = list(set(selected_file_paths))  # Remove duplicates
+        
         logging.info(
             f"File Paths Captured Using Provided List: {len(selected_file_paths)}"
         )
