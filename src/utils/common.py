@@ -94,3 +94,31 @@ def get_frame_size(frame) -> tuple[int, int]:
     """
     h, w = frame.shape[:2]
     return (w, h)
+
+
+def read_obj(input_path, file_type: Optional[str] = None):
+    """
+    Load an object from a file using pickle.
+
+    Args:
+        input_path (str): The path to the pickled file.
+    """
+
+    if input_path.endswith(".json"):
+        file_type = "json"
+    elif input_path.endswith(".pkl") or input_path.endswith(".pickle"):
+        file_type = "pickle"
+
+    if file_type == "pickle":
+        import pickle
+
+        with open(input_path, "rb") as file:
+            obj = pickle.load(file)
+        return obj
+
+    if file_type == "json":
+        import json
+
+        with open(input_path, "r") as f:
+            obj = json.load(f)
+        return obj
