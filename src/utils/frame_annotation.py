@@ -1,3 +1,5 @@
+from typing import List, Union
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,16 +36,16 @@ def draw_regions(
 
     # Define a list of distinctive colors (BGR)
     color_palette = [
-        (255, 0, 0),    # Blue
-        (0, 255, 0),    # Green
-        (0, 0, 255),    # Red
+        (255, 0, 0),  # Blue
+        (0, 255, 0),  # Green
+        (0, 0, 255),  # Red
         (255, 255, 0),  # Cyan
         (255, 0, 255),  # Magenta
         (0, 255, 255),  # Yellow
         (128, 0, 128),  # Purple
         (0, 128, 128),  # Teal
         (128, 128, 0),  # Olive
-        (0, 0, 128),    # Maroon
+        (0, 0, 128),  # Maroon
     ]
 
     if mode == "points":
