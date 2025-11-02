@@ -103,3 +103,25 @@ def copy_directory_structure(source_dir, target_dir):
         # Create the corresponding directory in the target path
         new_dir_path = os.path.join(target_dir, relative_path)
         create_folders(new_dir_path)
+
+
+def move_file(src_path: str, dest_path: str, mode: str = "cut"):
+    """
+    Move a file from src_path to dest_path.
+    
+    Args:
+        src_path (str): Path to the source file
+        dest_path (str): Path to the destination file
+        mode (str): "cut" to move the file, "copy" to copy it. Default is "cut".
+    """
+    import shutil
+
+    try:
+        if mode == "cut":
+            os.rename(src_path, dest_path)
+            logging.info(f"Moved file from {src_path} to {dest_path}")
+        elif mode == "copy":
+            shutil.copy2(src_path, dest_path)
+            logging.info(f"Copied file from {src_path} to {dest_path}")
+    except Exception as e:
+        logging.error(f"Error moving file from {src_path} to {dest_path}: {e}")
