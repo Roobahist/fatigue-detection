@@ -73,6 +73,34 @@ def get_file_paths(
     return file_paths
 
 
+def pick_selected_file_paths(
+    input_folder: str,
+    depth: int,
+    EXT_LIST: List[str],
+    relative_selected_paths: List[str] = [],
+) -> List[str]:
+    
+    all_file_paths = get_file_paths(
+        input_path=input_folder, depth=depth, EXT_LIST=EXT_LIST
+    )
+
+    if relative_selected_paths:
+        selected_file_paths = [
+            file_path
+            for file_path in all_file_paths
+            if os.path.relpath(file_path, input_folder) in relative_selected_paths
+        ]
+        logging.info(
+            f"File Paths Captured Using Provided List: {len(selected_file_paths)}"
+        )
+    else:
+        selected_file_paths = all_file_paths
+        logging.info(
+            f"File Paths Captured Automatically: {len(selected_file_paths)}"
+        )
+        
+    return selected_file_paths
+
 def copy_directory_structure(source_dir, target_dir):
     """
     Copy the directory structure from source_dir to target_dir.
