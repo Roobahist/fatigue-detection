@@ -137,7 +137,8 @@ if __name__ == "__main__":
         format="[%(asctime)s][%(levelname)s] %(message)s",
     )
 
-    parser = argparse.ArgumentParser(description="Process video files")
+    parser = argparse.ArgumentParser(description="Find Most and Least Eventful Video Segments")
+    
     parser.add_argument(
         "input_folder",
         type=str,
