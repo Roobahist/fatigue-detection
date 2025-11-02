@@ -28,7 +28,7 @@ class BaseEmbedder(ABC):
     """
     def __init__(self, cfg: EmbedderConfig):
         self.cfg = cfg
-        self.processor = AutoImageProcessor.from_pretrained(cfg.repo_id)
+        self.processor = AutoImageProcessor.from_pretrained(cfg.repo_id, use_fast=True)
         load_kwargs: Dict = {}
         if cfg.fp16_if_gpu and torch.cuda.is_available():
             load_kwargs["torch_dtype"] = torch.float16
