@@ -10,7 +10,7 @@ from tqdm import tqdm
 from transformers import AutoImageProcessor, AutoModel
 
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
-from Zh.src.utils.hdf5writer import HDF5Writer
+from Zh.src.utils.hdf5_handler import HDF5Writer
 from Zh.src.utils.memory import cleanup
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.cpu_gpu import setup_tensorflow, setup_torch
@@ -55,7 +55,7 @@ def process_single_video(
     embedding_model_name: str,
     model_bundle: Tuple,
     strategies: List[str],
-    output_folder_path: str,
+    output_folder: str,
     start_second: int = 0,
     end_second: int = -1,
     frame_stride: int = 1,
@@ -69,7 +69,7 @@ def process_single_video(
         embedding_model_name (str): Name of the model used for embedding.
         model_bundle (Tuple): The processor and model.
         strategies (List[str]): List of embedding strategies to compute.
-        output_folder_path (str): Path to the folder where the HDF5 output file will be saved.
+        output_folder (str): Path to the folder where the HDF5 output file will be saved.
         start_second (int): Starting second of the video to process.
         end_second (int): Ending second of the video to process.
         frame_stride (int): Frame interval to sample the video.
@@ -94,7 +94,7 @@ def process_single_video(
         "timestamp": datetime.now().isoformat(),
         "strategies": strategies,
     }
-    output_file = os.path.join(output_folder_path, f"{os.path.basename(video_file_path)}.h5")
+    output_file = os.path.join(output_folder, f"{os.path.basename(video_file_path)}.h5")
     writer = HDF5Writer(output_file)
     existing_metadata = writer.read_all_metadata()
     writer.check_metadata_consistency(existing_metadata, metadata)
@@ -243,9 +243,9 @@ def get_embedding(
 
 
 def process_multiple_videos(
-    input_folder_path: str,
-    output_folder_path: str,
-    video_file_names: Optional[List[str]] = [],
+    input_folder: str,
+    output_folder: str,
+    video_files: Optional[List[str]] = [],
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
     embedding_model_name: Optional[str] = "Facenet",
@@ -256,26 +256,26 @@ def process_multiple_videos(
     maxtasksperchild: Optional[int] = 1,
 ):
     """
-    video_file_names : relative path after the input folder should be provided,
+    video_files : relative path after the input folder should be provided,
                        otherwise all the files in all subdirectories would be
                        processed.
     """
-    copy_directory_structure(input_folder_path, output_folder_path)
-    all_video_file_names = get_file_paths(
-        input_path=input_folder_path, depth=5, EXT_LIST=VIDEO_EXTS
+    copy_directory_structure(input_folder, output_folder)
+    all_video_file_paths = get_file_paths(
+        input_path=input_folder, depth=5, EXT_LIST=VIDEO_EXTS
     )
 
-    if video_file_names != []:
+    if video_files != []:
         video_file_paths = [
             video_file_name
-            for video_file_name in all_video_file_names
-            if os.path.basename(video_file_name) in video_file_names
+            for video_file_name in all_video_file_paths
+            if os.path.basename(video_file_name) in video_files
         ]
         logging.info(
             f"Video File Paths Captured Using Provided List: {len(video_file_paths)}"
         )
     else:
-        video_file_paths = all_video_file_names
+        video_file_paths = all_video_file_paths
         logging.info(
             f"Video File Paths Captured Automatically: {len(video_file_paths)}"
         )
@@ -283,8 +283,8 @@ def process_multiple_videos(
 
     args_list = [
         {
-            "input_folder_path": input_folder_path,
-            "output_folder_path": output_folder_path,
+            "input_folder": input_folder,
+            "output_folder": output_folder,
             "video_file_path": video_file_paths[i],
             "start_second": start_second,
             "end_second": end_second,
@@ -314,41 +314,38 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Process video files")
     parser.add_argument(
-        "input_folder_path",
+        "input_folder",
         type=str,
-        default="/work/long_lab/Mojtaba/data/UTA/1.4-augmentated_masked",
-        help="Path to the input folder",
+        help="Path to the input folder containing video files.",
     )
     parser.add_argument(
-        "output_folder_path",
+        "output_folder",
         type=str,
-        default="/work/long_lab/Mojtaba/data/UTA/1.4.1-augmentated_masked_embedded",
-        help="Path to the output folder",
+        help="Path to the output folder to save processed videos.",
     )
     parser.add_argument(
-        "--video_file_names",
-        type=str,
+        "video_files",
         nargs="*",
-        help="List of video file names to process (optional, if not provided all videos will be processed)",
+        help="List of video file names to process.",
     )
-
     parser.add_argument(
-        "--start_second", type=int, default=0, help="Start second for processing"
+        "--start_second",
+        type=int,
+        default=0,
+        help="Start processing from this second.",
     )
     parser.add_argument(
         "--end_second",
         type=int,
         default=None,
-        help="End second for processing (default: None, process till the end)",
+        help="End processing at this second.",
     )
-
     parser.add_argument(
         "--embedding_model_name",
         type=str,
         default="Facenet",
         help="Embedding model to use (default: Facenet)",
     )
-
     parser.add_argument(
         "--strategies",
         type=str,
@@ -356,34 +353,44 @@ if __name__ == "__main__":
         default=["cls"],
         help="List of strategies to use for embedding (default: ['cls'])",
     )
-
     parser.add_argument(
-        "--disable_tqdm", action="store_false", help="Disable tqdm for progress bar"
+        "--parallel",
+        action="store_true",
+        help="Process videos in parallel.",
     )
     parser.add_argument(
-        "--disable_parallel", action="store_false", help="Disable parallel processing"
+        "--max_workers",
+        type=int,
+        default=None,
+        help="Maximum number of workers for parallel processing.",
     )
-    parser.add_argument("--max_workers", type=int, help="Maximum number of workers")
     parser.add_argument(
         "--maxtasksperchild",
         type=int,
         default=None,
-        help="Maximum tasks per child process (default: None)",
+        help="Maximum tasks per child process.",
+    )
+    parser.add_argument(
+        "--no_tqdm",
+        action="store_false",
+        dest="use_tqdm",
+        default=True,
+        help="Disable tqdm progress bars.",
     )
 
     args = parser.parse_args()
 
     logging.info("Starting ...")
     process_multiple_videos(
-        input_folder_path=args.input_folder_path,
-        output_folder_path=args.output_folder_path,
-        video_file_names=args.video_file_names,
+        input_folder=args.input_folder,
+        output_folder=args.output_folder,
+        video_files=args.video_files,
         start_second=args.start_second,
         end_second=args.end_second,
         embedding_model_name=args.embedding_model_name,
         strategies=args.strategies,
-        use_tqdm=args.disable_tqdm,
-        parallel=args.disable_parallel,
+        use_tqdm=args.use_tqdm,
+        parallel=args.parallel,
         max_workers=args.max_workers,
         maxtasksperchild=args.maxtasksperchild,
     )
