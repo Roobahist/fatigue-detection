@@ -72,6 +72,10 @@ class ViTBackboneEmbedder(BaseEmbedder):
     Assumes token layout: [CLS] [patch tokens ...] [register tokens (optional)]
     DINOv2 exposes config.num_register_tokens > 0; others typically 0.
     """
+    def __init__(self, cfg: EmbedderConfig):
+        super().__init__(cfg)
+        self.valid_strategies = ["cls", "mean", "cls_mean", "tokens", "tokens_cls"]
+
     def _load_model(self, repo_id: str, **kwargs):
         return AutoModel.from_pretrained(repo_id, **kwargs)
 
