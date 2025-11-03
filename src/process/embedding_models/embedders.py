@@ -1,14 +1,22 @@
 # embedders.py
 from __future__ import annotations
+
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Optional
+
 import numpy as np
 import torch
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModel
 
+logging.basicConfig(
+    level=logging.INFO,  # or DEBUG for more verbosity
+    format="[%(asctime)s][%(levelname)s] %(message)s",
+)
 # ---------- configuration ----------
+
 
 @dataclass
 class EmbedderConfig:
@@ -17,7 +25,9 @@ class EmbedderConfig:
     fp16_if_gpu: bool = True
     attn_impl: Optional[str] = "sdpa"  # None disables passing this kwarg
 
+
 # ---------- base interface ----------
+
 
 class BaseEmbedder(ABC):
     """
@@ -26,6 +36,7 @@ class BaseEmbedder(ABC):
       - provide methods embed_cls, embed_mean, embed_cls_mean, embed_tokens, embed_tokens_cls
       - subclasses load their own processor/model and implement token extraction
     """
+
     def __init__(self, cfg: EmbedderConfig):
         self.cfg = cfg
         self.processor = AutoImageProcessor.from_pretrained(cfg.repo_id, use_fast=True)
@@ -37,17 +48,20 @@ class BaseEmbedder(ABC):
                 load_kwargs["attn_implementation"] = cfg.attn_impl
         self.valid_strategies = []
         self.model = self._load_model(cfg.repo_id, **load_kwargs)
+        first_param_device = next(self.model.parameters()).device
+        logging.error(f"[DEBUG] Model loaded on: {first_param_device}")
         self.model.eval()
 
     @abstractmethod
-    def _load_model(self, repo_id: str, **kwargs) -> torch.nn.Module:
-        ...
+    def _load_model(self, repo_id: str, **kwargs) -> torch.nn.Module: ...
 
     # ---- public API ----
     def embed(self, frame: np.ndarray, strategy: str) -> np.ndarray:
         fn = getattr(self, f"embed_{strategy.replace('+','_')}", None)
         if fn is None:
-            raise ValueError(f"Embedding strategy '{strategy}' not supported by {type(self).__name__}")
+            raise ValueError(
+                f"Embedding strategy '{strategy}' not supported by {type(self).__name__}"
+            )
         return fn(frame)
 
     # ---- utilities ----
@@ -66,13 +80,16 @@ class BaseEmbedder(ABC):
             inputs[k] = v.to(self.model.device, dtype=(model_dtype or v.dtype))
         return inputs
 
+
 # ---------- ViT-family backbone (covers DINOv2, DeiT, ViT) ----------
+
 
 class ViTBackboneEmbedder(BaseEmbedder):
     """
     Assumes token layout: [CLS] [patch tokens ...] [register tokens (optional)]
     DINOv2 exposes config.num_register_tokens > 0; others typically 0.
     """
+
     def __init__(self, cfg: EmbedderConfig):
         super().__init__(cfg)
         self.valid_strategies = ["cls", "mean", "cls_mean", "tokens", "tokens_cls"]
@@ -90,7 +107,7 @@ class ViTBackboneEmbedder(BaseEmbedder):
 
         cls_tok = hs[:, 0, :]  # [B, D]
         # exclude register tokens from "patch tokens"
-        patches = hs[:, 1:(N - num_regs) if num_regs else None, :]  # [B, Np, D]
+        patches = hs[:, 1 : (N - num_regs) if num_regs else None, :]  # [B, Np, D]
         return cls_tok, patches, hs, num_regs
 
     # --- embedding variants (public) ---
@@ -120,14 +137,19 @@ class ViTBackboneEmbedder(BaseEmbedder):
         full = torch.cat([cls_tok.unsqueeze(1), patches], dim=1).reshape(1, -1)
         return self._finish(full)
 
+
 # ---------- factory/registry ----------
 
 # Simple heuristics: add patterns -> class
 _REGISTRY = [
     # (predicate, class)
-    (lambda repo: "dinov2" in repo or "vit" in repo or "deit" in repo, ViTBackboneEmbedder),
+    (
+        lambda repo: "dinov2" in repo or "vit" in repo or "deit" in repo,
+        ViTBackboneEmbedder,
+    ),
     # Future: ("openai/clip-vit-", CLIPImageEmbedder), ("facenet", FaceNetEmbedder), etc.
 ]
+
 
 def make_embedder(repo_id: str, **kwargs) -> BaseEmbedder:
     for pred, cls in _REGISTRY:
