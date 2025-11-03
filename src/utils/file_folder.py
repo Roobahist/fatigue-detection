@@ -27,7 +27,7 @@ def get_file_paths(
     input_path: str, 
     return_full_path: bool = True,
     depth: int = 1, 
-    EXT_LIST: List[str] = []
+    EXT_LIST: Union[List[str], str] = []
 ) -> List[str]:
     """
     Collect file paths under the given input_path with filtering options.
@@ -44,7 +44,9 @@ def get_file_paths(
     Returns:
         List[str]: List of file paths matching the criteria.
     """
-
+    if not isinstance(EXT_LIST, list):
+        EXT_LIST = [EXT_LIST]
+        
     # Normalize extension list
     EXT_LIST = [
         ext.lower() if ext.startswith(".") else "." + ext.lower()
@@ -76,10 +78,10 @@ def get_file_paths(
 def pick_selected_file_paths(
     input_folder: str,
     depth: int,
-    EXT_LIST: List[str],
+    EXT_LIST: Union[List[str], str],
     relative_selected_paths: List[str] = [],
 ) -> List[str]:
-    
+
     all_file_paths = get_file_paths(
         input_path=input_folder, depth=depth, EXT_LIST=EXT_LIST
     )
