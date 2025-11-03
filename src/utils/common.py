@@ -131,3 +131,25 @@ def read_obj(input_path, file_type: Optional[str] = None):
         with open(input_path, "r") as f:
             obj = json.load(f)
         return obj
+
+
+def update_file_name(
+    file_path: str,
+    input_folder: str,
+    output_folder: str,
+    remove_suffix: str,
+    suffix: str,
+    remove_prefix: str,
+    prefix: str,
+    extension: str,
+):
+    import os
+
+    relative_path = os.path.relpath(file_path, input_folder)
+    base_name, ext = os.path.splitext(relative_path)
+    if remove_suffix and base_name.endswith(remove_suffix):
+        base_name = base_name[: -len(remove_suffix)]
+    if remove_prefix and base_name.startswith(remove_prefix):
+        base_name = base_name[len(remove_prefix) :]
+    new_file_name = f"{prefix}{base_name}{suffix}{extension}"
+    return os.path.join(output_folder, new_file_name)
