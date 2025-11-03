@@ -1,25 +1,17 @@
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
-import numpy as np
-import torch
-from PIL import Image
 from tqdm import tqdm
-from transformers import AutoImageProcessor, AutoModel
 
-from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
-from Zh.src.utils.hdf5_handler import HDF5Writer
-from Zh.src.utils.memory import cleanup
-from Zh.src.utils.serialized_parallel import process
+from Zh.src.process.embedding_models.embedders import *
+from Zh.src.utils.common import update_file_name
 from Zh.src.utils.cpu_gpu import setup_tensorflow, setup_torch
+from Zh.src.utils.file_folder import copy_directory_structure, pick_selected_file_paths
+from Zh.src.utils.memmap_handler import MemmapHandler
+from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader
-
-logging.basicConfig(
-    level=logging.INFO,  # or DEBUG for more verbosity
-    format="[%(asctime)s][%(levelname)s] %(message)s",
-)
 
 setup_tensorflow()
 device = setup_torch()
@@ -27,225 +19,97 @@ device = setup_torch()
 VIDEO_EXTS = [".mp4", ".mov", ".avi"]
 
 
-# Overwrite placeholder metadata consistency checker
-def check_metadata_consistency(existing_metadata, current_metadata):
-    """
-    Ensure all existing entries in the metadata are consistent with the current one.
-    Raises ValueError if inconsistency is found.
-    """
-    for entry in existing_metadata:
-        if (
-            entry["video_file_path"] != current_metadata["video_file_path"]
-            or entry["file_size"] != current_metadata["file_size"]
-            or entry["embedding_model_name"] != current_metadata["embedding_model_name"]
-            or entry["start_frame"] != current_metadata["start_frame"]
-            or entry["end_frame"] != current_metadata["end_frame"]
-            or entry.get("frame_stride") != current_metadata.get("frame_stride")
-        ):
-            raise ValueError(
-                f"Inconsistent metadata detected:\nExisting: {entry}\nCurrent: {current_metadata}"
-            )
-
-
-HDF5Writer.check_metadata_consistency = staticmethod(check_metadata_consistency)
-
-
 def process_single_video(
-    video_file_path: str,
-    embedding_model_name: str,
-    model_bundle: Tuple,
-    strategies: List[str],
+    input_folder: str,
     output_folder: str,
-    start_second: int = 0,
-    end_second: int = -1,
-    frame_stride: int = 1,
-    **kwargs,
-) -> None:
+    file_path: str,
+    start_second: Optional[int] = 0,
+    end_second: Optional[int] = None,
+    embedding_model_name: Optional[str] = "Facenet",
+    strategies: Union[str, List[str]] = "cls",
+    use_tqdm: Optional[bool] = False,
+    file_index: Optional[int] = 0,
+):
     """
     Process a single video and write embeddings to HDF5 using multiple strategies.
 
     Args:
-        video_file_path (str): Path to the video file.
-        embedding_model_name (str): Name of the model used for embedding.
-        model_bundle (Tuple): The processor and model.
-        strategies (List[str]): List of embedding strategies to compute.
-        output_folder (str): Path to the folder where the HDF5 output file will be saved.
-        start_second (int): Starting second of the video to process.
-        end_second (int): Ending second of the video to process.
-        frame_stride (int): Frame interval to sample the video.
+        input_folder (str): Path to the input folder containing video files.
+        output_folder (str): Path to the output folder to save processed videos.
+        file_path (str): Relative path of the video file to process.
+        start_second (int, optional): Start processing from this second. Defaults to 0.
+        end_second (int, optional): End processing at this second. Defaults to None.
+        embedding_model_name (str, optional): Embedding model to use. Defaults to "Facenet".
+        strategies (Union[str, List[str]]): List of strategies to use for embedding. Defaults to "cls".
+        use_tqdm (bool, optional): Whether to use tqdm progress bars. Defaults to False.
+        file_index (int, optional): Index of the file being processed. Defaults to 0
     """
-    VR = VideoReader(video_file_path)
-    info = VR.get_info()
+    logging.info(f"Processing file {file_index}: {file_path}")
+
+    embedder = make_embedder(embedding_model_name)
+
+    vr = VideoReader(file_path)
+    info = vr.get_info()
     total_frames = info["total_frames"]
     video_fps = info["fps"]
 
     start_frame = int(start_second * video_fps)
     end_frame = int(end_second * video_fps) if end_second > 0 else total_frames
-    expected_num_frames = (end_frame - start_frame) // frame_stride
 
-    file_size = os.path.getsize(video_file_path)
-    metadata = {
-        "video_file_path": video_file_path,
-        "file_size": str(file_size),
-        "embedding_model_name": embedding_model_name,
-        "start_frame": str(start_frame),
-        "end_frame": str(end_frame),
-        "frame_stride": str(frame_stride),
-        "timestamp": datetime.now().isoformat(),
-        "strategies": strategies,
-    }
-    output_file = os.path.join(output_folder, f"{os.path.basename(video_file_path)}.h5")
-    writer = HDF5Writer(output_file)
-    existing_metadata = writer.read_all_metadata()
-    writer.check_metadata_consistency(existing_metadata, metadata)
+    valid_strategies = [s for s in strategies if s in embedder.valid_strategies]
 
-    strategy_done = {
-        strategy: writer.get_dataset_length(strategy) >= expected_num_frames
-        for strategy in strategies
-    }
-
-    for frame_number in tqdm(
-        range(start_frame, end_frame, frame_stride), desc=os.path.basename(video_file_path)
-    ):
-        ret, frame = VR.jump_to_frame(frame_number)
-        if not ret:
-            break
-
-        active_strategies = [s for s, done in strategy_done.items() if not done]
-        if active_strategies:
-            results = get_embedding(embedding_model_name, model_bundle, frame, active_strategies)
-            writer.batch_write(results)
-
-    lengths = [writer.get_dataset_length(s) for s in strategies]
-    if len(set(lengths)) > 1:
-        raise ValueError(
-            f"Inconsistent dataset lengths in {output_file}: {dict(zip(strategies, lengths))}"
-        )
-
-    writer.add_metadata(metadata)
-    writer.close()
-
-
-def get_embedding_model(embedding_model_name: str = "google/vit-base-patch16-224-in21k") -> Tuple:
-    """
-    Load the specified embedding model and image processor.
-
-    Args:
-        embedding_model_name (str): The name of the model to load.
-
-    Returns:
-        Tuple: (processor, model) for use in embedding extraction.
-    """
-    # todo : make it compatible with Facenet and other models
-    # FP = FrameProcessor()
-    # frame_embedding = [
-    #     round(x, 3)
-    #     for x in FP.represent(
-    #         img_path=frame,
-    #         model_name=embedding_model,
-    #         enforce_detection=False,
-    #         detector_backend="skip",
-    #         normalization=embedding_normalization,
-    #     )[0]["embedding"]
-    # ]
-
-    if "/" in embedding_model_name:
-        processor = AutoImageProcessor.from_pretrained(embedding_model_name)
-        model = AutoModel.from_pretrained(embedding_model_name)
-        model.eval()  # Set to eval mode to avoid dropout
-        return processor, model
+    # calculating the embedding for the first frame to find the 
+    # dimension of the embeddings and instantiate the writers
+    writers = {}
+    ret, temp_frame = vr.read_frame(0)
+    if ret:
+        for strategy in valid_strategies:
+            shape = (
+                start_frame - end_frame,
+                embedder.embed(frame=temp_frame, strategy=strategy).shape[0],
+            )
+            output_file_path = update_file_name(
+                file_path=file_path,
+                input_folder=input_folder,
+                output_folder=output_folder,
+                suffix=f"__embedding_{embedding_model_name.split('/')[-1]}_strategy_{strategy}",
+                prefix=f"{embedding_model_name.split('/')[-1]}/{strategy}/",
+                extension=".dat",
+            )
+            writer = MemmapHandler(
+                path=output_file_path, mode="w+", shape=shape, dtype="float32"
+            )
+            writers[strategy] = writer
     else:
-        raise ValueError(f"Unsupported model: {embedding_model_name}")
+        logging.error(f"Failed to read frame at index 0, skipping {file_path}")
+        return
 
+    for frame_index in tqdm(
+        range(start_frame, end_frame),
+        desc=f"Processing {file_path}",
+        disable=not use_tqdm,
+        unit="frame",
+        total=end_frame - start_frame,
+        miniters=100,
+    ):
+        ret, frame = vr.read_frame(frame_index=frame_index, jump=True)
+        if not ret:
+            print(f"{file_path} Failed to read frame at index {frame_index}, skipping.")
+            continue
 
-def get_embedding(
-    embedding_model_name: str,
-    model_bundle: Tuple,
-    frame: np.ndarray,
-    strategies: Union[str, List[str]] = "cls",
-) -> Dict[str, np.ndarray]:
-    """
-    Get one or more embeddings for a single frame using specified strategies.
+        for strategy, writer in writers.items():
+            writer.writer(
+                data=embedder.embed(frame=frame, strategy=strategy), start=frame_index
+            )
 
-    Args:
-        embedding_model_name (str): Model name for validation.
-        model_bundle (Tuple): (processor, model) from get_embedding_model().
-        frame (np.ndarray): The input frame in HWC RGB format.
-        strategies (Union[str, List[str]]): Strategy or list of strategies.
-            Options: "cls", "cls+mean", "pooled", "tokens", "tokens+cls"
-
-    Returns:
-        Dict[str, np.ndarray]: A dict mapping strategy names to their embeddings.
-    """
-    # todo : make it compatible with Facenet and other models
-
-    if "/" not in embedding_model_name:
-        raise ValueError(f"Unsupported model: {embedding_model_name}")
-
-    if isinstance(strategies, str):
-        strategies = [strategies]
-
-    processor, model = model_bundle
-    image = Image.fromarray(frame)
-    inputs = processor(images=image, return_tensors="pt")
-
-    result = {}
-
-    with torch.no_grad():
-        outputs = model(**inputs)
-        last_hidden_state = outputs.last_hidden_state  # [1, num_tokens, hidden_dim]
-        pooler_output = outputs.pooler_output  # [1, hidden_dim] or None
-
-        cls_token = last_hidden_state[:, 0, :]  # [1, hidden_dim]
-        patch_tokens = last_hidden_state[:, 1:, :]  # [1, 196, hidden_dim]
-        mean_pooled = patch_tokens.mean(dim=1)  # [1, hidden_dim]
-        cls_plus_mean = torch.cat([cls_token, mean_pooled], dim=1)  # [1, 2*hidden_dim]
-
-        for strategy in strategies:
-            if strategy == "cls":
-                result["cls"] = cls_token.squeeze(0).cpu().numpy().astype(np.float32)
-
-            elif strategy == "cls+mean":
-                result["cls+mean"] = (
-                    cls_plus_mean.squeeze(0).cpu().numpy().astype(np.float32)
-                )
-
-            elif strategy == "pooled":
-                if pooler_output is not None:
-                    result["pooled"] = (
-                        pooler_output.squeeze(0).cpu().numpy().astype(np.float32)
-                    )
-                else:
-                    raise ValueError(
-                        "This model does not support pooled output (pooler_output is None)."
-                    )
-
-            elif strategy == "tokens":
-                flat_tokens = (
-                    patch_tokens.squeeze(0).flatten().cpu().numpy().astype(np.float32)
-                )  # shape: [196 * hidden_dim]
-                result["tokens"] = flat_tokens
-
-            elif strategy == "tokens+cls":
-                full_tokens = (
-                    last_hidden_state.squeeze(0)
-                    .flatten()
-                    .cpu()
-                    .numpy()
-                    .astype(np.float32)
-                )  # shape: [197 * hidden_dim]
-                result["tokens+cls"] = full_tokens
-
-            else:
-                raise ValueError(f"Unsupported strategy: {strategy}")
-
-    return result
+    for _, writer in writers.items():
+        writer.close()
 
 
 def process_multiple_videos(
     input_folder: str,
     output_folder: str,
-    video_files: Optional[List[str]] = [],
+    relative_selected_paths: Optional[List[str]] = [],
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
     embedding_model_name: Optional[str] = "Facenet",
@@ -260,41 +124,28 @@ def process_multiple_videos(
                        otherwise all the files in all subdirectories would be
                        processed.
     """
-    copy_directory_structure(input_folder, output_folder)
-    all_video_file_paths = get_file_paths(
-        input_path=input_folder, depth=5, EXT_LIST=VIDEO_EXTS
-    )
 
-    if video_files != []:
-        video_file_paths = [
-            video_file_name
-            for video_file_name in all_video_file_paths
-            if os.path.basename(video_file_name) in video_files
-        ]
-        logging.info(
-            f"Video File Paths Captured Using Provided List: {len(video_file_paths)}"
-        )
-    else:
-        video_file_paths = all_video_file_paths
-        logging.info(
-            f"Video File Paths Captured Automatically: {len(video_file_paths)}"
-        )
-    model_bundle = get_embedding_model(embedding_model_name)
+    copy_directory_structure(input_folder, output_folder)
+    selected_file_paths = pick_selected_file_paths(
+        input_folder=input_folder,
+        depth=4,
+        EXT_LIST=[".mp4"],
+        relative_selected_paths=relative_selected_paths,
+    )
 
     args_list = [
         {
             "input_folder": input_folder,
             "output_folder": output_folder,
-            "video_file_path": video_file_paths[i],
+            "file_path": file_path,
             "start_second": start_second,
             "end_second": end_second,
-            "model_bundle": model_bundle,
             "embedding_model_name": embedding_model_name,
             "strategies": strategies,
             "use_tqdm": use_tqdm,
-            "file_index": i,
+            "file_index": file_index,
         }
-        for i in range(len(video_file_paths))
+        for file_index, file_path in enumerate(selected_file_paths)
     ]
 
     process(
@@ -311,8 +162,15 @@ def process_multiple_videos(
 
 if __name__ == "__main__":
     import argparse
+    import logging
 
-    parser = argparse.ArgumentParser(description="Process video files")
+    logging.basicConfig(
+        level=logging.INFO,  # or DEBUG for more verbosity
+        format="[%(asctime)s][%(levelname)s] %(message)s",
+    )
+
+    parser = argparse.ArgumentParser(description="Find Video Embeddings")
+
     parser.add_argument(
         "input_folder",
         type=str,
@@ -324,9 +182,9 @@ if __name__ == "__main__":
         help="Path to the output folder to save processed videos.",
     )
     parser.add_argument(
-        "video_files",
+        "relative_selected_paths",
         nargs="*",
-        help="List of video file names to process.",
+        help="List of relative file path to process. If empty, all files in the input folder will be processed.",
     )
     parser.add_argument(
         "--start_second",
@@ -381,10 +239,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logging.info("Starting ...")
+
     process_multiple_videos(
         input_folder=args.input_folder,
         output_folder=args.output_folder,
-        video_files=args.video_files,
+        relative_selected_paths=args.relative_selected_paths,
         start_second=args.start_second,
         end_second=args.end_second,
         embedding_model_name=args.embedding_model_name,
@@ -394,6 +253,3 @@ if __name__ == "__main__":
         max_workers=args.max_workers,
         maxtasksperchild=args.maxtasksperchild,
     )
-
-
-# python -m Zh.src.process.find_video_embedding /home/mojtaba.kananisarche/Zh/temp /home/mojtaba.kananisarche/Zh/temp --video_file_names 1_04_0_bgremoved.mp4 --start_second 2 --end_second 4 --embedding_model_name google/vit-base-patch16-224-in21k --strategies cls pooled tokens
