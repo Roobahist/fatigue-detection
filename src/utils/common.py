@@ -137,11 +137,11 @@ def update_file_name(
     file_path: str,
     input_folder: str,
     output_folder: str,
-    remove_suffix: str,
-    suffix: str,
-    remove_prefix: str,
-    prefix: str,
-    extension: str,
+    remove_suffix: str = "",
+    suffix: str = "",
+    remove_prefix: str = "",
+    prefix: str = "",
+    extension: str = "",
 ):
     import os
 
