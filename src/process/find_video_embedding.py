@@ -16,9 +16,6 @@ from Zh.src.utils.video import VideoReader
 setup_tensorflow()
 device = setup_torch()
 
-VIDEO_EXTS = [".mp4", ".mov", ".avi"]
-
-
 def process_single_video(
     input_folder: str,
     output_folder: str,
