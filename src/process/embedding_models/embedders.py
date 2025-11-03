@@ -22,7 +22,7 @@ class EmbedderConfig:
 class BaseEmbedder(ABC):
     """
     Contract:
-      - expose .embed(frame, kind) -> np.ndarray
+      - expose .embed(frame, strategy) -> np.ndarray
       - provide methods embed_cls, embed_mean, embed_cls_mean, embed_tokens, embed_tokens_cls
       - subclasses load their own processor/model and implement token extraction
     """
@@ -35,6 +35,7 @@ class BaseEmbedder(ABC):
             load_kwargs["device_map"] = "auto"
             if cfg.attn_impl is not None:
                 load_kwargs["attn_implementation"] = cfg.attn_impl
+        self.valid_strategies = []
         self.model = self._load_model(cfg.repo_id, **load_kwargs)
         self.model.eval()
 
@@ -43,10 +44,10 @@ class BaseEmbedder(ABC):
         ...
 
     # ---- public API ----
-    def embed(self, frame: np.ndarray, kind: str) -> np.ndarray:
-        fn = getattr(self, f"embed_{kind.replace('+','_')}", None)
+    def embed(self, frame: np.ndarray, strategy: str) -> np.ndarray:
+        fn = getattr(self, f"embed_{strategy.replace('+','_')}", None)
         if fn is None:
-            raise ValueError(f"Embedding kind '{kind}' not supported by {type(self).__name__}")
+            raise ValueError(f"Embedding strategy '{strategy}' not supported by {type(self).__name__}")
         return fn(frame)
 
     # ---- utilities ----
