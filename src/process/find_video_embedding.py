@@ -7,14 +7,11 @@ from tqdm import tqdm
 
 from Zh.src.process.embedding_models.embedders import *
 from Zh.src.utils.common import update_file_name
-from Zh.src.utils.cpu_gpu import setup_tensorflow, setup_torch
 from Zh.src.utils.file_folder import copy_directory_structure, pick_selected_file_paths
 from Zh.src.utils.memmap_handler import MemmapHandler
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader
 
-setup_tensorflow()
-device = setup_torch()
 
 def process_single_video(
     input_folder: str,
@@ -55,14 +52,14 @@ def process_single_video(
 
     valid_strategies = [s for s in strategies if s in embedder.valid_strategies]
 
-    # calculating the embedding for the first frame to find the 
+    # calculating the embedding for the first frame to find the
     # dimension of the embeddings and instantiate the writers
     writers = {}
     ret, temp_frame = vr.read_frame(0)
     if ret:
         for strategy in valid_strategies:
             shape = (
-                start_frame - end_frame,
+                end_frame - start_frame,
                 embedder.embed(frame=temp_frame, strategy=strategy).shape[0],
             )
             output_file_path = update_file_name(
@@ -95,7 +92,7 @@ def process_single_video(
             continue
 
         for strategy, writer in writers.items():
-            writer.writer(
+            writer.write(
                 data=embedder.embed(frame=frame, strategy=strategy), start=frame_index
             )
 
@@ -122,7 +119,6 @@ def process_multiple_videos(
                        processed.
     """
 
-    copy_directory_structure(input_folder, output_folder)
     selected_file_paths = pick_selected_file_paths(
         input_folder=input_folder,
         depth=4,
