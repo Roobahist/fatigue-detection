@@ -38,12 +38,16 @@ def process_single_video(
 
     most_eventful_output_path = os.path.join(
         output_folder,
-        os.path.relpath(file_path, input_folder).replace(".mp4", "__most_eventful.gif"),
+        os.path.relpath(file_path, input_folder).replace(
+            ".mp4",
+            f"__mosteventful_{most_eventful_start_frame}-{most_eventful_start_frame+window_size}.gif",
+        ),
     )
     least_eventful_output_path = os.path.join(
         output_folder,
         os.path.relpath(file_path, input_folder).replace(
-            ".mp4", "__least_eventful.gif"
+            ".mp4",
+            f"__leasteventful_{least_eventful_start_frame}-{least_eventful_start_frame+window_size}.gif",
         ),
     )
 
