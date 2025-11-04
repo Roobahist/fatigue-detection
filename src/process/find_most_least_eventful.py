@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 
 from Zh.src.utils.eventfulness import rank_eventfulness
 from Zh.src.utils.file_folder import copy_directory_structure, pick_selected_file_paths
@@ -73,6 +73,7 @@ def process_multiple_videos(
     eventfulness_scores_folder: str,
     output_folder: str,
     relative_selected_paths: List[str] = None,
+    file_indices_spec: Optional[str] = "",
     stride: int = 30,
     window_size: int = 90,
     video_fps: int = 15,
@@ -95,11 +96,14 @@ def process_multiple_videos(
     """
 
     copy_directory_structure(input_folder, output_folder)
-    selected_file_paths = pick_selected_file_paths(
+    
+    file_index_to_path = pick_selected_file_paths(
         input_folder=input_folder,
         depth=1,
         EXT_LIST=[".mp4"],
         relative_selected_paths=relative_selected_paths,
+        file_indices_spec=file_indices_spec,
+        sort_and_dedupe=True,
     )
 
     args_list = [
@@ -113,7 +117,7 @@ def process_multiple_videos(
             "video_fps": video_fps,
             "file_index": file_index,
         }
-        for file_index, file_path in enumerate(selected_file_paths)
+        for file_index, file_path in file_index_to_path.items()
     ]
 
     process(
@@ -158,6 +162,12 @@ if __name__ == "__main__":
         "relative_selected_paths",
         nargs="*",
         help="List of relative file path to process. If empty, all files in the input folder will be processed.",
+    )
+    parser.add_argument(
+        "--file_indices_spec",
+        type=str,
+        default="",
+        help="Comma-separated indices/ranges, e.g. '0-9,20,35-'",
     )
     parser.add_argument(
         "--stride",
@@ -210,6 +220,7 @@ if __name__ == "__main__":
         eventfulness_scores_folder=args.eventfulness_scores_folder,
         output_folder=args.output_folder,
         relative_selected_paths=args.relative_selected_paths,
+        file_indices_spec=args.file_indices_spec,
         stride=args.stride,
         window_size=args.window_size,
         video_fps=args.video_fps,
