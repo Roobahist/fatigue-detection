@@ -159,6 +159,9 @@ class MemmapHandler:
                 self._validate_or_set_columns(keys)
             arr = np.array([[d[k] for k in keys] for d in data], dtype=self.dtype)
 
+        elif isinstance(data, list) and all(isinstance(d, np.ndarray) for d in data):
+            arr = np.array(data, dtype=self.dtype)
+            
         # Already NumPy
         elif isinstance(data, np.ndarray):
             arr = data.astype(self.dtype)
