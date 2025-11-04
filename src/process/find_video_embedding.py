@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 from datetime import datetime
 from typing import List, Optional, Tuple, Union
@@ -30,6 +31,7 @@ def process_single_video(
     end_second: Optional[int] = None,
     embedding_model_name: Optional[str] = "Facenet",
     strategies: Union[str, List[str]] = "cls",
+    batch_size: Optional[int] = 32,
     use_tqdm: Optional[bool] = False,
     file_index: Optional[int] = 0,
 ):
@@ -44,6 +46,7 @@ def process_single_video(
         end_second (int, optional): End processing at this second. Defaults to None.
         embedding_model_name (str, optional): Embedding model to use. Defaults to "Facenet".
         strategies (Union[str, List[str]]): List of strategies to use for embedding. Defaults to "cls".
+        batch_size (int, optional): Number of frames to process in parallel. Defaults to 32.
         use_tqdm (bool, optional): Whether to use tqdm progress bars. Defaults to False.
         file_index (int, optional): Index of the file being processed. Defaults to 0
     """
@@ -54,6 +57,7 @@ def process_single_video(
     vr = VideoReader(file_path)
     info = vr.get_info()
     total_frames = info["total_frames"]
+    batch_size = min(batch_size, total_frames)
     video_fps = info["fps"]
 
     start_frame = int(start_second * video_fps)
@@ -88,21 +92,26 @@ def process_single_video(
         return
 
     for frame_index in tqdm(
-        range(start_frame, end_frame),
-        desc=f"Processing {file_path}",
+        range(start_frame, end_frame, batch_size),
+        desc=f"Processing {file_index}: {file_path}",
         disable=not use_tqdm,
         unit="frame",
-        total=end_frame - start_frame,
-        miniters=100,
+        total=math.ceil((end_frame - start_frame) / batch_size),
+        miniters=5,
     ):
-        ret, frame = vr.read_frame(frame_index=frame_index, jump=True)
+        ret, frames = vr.read_frames(
+            frame_indices=range(frame_index, min(frame_index + batch_size, end_frame)),
+            jump=False,
+        )
         if not ret:
             print(f"{file_path} Failed to read frame at index {frame_index}, skipping.")
             continue
 
         for strategy, writer in writers.items():
+            local_idx = frame_index - start_frame
             writer.write(
-                data=embedder.embed(frame=frame, strategy=strategy), start=frame_index
+                data=embedder.embed_batch(frames=frames, strategy=strategy),
+                start=local_idx,
             )
 
     for _, writer in writers.items():
@@ -117,6 +126,7 @@ def process_multiple_videos(
     end_second: Optional[int] = None,
     embedding_model_name: Optional[str] = "Facenet",
     strategies: Union[str, List[str]] = "cls",
+    batch_size: Optional[int] = 32,
     use_tqdm: Optional[bool] = False,
     parallel: Optional[bool] = False,
     max_workers: Optional[int] = 10,
@@ -144,6 +154,7 @@ def process_multiple_videos(
             "end_second": end_second,
             "embedding_model_name": embedding_model_name,
             "strategies": strategies,
+            "batch_size": batch_size,
             "use_tqdm": use_tqdm,
             "file_index": file_index,
         }
@@ -214,6 +225,12 @@ if __name__ == "__main__":
         help="List of strategies to use for embedding (default: ['cls'])",
     )
     parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="Batch size for processing frames (default: 32)",
+    )
+    parser.add_argument(
         "--parallel",
         action="store_true",
         help="Process videos in parallel.",
@@ -250,6 +267,7 @@ if __name__ == "__main__":
         end_second=args.end_second,
         embedding_model_name=args.embedding_model_name,
         strategies=args.strategies,
+        batch_size=args.batch_size,
         use_tqdm=args.use_tqdm,
         parallel=args.parallel,
         max_workers=args.max_workers,
