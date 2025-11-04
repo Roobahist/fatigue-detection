@@ -145,8 +145,10 @@ if __name__ == "__main__":
         format="[%(asctime)s][%(levelname)s] %(message)s",
     )
 
-    parser = argparse.ArgumentParser(description="Find Most and Least Eventful Video Segments")
-    
+    parser = argparse.ArgumentParser(
+        description="Find Most and Least Eventful Video Segments"
+    )
+
     parser.add_argument(
         "input_folder",
         type=str,
@@ -233,3 +235,5 @@ if __name__ == "__main__":
         maxtasksperchild=args.maxtasksperchild,
         use_tqdm=args.use_tqdm,
     )
+
+    logging.info("Done!")
