@@ -65,6 +65,7 @@ def process_multiple_videos(
     output_folder: str,
     path_to_weights: str,
     relative_selected_paths: Optional[List[str]] = [],
+    file_indices_spec: Optional[str] = "",
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
     video_fps: Optional[int] = 15,
@@ -79,11 +80,13 @@ def process_multiple_videos(
     weights = read_obj(path_to_weights, file_type="json")
     move_file(path_to_weights, os.path.join(output_folder, "weights.json"), mode="cut")
 
-    selected_file_paths = pick_selected_file_paths(
+    file_index_to_path = pick_selected_file_paths(
         input_folder=input_folder,
         depth=1,
         EXT_LIST=[".dat"],
         relative_selected_paths=relative_selected_paths,
+        file_indices_spec=file_indices_spec,
+        sort_and_dedupe=True,
     )
 
     
@@ -98,7 +101,7 @@ def process_multiple_videos(
             "weights": weights,
             "file_index": file_index,
         }
-        for file_index, file_path in enumerate(selected_file_paths)
+        for file_index, file_path in file_index_to_path.items()
     ]
 
     process(
@@ -142,6 +145,12 @@ if __name__ == "__main__":
         "relative_selected_paths",
         nargs="*",
         help="List of relative file path to process. If empty, all files in the input folder will be processed.",
+    )
+    parser.add_argument(
+        "--file_indices_spec",
+        type=str,
+        default="",
+        help="Comma-separated indices/ranges, e.g. '0-9,20,35-'",
     )
     parser.add_argument(
         "--start_second",
@@ -193,6 +202,7 @@ if __name__ == "__main__":
         input_folder=args.input_folder,
         output_folder=args.output_folder,
         relative_selected_paths=args.relative_selected_paths,
+        file_indices_spec=args.file_indices_spec,
         start_second=args.start_second,
         end_second=args.end_second,
         video_fps=args.video_fps,
@@ -202,3 +212,5 @@ if __name__ == "__main__":
         maxtasksperchild=args.maxtasksperchild,
         use_tqdm=args.use_tqdm,
     )
+
+    logging.info("Done!")
