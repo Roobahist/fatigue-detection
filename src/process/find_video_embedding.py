@@ -156,6 +156,10 @@ def process_multiple_videos(
         sort_and_dedupe=True,
     )
 
+    logging.info(f"Processing {len(file_index_to_path)} files")
+    for file_index, file_path in file_index_to_path.items():
+        logging.info(f"file {file_index}: {file_path} will be processed")
+
     args_list = [
         {
             "input_folder": input_folder,
@@ -291,3 +295,5 @@ if __name__ == "__main__":
         max_workers=args.max_workers,
         maxtasksperchild=args.maxtasksperchild,
     )
+
+    logging.info("Done!")
