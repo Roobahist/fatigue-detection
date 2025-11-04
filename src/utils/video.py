@@ -562,6 +562,16 @@ class VideoReader:
             print(f"Error reading frame at index {frame_index}: {e}")
             return False, None
 
+
+    def read_frames(
+        self,
+        frame_indices: List[int],
+        jump: bool = True,
+    ) -> Tuple[bool,List[np.ndarray]]:
+        rets, frames = zip(*[self.read_frame(frame_index, jump) for frame_index in frame_indices])
+        return all(rets), list(frames)
+
+    
     def get_info(self) -> Dict[str, Union[int, float]]:
         """
         Returns a dictionary containing information about the video.
