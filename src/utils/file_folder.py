@@ -80,12 +80,15 @@ def pick_selected_file_paths(
     depth: int,
     EXT_LIST: Union[List[str], str],
     relative_selected_paths: List[str] = [],
+    file_indices_spec: str = "",
+    sort_and_dedupe: bool = True,
 ) -> List[str]:
 
     all_file_paths = get_file_paths(
         input_path=input_folder, depth=depth, EXT_LIST=EXT_LIST
     )
 
+    # apply relative_selected_paths
     if relative_selected_paths:
         selected_file_paths = []
         for relative_selected_path in relative_selected_paths:
@@ -107,17 +110,32 @@ def pick_selected_file_paths(
                     logging.warning(f"Selected path does not exist: {full_path}")
 
         selected_file_paths = list(set(selected_file_paths))  # Remove duplicates
-        
+
         logging.info(
             f"File Paths Captured Using Provided List: {len(selected_file_paths)}"
         )
     else:
         selected_file_paths = all_file_paths
-        logging.info(
-            f"File Paths Captured Automatically: {len(selected_file_paths)}"
+        logging.info(f"File Paths Captured Automatically: {len(selected_file_paths)}")
+
+    # apply file_indices
+    if file_indices_spec:
+        file_indices = parse_index_spec(
+            spec=file_indices_spec,
+            max_index=len(selected_file_paths) - 1,
+            min_index=0,
+            sort_and_dedupe=sort_and_dedupe,
         )
-        
-    return selected_file_paths
+    else:
+        file_indices = range(len(selected_file_paths))
+
+    # map file index to file path
+    file_index_to_path = {
+        file_index: selected_file_paths[file_index] for file_index in file_indices
+    }
+
+    return file_index_to_path
+
 
 def copy_directory_structure(source_dir, target_dir):
     """
