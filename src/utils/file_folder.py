@@ -171,3 +171,107 @@ def move_file(src_path: str, dest_path: str, mode: str = "cut"):
             logging.info(f"Copied file from {src_path} to {dest_path}")
     except Exception as e:
         logging.error(f"Error moving file from {src_path} to {dest_path}: {e}")
+
+
+def parse_index_spec(
+    spec: str,
+    *,
+    max_index: Optional[int] = None,  # e.g. len(files) - 1
+    min_index: int = 0,  # usually 0
+    sort_and_dedupe: bool = True,
+) -> List[int]:
+    """
+    Parse an index spec string like:
+      "0-9, 15, 20-25, -5, 10-"
+    into a list of ints.
+
+    Supported pieces:
+      N        -> [N]
+      A-B      -> [A, A+1, ..., B]              (or descending if A > B)
+      -B       -> [min_index, ..., B]           (open start)
+      A-       -> [A, ..., max_index]           (open end; requires max_index)
+
+    Ensures all resulting indices are within [min_index, max_index].
+    Raises ValueError if any out-of-bounds value is explicitly requested.
+    """
+    if not spec:
+        return []
+
+    if max_index is None:
+        raise ValueError("max_index must be provided to enforce bounds")
+
+    indices: List[int] = []
+
+    for raw_token in spec.split(","):
+        token = raw_token.strip()
+        if not token:
+            continue
+
+        # range-like: contains '-'
+        if "-" in token:
+            left_str, right_str = (part.strip() for part in token.split("-", 1))
+
+            # open start: "-B"
+            if left_str == "" and right_str != "":
+                try:
+                    end = int(right_str)
+                except ValueError:
+                    raise ValueError(f"Invalid open-start range: {token!r}")
+                if end < min_index or end > max_index:
+                    raise ValueError(
+                        f"Range {token!r} exceeds bounds [{min_index}, {max_index}]"
+                    )
+                indices.extend(range(min_index, end + 1))
+
+            # open end: "A-"
+            elif left_str != "" and right_str == "":
+                try:
+                    start = int(left_str)
+                except ValueError:
+                    raise ValueError(f"Invalid open-end range: {token!r}")
+                if start < min_index or start > max_index:
+                    raise ValueError(
+                        f"Range {token!r} exceeds bounds [{min_index}, {max_index}]"
+                    )
+                indices.extend(range(start, max_index + 1))
+
+            # closed range: "A-B"
+            elif left_str != "" and right_str != "":
+                try:
+                    start = int(left_str)
+                    end = int(right_str)
+                except ValueError:
+                    raise ValueError(f"Invalid range: {token!r}")
+
+                if (
+                    start < min_index
+                    or start > max_index
+                    or end < min_index
+                    or end > max_index
+                ):
+                    raise ValueError(
+                        f"Range {token!r} exceeds bounds [{min_index}, {max_index}]"
+                    )
+
+                step = 1 if start <= end else -1
+                indices.extend(range(start, end + step, step))
+
+            else:
+                raise ValueError(f"Invalid range syntax: {token!r}")
+
+        # single index: "N"
+        else:
+            try:
+                idx = int(token)
+            except ValueError:
+                raise ValueError(f"Invalid index: {token!r}")
+            if idx < min_index or idx > max_index:
+                raise ValueError(
+                    f"Index {idx} out of bounds [{min_index}, {max_index}]"
+                )
+            indices.append(idx)
+
+    if sort_and_dedupe:
+        return sorted(set(indices))
+    else:
+        return indices
