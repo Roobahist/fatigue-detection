@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from Zh.src.process.embedding_models.embedders import *
 from Zh.src.utils.common import update_file_name
-from Zh.src.utils.file_folder import copy_directory_structure, pick_selected_file_paths
+from Zh.src.utils.file_folder import pick_selected_file_paths
 from Zh.src.utils.memmap_handler import MemmapHandler
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader
@@ -130,6 +130,7 @@ def process_multiple_videos(
     input_folder: str,
     output_folder: str,
     relative_selected_paths: Optional[List[str]] = [],
+    file_indices_spec: Optional[str] = "",
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
     embedding_model_name: Optional[str] = "Facenet",
@@ -146,11 +147,13 @@ def process_multiple_videos(
                        processed.
     """
 
-    selected_file_paths = pick_selected_file_paths(
+    file_index_to_path = pick_selected_file_paths(
         input_folder=input_folder,
         depth=4,
         EXT_LIST=[".mp4"],
         relative_selected_paths=relative_selected_paths,
+        file_indices_spec=file_indices_spec,
+        sort_and_dedupe=True,
     )
 
     args_list = [
@@ -166,7 +169,7 @@ def process_multiple_videos(
             "use_tqdm": use_tqdm,
             "file_index": file_index,
         }
-        for file_index, file_path in enumerate(selected_file_paths)
+        for file_index, file_path in file_index_to_path.items()
     ]
 
     process(
@@ -206,6 +209,12 @@ if __name__ == "__main__":
         "relative_selected_paths",
         nargs="*",
         help="List of relative file path to process. If empty, all files in the input folder will be processed.",
+    )
+    parser.add_argument(
+        "--file_indices_spec",
+        type=str,
+        default="",
+        help="Comma-separated indices/ranges, e.g. '0-9,20,35-'",
     )
     parser.add_argument(
         "--start_second",
@@ -271,6 +280,7 @@ if __name__ == "__main__":
         input_folder=args.input_folder,
         output_folder=args.output_folder,
         relative_selected_paths=args.relative_selected_paths,
+        file_indices_spec=args.file_indices_spec,
         start_second=args.start_second,
         end_second=args.end_second,
         embedding_model_name=args.embedding_model_name,
