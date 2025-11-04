@@ -12,6 +12,15 @@ from Zh.src.utils.memmap_handler import MemmapHandler
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader
 
+embedder = None
+
+
+def get_embedder(embedding_model_name: str):
+    global embedder
+    if embedder is None:
+        embedder = make_embedder(embedding_model_name)
+    return embedder
+
 
 def process_single_video(
     input_folder: str,
@@ -40,7 +49,7 @@ def process_single_video(
     """
     logging.info(f"Processing file {file_index}: {file_path}")
 
-    embedder = make_embedder(embedding_model_name)
+    embedder = get_embedder(embedding_model_name)
 
     vr = VideoReader(file_path)
     info = vr.get_info()
