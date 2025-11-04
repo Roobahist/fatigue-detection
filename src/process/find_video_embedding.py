@@ -60,8 +60,14 @@ def process_single_video(
     batch_size = min(batch_size, total_frames)
     video_fps = info["fps"]
 
-    start_frame = int(start_second * video_fps)
-    end_frame = int(end_second * video_fps) if end_second > 0 else total_frames
+    start_frame = (
+        int(start_second * video_fps) if isinstance(start_second, (int, float)) else 0
+    )
+    end_frame = (
+        int(end_second * video_fps)
+        if isinstance(end_second, (int, float))
+        else total_frames
+    )
 
     valid_strategies = [s for s in strategies if s in embedder.valid_strategies]
 
@@ -73,7 +79,7 @@ def process_single_video(
         for strategy in valid_strategies:
             shape = (
                 end_frame - start_frame,
-                embedder.embed(frame=temp_frame, strategy=strategy).shape[0],
+                embedder.embed(frames=temp_frame, strategy=strategy).shape[0],
             )
             output_file_path = update_file_name(
                 file_path=file_path,
@@ -116,6 +122,8 @@ def process_single_video(
 
     for _, writer in writers.items():
         writer.close()
+
+    vr.release()
 
 
 def process_multiple_videos(
