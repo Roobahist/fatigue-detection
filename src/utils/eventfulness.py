@@ -45,3 +45,83 @@ def rank_eventfulness(
     mh.close()
     segments.sort(key=lambda x: x[2], reverse=True)
     return segments
+
+
+def pick_eventful_segments(
+    eventfulness_scores_path: str,
+    window_size: int,
+    stride: Optional[Union[int, None]] = None,
+    pick_mean_top: int = 0,
+    pick_max_top: int = 0,
+    pick_random: int = 0,
+):
+    stride = stride or window_size
+    num_frames = MemmapHandler(eventfulness_scores_path).shape[0]
+    num_windows = (num_frames - window_size) // stride
+
+    if not isinstance(pick_mean_top, int) or pick_mean_top < 0:
+        raise ValueError(
+            "pick_mean_top must be a non-negative integer. Please provide a valid value."
+        )
+    if not isinstance(pick_max_top, int) or pick_max_top < 0:
+        raise ValueError(
+            "pick_max_top must be a non-negative integer. Please provide a valid value."
+        )
+    if not isinstance(pick_random, int) or pick_random < 0:
+        raise ValueError(
+            "pick_random must be a non-negative integer. Please provide a valid value."
+        )
+    if pick_mean_top + pick_max_top + pick_random > num_windows:
+        raise ValueError(
+            "Total number of picks exceeds the number of windows. Please reduce the number of picks."
+        )
+
+    eventfulness_mean = pd.DataFrame(
+        rank_eventfulness(
+            eventfulness_scores_path=eventfulness_scores_path,
+            stride=stride,
+            window_size=window_size,
+            aggregate_by="mean",
+        ),
+        columns=["start_frame", "end_frame", "mean_eventfulness"],
+    )
+
+    eventfulness_max = pd.DataFrame(
+        rank_eventfulness(
+            eventfulness_scores_path=eventfulness_scores_path,
+            stride=stride,
+            window_size=window_size,
+            aggregate_by="max",
+        ),
+        columns=["start_frame", "end_frame", "max_eventfulness"],
+    )
+
+    eventfulness = (
+        eventfulness_mean.merge(eventfulness_max, on=["start_frame", "end_frame"])
+        .sort_values("start_frame")
+        .reset_index(drop=True)
+    )
+
+    picked_indices = []
+
+    picked_indices += (
+        eventfulness.drop(index=picked_indices)
+        .sort_values("mean_eventfulness", ascending=False)
+        .iloc[:pick_mean_top]
+        .index.to_list()
+    )
+    picked_indices += (
+        eventfulness.drop(index=picked_indices)
+        .sort_values("max_eventfulness", ascending=False)
+        .iloc[:pick_max_top]
+        .index.to_list()
+    )
+    picked_indices += (
+        eventfulness.drop(index=picked_indices)
+        .sample(
+            n=pick_random, replace=True, weights="mean_eventfulness", random_state=42
+        )
+        .index.to_list()
+    )
+
+    return eventfulness, picked_indices
