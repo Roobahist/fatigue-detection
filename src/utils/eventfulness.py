@@ -1,12 +1,13 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Union
 
 import numpy as np
+import pandas as pd
 
 from Zh.src.utils.memmap_handler import MemmapHandler
 
 
 def rank_eventfulness(
-    evenfulness_scores_path: str,
+    eventfulness_scores_path: str,
     stride: int,
     window_size: int,
     aggregate_by: str = "mean",
@@ -15,7 +16,7 @@ def rank_eventfulness(
     Ranks segments of eventfulness scores.
 
     Args:
-        evenfulness_scores_path (str): Path to the eventfulness scores .dat file.
+        eventfulness_scores_path (str): Path to the eventfulness scores .dat file.
         stride (int): Stride for segmenting the scores.
         window_size (int): Window size for each segment.
         aggregate_by (str): Method for aggregating eventfulness scores within a segment.
@@ -23,7 +24,7 @@ def rank_eventfulness(
     Returns:
         List[Tuple[int, float]]: List of tuples containing segment start index and its average eventfulness score, sorted by score in descending order.
     """
-    mh = MemmapHandler(path=evenfulness_scores_path, mode="r")
+    mh = MemmapHandler(path=eventfulness_scores_path, mode="r")
     num_frames = mh.shape[0]
     segments = []
 
