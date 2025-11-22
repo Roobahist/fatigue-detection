@@ -2,7 +2,7 @@ import math
 import random
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 
 
 # ==============================
-# Configs and helpers #chg
+# Configs and helpers
 # ==============================
 
 @dataclass
@@ -92,7 +92,6 @@ class PositionalEncoding(nn.Module):
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         if d_model % 2 == 1:
-            # If odd, last odd position gets zeros for cos term
             pe[:, 1::2] = torch.cos(position * div_term[: (d_model // 2)])
         else:
             pe[:, 1::2] = torch.cos(position * div_term)
@@ -148,6 +147,7 @@ class WindowTemporalEncoder(nn.Module):
                     bidirectional=self.bidirectional,
                 )
             backbone_out_dim = self.hidden_size * 2  # bidirectional
+
         elif self.backbone_type == "tcn":
             self.hidden_size = cfg.hidden_size
             self.num_layers = max(cfg.num_layers, 1)
@@ -164,17 +164,21 @@ class WindowTemporalEncoder(nn.Module):
                 in_channels = self.hidden_size
             self.tcn = nn.ModuleList(layers)
             backbone_out_dim = self.hidden_size
+
         elif self.backbone_type == "transformer":
             d_model = cfg.hidden_size
             self.input_proj = nn.Linear(d_in, d_model)
             nhead = 4 if d_model % 4 == 0 else 1
+
+            activation_arg = get_activation(cfg.activation)
+
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=d_model,
                 nhead=nhead,
                 dim_feedforward=d_model * 4,
                 dropout=cfg.dropout,
                 batch_first=False,
-                activation=cfg.activation,
+                activation=activation_arg,
             )
             self.transformer = nn.TransformerEncoder(
                 encoder_layer,
@@ -182,6 +186,7 @@ class WindowTemporalEncoder(nn.Module):
             )
             self.pos_encoder = PositionalEncoding(d_model)
             backbone_out_dim = d_model
+
         else:
             raise ValueError(f"Unsupported temporal backbone: {self.backbone_type}")
 
@@ -202,21 +207,23 @@ class WindowTemporalEncoder(nn.Module):
             # RNN expects [T, B, D]
             x_in = x.unsqueeze(1)  # [T, 1, D_in]
             outputs, _ = self.rnn(x_in)  # [T, 1, H*2]
-            # Mean pooling over time
             pooled = outputs.mean(dim=0).squeeze(0)  # [H*2]
+
         elif self.backbone_type == "tcn":
             # Conv1d expects [B, C, T]
             x_in = x.transpose(0, 1).unsqueeze(0)  # [1, D_in, T]
             for layer in self.tcn:
                 x_in = layer(x_in)  # [1, hidden_size, T]
             pooled = x_in.mean(dim=2).squeeze(0)  # [hidden_size]
+
         elif self.backbone_type == "transformer":
             # [T, 1, D_model]
             x_in = self.input_proj(x)  # [T, D_model]
-            x_in = x_in.unsqueeze(1)
+            x_in = x_in.unsqueeze(1)   # [T, 1, D_model]
             x_in = self.pos_encoder(x_in)
             outputs = self.transformer(x_in)  # [T, 1, D_model]
             pooled = outputs.mean(dim=0).squeeze(0)  # [D_model]
+
         else:
             raise ValueError(f"Unsupported temporal backbone: {self.backbone_type}")
 
@@ -336,10 +343,10 @@ class MultiPathMILRegressor(nn.Module):
             "others": List[Tensor [T_w, d_other]],
             "target": float (ignored here)
           }
+        Assumes all tensors in batch are already on the same device as model.
         Returns:
           preds: [B] tensor of scalar predictions.
         """
-        device = next(self.parameters()).device
         video_embeddings = []
 
         for video in batch:
@@ -354,9 +361,9 @@ class MultiPathMILRegressor(nn.Module):
 
             window_embs = []
             for i in range(n_windows):
-                e = emb_list[i].to(device)
-                b = blend_list[i].to(device)
-                o = other_list[i].to(device)
+                e = emb_list[i]
+                b = blend_list[i]
+                o = other_list[i]
                 window_emb = self.window_encoder(e, b, o)  # [d_window]
                 window_embs.append(window_emb)
 
@@ -421,6 +428,23 @@ def get_loss_fn(name: str):
         raise ValueError(f"Unsupported loss: {name}")
 
 
+def move_batch_to_device(batch: List[Dict], device: torch.device) -> List[Dict]:
+    """
+    Move all tensors in a batch of videos to the given device.
+    Keeps scalar targets as Python floats (they're re-tensorized in train loop).
+    """
+    new_batch: List[Dict] = []
+    for video in batch:
+        new_video = {
+            "embeddings": [t.to(device, non_blocking=True) for t in video["embeddings"]],
+            "blendshapes": [t.to(device, non_blocking=True) for t in video["blendshapes"]],
+            "others": [t.to(device, non_blocking=True) for t in video["others"]],
+            "target": video["target"],
+        }
+        new_batch.append(new_video)
+    return new_batch
+
+
 def train(
     model: nn.Module,
     train_loader: DataLoader,
@@ -447,19 +471,20 @@ def train(
         train_samples = 0
 
         for batch in train_loader:
-            # batch is a list of video dicts
+            # Move batch to device
+            batch_on_device = move_batch_to_device(batch, device)
             targets = torch.tensor(
-                [video["target"] for video in batch],
+                [video["target"] for video in batch_on_device],
                 dtype=torch.float32,
                 device=device,
             )
             optimizer.zero_grad()
-            preds = model(batch)  # [B]
+            preds = model(batch_on_device)  # [B]
             loss = loss_fn(preds, targets)
             loss.backward()
             optimizer.step()
 
-            batch_size = len(batch)
+            batch_size = len(batch_on_device)
             train_loss_sum += loss.item() * batch_size
             train_samples += batch_size
 
@@ -471,15 +496,16 @@ def train(
         val_samples = 0
         with torch.no_grad():
             for batch in val_loader:
+                batch_on_device = move_batch_to_device(batch, device)
                 targets = torch.tensor(
-                    [video["target"] for video in batch],
+                    [video["target"] for video in batch_on_device],
                     dtype=torch.float32,
                     device=device,
                 )
-                preds = model(batch)
+                preds = model(batch_on_device)
                 loss = loss_fn(preds, targets)
 
-                batch_size = len(batch)
+                batch_size = len(batch_on_device)
                 val_loss_sum += loss.item() * batch_size
                 val_samples += batch_size
 
@@ -622,7 +648,7 @@ def main():
     )
 
     train_cfg = TrainingConfig(
-        num_epochs=5,
+        num_epochs=1,
         batch_size=4,
         optimizer="adamw",
         lr=1e-3,
@@ -635,13 +661,13 @@ def main():
 
     # Datasets and loaders
     train_dataset = DummyVideoDataset(
-        num_videos=64,
+        num_videos=3,
         d_embed=model_cfg.d_embed,
         d_blend=model_cfg.d_blend,
         d_other=model_cfg.d_other,
     )
     val_dataset = DummyVideoDataset(
-        num_videos=16,
+        num_videos=1,
         d_embed=model_cfg.d_embed,
         d_blend=model_cfg.d_blend,
         d_other=model_cfg.d_other,
@@ -663,6 +689,7 @@ def main():
     # Model and training
     model = MultiPathMILRegressor(model_cfg)
     model, best_val_loss = train(model, train_loader, val_loader, train_cfg)
+
 
     print(f"Training complete. Best validation loss: {best_val_loss:.4f}")
 
