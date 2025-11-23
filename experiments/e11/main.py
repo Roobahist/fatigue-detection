@@ -35,9 +35,13 @@ class ModelConfig:
     d_embed: int
     d_blend: int
     d_other: int
-    
+
     d_window: int = 256
-    d_temporal: int = 128  # output size of each temporal encoder path
+
+    # Separate temporal output sizes per path
+    d_temporal_embed: int = 128   # e.g. for 768-d frame embeddings
+    d_temporal_blend: int = 32    # e.g. for 52-d blendshapes
+    d_temporal_other: int = 8    # e.g. for 4-d other features
 
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
     window_mlp: MLPConfig = field(default_factory=MLPConfig)
@@ -62,6 +66,22 @@ class TrainingConfig:
     use_scheduler: bool = False
     step_lr_step_size: int = 20
     step_lr_gamma: float = 0.1
+
+
+@dataclass
+class SelectionConfig:
+    window_size: int = 64
+    stride: int = 32
+    n_windows: int = 16
+
+    pick_mean_top_begin: int = 2
+    pick_max_top_begin: int = 2
+    pick_random_begin: int = 12 # must add up to n_windows
+
+    pick_mean_top_end: int = 12
+    pick_max_top_end: int = 2
+    pick_random_end: int = 2 # must add up to n_windows
+
 
 
 def get_activation(name: str) -> nn.Module:
@@ -268,11 +288,23 @@ class MultiPathWindowEncoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.embed_encoder = WindowTemporalEncoder(cfg.d_embed, cfg.d_temporal, cfg.temporal)
-        self.blend_encoder = WindowTemporalEncoder(cfg.d_blend, cfg.d_temporal, cfg.temporal)
-        self.other_encoder = WindowTemporalEncoder(cfg.d_other, cfg.d_temporal, cfg.temporal)
 
-        concat_dim = 3 * cfg.d_temporal
+        # Use separate temporal output dims for each path
+        self.embed_encoder = WindowTemporalEncoder(
+            cfg.d_embed, cfg.d_temporal_embed, cfg.temporal
+        )
+        self.blend_encoder = WindowTemporalEncoder(
+            cfg.d_blend, cfg.d_temporal_blend, cfg.temporal
+        )
+        self.other_encoder = WindowTemporalEncoder(
+            cfg.d_other, cfg.d_temporal_other, cfg.temporal
+        )
+
+        concat_dim = (
+            cfg.d_temporal_embed
+            + cfg.d_temporal_blend
+            + cfg.d_temporal_other
+        )
         self.mlp = MLP(concat_dim, cfg.d_window, cfg.window_mlp)
 
     def forward(
@@ -281,10 +313,10 @@ class MultiPathWindowEncoder(nn.Module):
         blend_seq: torch.Tensor,
         other_seq: torch.Tensor,
     ) -> torch.Tensor:
-        h_embed = self.embed_encoder(embed_seq)   # [d_temporal]
-        h_blend = self.blend_encoder(blend_seq)   # [d_temporal]
-        h_other = self.other_encoder(other_seq)   # [d_temporal]
-        h = torch.cat([h_embed, h_blend, h_other], dim=-1)  # [3*d_temporal]
+        h_embed = self.embed_encoder(embed_seq)   # [d_temporal_embed]
+        h_blend = self.blend_encoder(blend_seq)   # [d_temporal_blend]
+        h_other = self.other_encoder(other_seq)   # [d_temporal_other]
+        h = torch.cat([h_embed, h_blend, h_other], dim=-1)  # [sum d_temporal_*]
         out = self.mlp(h)  # [d_window]
         return out
 
@@ -445,12 +477,16 @@ def move_batch_to_device(batch: List[Dict], device: torch.device) -> List[Dict]:
     return new_batch
 
 
-def train(
+def train_one_split(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
     train_cfg: TrainingConfig,
 ) -> Tuple[nn.Module, float]:
+    """
+    Train on a single train/val split with early stopping.
+    Returns best model (loaded with best weights) and best validation loss.
+    """
     device_str = train_cfg.device
     if device_str == "cuda" and not torch.cuda.is_available():
         device_str = "cpu"
@@ -602,14 +638,196 @@ def collate_videos(batch: List[Dict]) -> List[Dict]:
     return batch
 
 
-# ==============================
-# Main example
-# ==============================
+# =========================================================
+# Nested Cross-Validation utilities (index-level)
+# =========================================================
+
+def kfold_split_indices(indices: List[int], n_splits: int, fold_idx: int) -> Tuple[List[int], List[int]]:
+    """
+    Simple K-fold split on indices.
+    Returns (train_indices, val_indices) for a given fold_idx.
+    """
+    assert 0 <= fold_idx < n_splits
+    n = len(indices)
+    fold_size = n // n_splits
+    remainder = n % n_splits
+
+    # Create fold boundaries
+    fold_sizes = [fold_size + (1 if i < remainder else 0) for i in range(n_splits)]
+    starts = [sum(fold_sizes[:i]) for i in range(n_splits)]
+    ends = [starts[i] + fold_sizes[i] for i in range(n_splits)]
+
+    val_start, val_end = starts[fold_idx], ends[fold_idx]
+    val_indices = indices[val_start:val_end]
+    train_indices = indices[:val_start] + indices[val_end:]
+    return train_indices, val_indices
+
+
+def nested_cv(
+    video_ids: List[str],
+    model_cfg: ModelConfig,
+    base_train_cfg: TrainingConfig,
+    selection_cfg: SelectionConfig,
+    eventfulness_scores_root: str,
+    embeddings_root: str,
+    features_root: str,
+    outer_folds: int,
+    inner_folds: int,
+) -> None:
+    """
+    Nested cross-validation scaffold (pseudocode):
+
+    Outer loop:
+      - Split video_ids into outer_train (for model selection) and outer_test
+    Inner loop:
+      - Split outer_train into inner_train and inner_val
+      - Train and evaluate to select best hyperparameters (you'll add grid/search)
+    Then:
+      - Retrain on full outer_train with best hyperparams
+      - Evaluate on outer_test
+
+    This function shows the structure; you will:
+      - plug RealVideoDataset in,
+      - possibly modify TrainingConfig per hyperparam setting,
+      - log metrics, etc.
+    """
+    all_indices = list(range(len(video_ids)))
+
+    for outer_idx in range(outer_folds):
+        print(f"\n====== Outer fold {outer_idx + 1}/{outer_folds} ======")
+        outer_train_idx, outer_test_idx = kfold_split_indices(all_indices, outer_folds, outer_idx)
+
+        outer_train_ids = [video_ids[i] for i in outer_train_idx]
+        outer_test_ids = [video_ids[i] for i in outer_test_idx]
+
+        # INNER LOOP: model selection on outer_train_ids
+        # You can define a hyperparam grid here. For now, we just show a single config.
+        best_inner_val_loss = float("inf")
+        best_inner_state = None
+        best_inner_cfg = deepcopy(base_train_cfg)  # you can vary LR, weight decay, etc. inside inner loop
+
+        for inner_idx in range(inner_folds):
+            print(f"  -- Inner fold {inner_idx + 1}/{inner_folds}")
+            inner_all_idx = list(range(len(outer_train_ids)))
+            inner_train_idx, inner_val_idx = kfold_split_indices(inner_all_idx, inner_folds, inner_idx)
+
+            inner_train_ids = [outer_train_ids[i] for i in inner_train_idx]
+            inner_val_ids = [outer_train_ids[i] for i in inner_val_idx]
+
+            # Build datasets (RealVideoDataset with your memmap logic)
+            # Replace window_size/stride with your actual config:
+            window_size = 30
+            stride = 10
+
+            train_dataset = RealVideoDataset(
+                video_ids=inner_train_ids,
+                embeddings_root=embeddings_root,
+                features_root=features_root,
+                d_embed=model_cfg.d_embed,
+                d_blend=model_cfg.d_blend,
+                d_other=model_cfg.d_other,
+                window_size=selection_cfg.window_size,
+                stride=selection_cfg.stride,
+            )
+            val_dataset = RealVideoDataset(
+                video_ids=inner_val_ids,
+                embeddings_root=embeddings_root,
+                features_root=features_root,
+                d_embed=model_cfg.d_embed,
+                d_blend=model_cfg.d_blend,
+                d_other=model_cfg.d_other,
+                window_size=window_size,
+                stride=stride,
+            )
+
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=base_train_cfg.batch_size,
+                shuffle=True,
+                collate_fn=collate_videos,
+            )
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=base_train_cfg.batch_size,
+                shuffle=False,
+                collate_fn=collate_videos,
+            )
+
+            # Fresh model for each inner fold
+            model = MultiPathMILRegressor(model_cfg)
+            model, val_loss = train_one_split(model, train_loader, val_loader, base_train_cfg)
+
+            if val_loss < best_inner_val_loss:
+                best_inner_val_loss = val_loss
+                best_inner_state = deepcopy(model.state_dict())
+                # If you change hyperparams per inner fold, track which config is best here.
+                # best_inner_cfg = <cfg_for_this_inner_fold>
+
+        print(f"  Best inner val loss for outer fold {outer_idx + 1}: {best_inner_val_loss:.4f}")
+
+        # Retrain on full outer_train_ids using best_inner_cfg and best_inner_state if needed
+        # (You might want to retrain from scratch here using best hyperparameters.)
+        # For simplicity, we just re-initialize and train once on all outer_train_ids:
+
+        print("  Retraining on full outer_train set with selected configuration...")
+
+        window_size = 30
+        stride = 10
+
+        outer_train_dataset = RealVideoDataset(
+            video_ids=outer_train_ids,
+            embeddings_root=embeddings_root,
+            features_root=features_root,
+            d_embed=model_cfg.d_embed,
+            d_blend=model_cfg.d_blend,
+            d_other=model_cfg.d_other,
+            window_size=window_size,
+            stride=stride,
+        )
+        outer_test_dataset = RealVideoDataset(
+            video_ids=outer_test_ids,
+            embeddings_root=embeddings_root,
+            features_root=features_root,
+            d_embed=model_cfg.d_embed,
+            d_blend=model_cfg.d_blend,
+            d_other=model_cfg.d_other,
+            window_size=window_size,
+            stride=stride,
+        )
+
+        outer_train_loader = DataLoader(
+            outer_train_dataset,
+            batch_size=base_train_cfg.batch_size,
+            shuffle=True,
+            collate_fn=collate_videos,
+        )
+        outer_test_loader = DataLoader(
+            outer_test_dataset,
+            batch_size=base_train_cfg.batch_size,
+            shuffle=False,
+            collate_fn=collate_videos,
+        )
+
+        model = MultiPathMILRegressor(model_cfg)
+        # Optionally: start from best_inner_state, or from scratch
+        # model.load_state_dict(best_inner_state)
+        model, _ = train_one_split(model, outer_train_loader, outer_test_loader, base_train_cfg)
+
+        # Here you would compute and store metrics on outer_test_loader
+        # (MAE, RMSE, correlation, etc.) as your unbiased estimate.
+        print(f"====== End of outer fold {outer_idx + 1}/{outer_folds} ======")
+
+
+# =========================================================
+# Main example: choose between dummy data and real nested CV
+# =========================================================
 
 def main():
     # Reproducibility
     random.seed(42)
     torch.manual_seed(42)
+
+    USE_DUMMY_DATA = True  # Set to False to use RealVideoDataset + nested CV
 
     # Model configuration
     temporal_cfg = TemporalConfig(
@@ -635,11 +853,16 @@ def main():
     )
 
     model_cfg = ModelConfig(
-        d_embed=128,
-        d_blend=64,
-        d_other=16,
+        d_embed=768,
+        d_blend=52,
+        d_other=4,
         d_window=256,
-        d_temporal=128,
+
+        # Choose per-path temporal sizes
+        d_temporal_embed=256,   # more capacity for image embeddings
+        d_temporal_blend=64,    # moderate for blendshapes
+        d_temporal_other=32,    # smaller for low-dim features
+
         temporal=temporal_cfg,
         window_mlp=window_mlp_cfg,
         reg_head_mlp=reg_head_mlp_cfg,
@@ -648,7 +871,7 @@ def main():
     )
 
     train_cfg = TrainingConfig(
-        num_epochs=1,
+        num_epochs=5,
         batch_size=4,
         optimizer="adamw",
         lr=1e-3,
@@ -659,39 +882,64 @@ def main():
         use_scheduler=False,
     )
 
-    # Datasets and loaders
-    train_dataset = DummyVideoDataset(
-        num_videos=3,
-        d_embed=model_cfg.d_embed,
-        d_blend=model_cfg.d_blend,
-        d_other=model_cfg.d_other,
-    )
-    val_dataset = DummyVideoDataset(
-        num_videos=1,
-        d_embed=model_cfg.d_embed,
-        d_blend=model_cfg.d_blend,
-        d_other=model_cfg.d_other,
-    )
+    selection_cfg = SelectionConfig(
+        window_size = 64,
+        stride = 32,
+        n_windows = 16,
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=train_cfg.batch_size,
-        shuffle=True,
-        collate_fn=collate_videos,
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=train_cfg.batch_size,
-        shuffle=False,
-        collate_fn=collate_videos,
+        pick_mean_top_begin = 2,
+        pick_max_top_begin = 2,
+        pick_random_begin = 12, # must add up to n_windows
+
+        pick_mean_top_end = 12,
+        pick_max_top_end = 2,
+        pick_random_end = 2, # must add up to n_windows
     )
 
-    # Model and training
-    model = MultiPathMILRegressor(model_cfg)
-    model, best_val_loss = train(model, train_loader, val_loader, train_cfg)
+    if USE_DUMMY_DATA:
+        # Simple single train/val split on dummy data (no nested CV)
+        train_dataset = DummyVideoDataset(
+            num_videos=64,
+            d_embed=model_cfg.d_embed,
+            d_blend=model_cfg.d_blend,
+            d_other=model_cfg.d_other,
+        )
+        val_dataset = DummyVideoDataset(
+            num_videos=16,
+            d_embed=model_cfg.d_embed,
+            d_blend=model_cfg.d_blend,
+            d_other=model_cfg.d_other,
+        )
 
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=train_cfg.batch_size,
+            shuffle=True,
+            collate_fn=collate_videos,
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=train_cfg.batch_size,
+            shuffle=False,
+            collate_fn=collate_videos,
+        )
 
-    print(f"Training complete. Best validation loss: {best_val_loss:.4f}")
+        model = MultiPathMILRegressor(model_cfg)
+        model, best_val_loss = train_one_split(model, train_loader, val_loader, train_cfg)
+        print(f"Training complete on dummy data. Best validation loss: {best_val_loss:.4f}")
+
+    else:
+        nested_cv(
+            video_ids=video_ids,
+            model_cfg=model_cfg,
+            base_train_cfg=train_cfg,
+            selection_cfg=selection_cfg,
+            eventfulness_scores_root=eventfulness_scores_root,
+            embeddings_root=embeddings_root,
+            features_root=features_root,
+            outer_folds=outer_folds,
+            inner_folds=inner_folds,
+        )
 
 
 if __name__ == "__main__":
