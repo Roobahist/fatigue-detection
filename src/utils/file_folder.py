@@ -27,7 +27,7 @@ def get_file_paths(
     input_path: str,
     return_full_path: bool = True,
     depth: int = 1,
-    EXT_LIST: Union[List[str], str] = [],
+    EXT_LIST: Optional[Union[List[str], str]] = None,
 ) -> List[str]:
     """
     Collect file paths under the given input_path with filtering options.
@@ -44,6 +44,9 @@ def get_file_paths(
     Returns:
         List[str]: List of file paths matching the criteria.
     """
+    if EXT_LIST is None:
+        EXT_LIST = []
+
     if not isinstance(EXT_LIST, list):
         EXT_LIST = [EXT_LIST]
 
@@ -77,12 +80,15 @@ def get_file_paths(
 def pick_selected_file_paths(
     input_folder: str,
     depth: int,
-    EXT_LIST: Union[List[str], str],
-    relative_selected_paths: List[str] = [],
+    EXT_LIST: Optional[Union[List[str], str]] = None,
+    relative_selected_paths: Optional[List[str]] = None,
     file_indices_spec: str = "",
     sort_and_dedupe: bool = True,
 ) -> List[str]:
 
+    if EXT_LIST is None:
+        EXT_LIST = []
+        
     all_file_paths = get_file_paths(
         input_path=input_folder, depth=depth, EXT_LIST=EXT_LIST
     )

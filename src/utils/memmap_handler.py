@@ -24,7 +24,7 @@ class MemmapHandler:
         dtype: str = "float32",
         mode: str = "r+",
         auto_metadata: bool = True,
-        misc: Optional[Dict[str, Any]] = {},
+        misc: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize or open a memory-mapped file.
@@ -50,7 +50,7 @@ class MemmapHandler:
         self.mode = mode
         self.auto_metadata = auto_metadata
         self.shape = shape
-        self.misc = misc
+        self.misc = misc if misc is not None else {}
         self._memmap: Optional[np.memmap] = None
         self._column_names: Optional[List[str]] = None
 

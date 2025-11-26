@@ -2,6 +2,7 @@ import logging
 import os
 from pathlib import Path
 
+from typing import Optional, List
 from Zh.src.utils.file_folder import copy_directory_structure, get_file_paths
 from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import convert_video
@@ -10,7 +11,7 @@ from Zh.src.utils.video import convert_video
 def standardize_videos(
     input_directory_path: str,
     output_directory_path: str,
-    video_file_names: list[str] = [],
+    video_file_names: Optional[List[str]] = None,
     target_fps: int = 15,
     target_ext: str = ".mp4",
     no_audio: bool = True,
@@ -37,6 +38,9 @@ def standardize_videos(
     logging.info("parallel", parallel)
     logging.info("use_gpu", use_gpu)
 
+    if video_file_names is None:
+        video_file_names = []
+        
     copy_directory_structure(input_directory_path, output_directory_path)
     input_video_paths = sorted(
         get_file_paths(

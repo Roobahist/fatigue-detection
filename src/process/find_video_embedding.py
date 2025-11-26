@@ -129,7 +129,7 @@ def process_single_video(
 def process_multiple_videos(
     input_folder: str,
     output_folder: str,
-    relative_selected_paths: Optional[List[str]] = [],
+    relative_selected_paths: Optional[List[str]] = None,
     file_indices_spec: Optional[str] = "",
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
@@ -146,7 +146,9 @@ def process_multiple_videos(
                        otherwise all the files in all subdirectories would be
                        processed.
     """
-
+    if relative_selected_paths is None:
+        relative_selected_paths = []
+        
     file_index_to_path = pick_selected_file_paths(
         input_folder=input_folder,
         depth=4,
@@ -184,7 +186,7 @@ def process_multiple_videos(
         max_workers=max_workers,
         maxtasksperchild=maxtasksperchild,
         use_tqdm=use_tqdm,
-        auto_slice=True,
+        auto_slice=False,
     )
 
 

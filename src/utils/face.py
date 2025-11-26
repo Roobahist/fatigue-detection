@@ -14,13 +14,13 @@ from Zh.src.utils.common import get_frame_size
 def calculate_ROI_face(
     frame: np.ndarray,
     detection_result: object,
-    landmark_groups: list[Optional[list[int]]] = [],
+    landmark_groups: Optional[list[Optional[list[int]]]] = None,
     margin_h: Union[list[Optional[float], float], float] = 0.0,
     margin_w: Union[list[Optional[float], float], float] = 0.0,
     return_cropped_roi: bool = False,
-    cropped_roi_output_sizes: Union[
+    cropped_roi_output_sizes: Optional[Union[
         list[Optional[Union[Tuple[int, int], str]]], Tuple[int, int], str
-    ] = [],
+    ]] = None,
     crop_mode: str = "center_based",
 ):
     """
@@ -56,6 +56,10 @@ def calculate_ROI_face(
             "boxes": list of (x, y, w, h) bounding boxes
         }
     """
+    if landmark_groups is None:
+        landmark_groups = []
+    if cropped_roi_output_sizes is None:
+        cropped_roi_output_sizes = []
 
     width, height = get_frame_size(frame)
     regions = {"points": [], "boxes": [], "cropped_rois": []}

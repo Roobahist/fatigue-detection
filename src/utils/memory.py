@@ -1,7 +1,7 @@
 import gc
 import inspect
 import sys
-from typing import List
+from typing import List, Optional
 
 from memory_profiler import profile
 
@@ -41,7 +41,7 @@ def print_all_memory(local_vars, global_vars):
 
 
 # @profile
-def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
+def cleanup(var_names: Optional[List[str]] = None, local_vars=None, global_vars=None):
     """
     Cleans up variables safely:
     - Calls .release() or .close() if available
@@ -50,6 +50,9 @@ def cleanup(var_names: List[str] = [], local_vars=None, global_vars=None):
 
     #TODO some vars might be collections of vars or writers like aug_writers and should be handled separatly
     """
+    if var_names is None:
+        var_names = []
+        
     for var_name in var_names:
         var = None
         if local_vars and var_name in local_vars:

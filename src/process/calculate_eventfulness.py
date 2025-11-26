@@ -20,10 +20,13 @@ def process_single_video(
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
     video_fps: Optional[int] = 15,
-    weights: Optional[dict] = {},
+    weights: Optional[dict] = None,
     file_index: Optional[int] = 0,
 ):
     logging.info(f"Processing file {file_index}: {file_path}")
+
+    if weights is None:
+        weights = {}
 
     mh_input = MemmapHandler(
         path=file_path,
@@ -64,7 +67,7 @@ def process_multiple_videos(
     input_folder: str,
     output_folder: str,
     path_to_weights: str,
-    relative_selected_paths: Optional[List[str]] = [],
+    relative_selected_paths: Optional[List[str]] = None,
     file_indices_spec: Optional[str] = "",
     start_second: Optional[int] = 0,
     end_second: Optional[int] = None,
@@ -74,7 +77,9 @@ def process_multiple_videos(
     maxtasksperchild: Optional[int] = 1,
     use_tqdm: Optional[bool] = True,
 ):
-
+    if relative_selected_paths is None:
+        relative_selected_paths = []
+        
     copy_directory_structure(input_folder, output_folder)
 
     weights = read_obj(path_to_weights, file_type="json")
