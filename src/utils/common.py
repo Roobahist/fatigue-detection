@@ -1,4 +1,7 @@
-from typing import Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import numpy as np
 
 
 def set_seed(seed=42):
@@ -73,6 +76,24 @@ def has_multiple_mappings(list1, list2):
 
     # Check if any element in list2 maps to more than one unique element in list1
     return any(len(values) > 1 for values in mapping.values())
+
+
+def save_npz(path: Union[str, Path], arrays: Dict[str, Any]) -> None:
+    """
+    Save arbitrary arrays or Python scalars into an .npz file.
+
+    The `arrays` dict values must be convertible to NumPy arrays.
+    """
+    converted = {k: np.asarray(v) for k, v in arrays.items()}
+    np.savez(path, **converted)
+
+
+def load_npz(path: Union[str, Path]) -> Dict[str, np.ndarray]:
+    """
+    Load an .npz file and return a dict of NumPy arrays.
+    """
+    loaded = np.load(path, allow_pickle=False)
+    return {k: loaded[k] for k in loaded.files}
 
 
 def save_obj(obj, output_path, file_type):
