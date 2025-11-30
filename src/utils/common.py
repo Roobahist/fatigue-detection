@@ -89,7 +89,7 @@ def save_obj(obj, output_path, file_type):
         with open(output_path, "wb") as file:
             pickle.dump(obj, file)
 
-    if file_type == "json":
+    elif file_type == "json":
         import json
 
         with open(output_path, "w") as f:
