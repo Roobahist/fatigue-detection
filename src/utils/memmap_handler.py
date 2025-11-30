@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -218,6 +218,44 @@ class MemmapHandler:
     def __getitem__(self, idx: Union[int, slice, Tuple]) -> np.ndarray:
         """Array-style indexing."""
         return self._memmap[idx]
+    
+    def iter_batches(
+        self,
+        batch_size: int,
+        start: int = 0,
+        end: Optional[int] = None,
+        as_numpy: bool = True,
+    ) -> Iterator[np.ndarray]:
+        """
+        Iterate over the data in batches along the first axis.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of rows per batch.
+        start : int
+            Starting row index (inclusive).
+        end : int, optional
+            Ending row index (exclusive). Defaults to len(self).
+        as_numpy : bool
+            If True, return batches as np.ndarray copies.
+            If False, return memmap views (may be more memory-efficient,
+            but some ops may force copies later anyway).
+        """
+        if self.shape is None:
+            raise ValueError("Shape is not initialized.")
+        n = self.shape[0]
+        if end is None:
+            end = n
+        if end > n:
+            raise ValueError(f"end={end} exceeds number of rows={n}")
+
+        for i in range(start, end, batch_size):
+            j = min(i + batch_size, end)
+            batch = self[i:j]
+            if as_numpy:
+                batch = np.array(batch)
+            yield batch
 
     def as_numpy(self) -> np.ndarray:
         """Return the underlying memmap as a NumPy array (still memory-mapped)."""
@@ -247,6 +285,12 @@ class MemmapHandler:
             self.flush()
             del self._memmap
             self._memmap = None
+
+    def __len__(self) -> int:
+        """Number of rows along the first dimension."""
+        if self.shape is None:
+            raise ValueError("Shape is not initialized.")
+        return self.shape[0]
 
     def __enter__(self):
         return self
