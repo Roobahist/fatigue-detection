@@ -28,6 +28,8 @@ def report(model,
     unique_classes = [str(float(i)) for i in unique_classes]
     
     def assign_class(value, thresholds, unique_classes):
+        assert len(thresholds) + 1 == len(unique_classes)
+        assert all(isinstance(i, (int, float)) for i in thresholds)
         unique_classes = [float(i) for i in unique_classes]
         return next((unique_classes[i] for i, t in enumerate(thresholds) if value < t), unique_classes[-1])
 
