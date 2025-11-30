@@ -223,9 +223,9 @@ class MemmapHandler:
         """Return the underlying memmap as a NumPy array (still memory-mapped)."""
         return self._memmap
 
-    # def as_torch(self) -> torch.Tensor:
-    #     """Return as a PyTorch tensor (zero-copy)."""
-    #     return torch.from_numpy(self._memmap)
+    def as_torch(self) -> torch.Tensor:
+        """Return as a PyTorch tensor (zero-copy)."""
+        return torch.from_numpy(self._memmap)
 
     def as_dataframe(self, columns: Optional[list[str]] = None) -> pd.DataFrame:
         """Return as a Pandas DataFrame."""
