@@ -12,10 +12,10 @@ def setup_tensorflow():
         print("TensorFlow: No GPU found. Using CPU.")
 
 
-def setup_torch():
+def setup_torch(device = "cuda"):
     import torch
     
-    if torch.cuda.is_available():
+    if device == "cuda" and torch.cuda.is_available():
         device = torch.device("cuda")
         print(f"PyTorch: Using GPU: {torch.cuda.get_device_name(0)}")
     else:
