@@ -96,25 +96,54 @@ def load_npz(path: Union[str, Path]) -> Dict[str, np.ndarray]:
     return {k: loaded[k] for k in loaded.files}
 
 
-def save_obj(obj, output_path, file_type):
+def _atomic_write(path: str, mode: str, write_fn: Callable[[IO], None]) -> None:
     """
-    Save an object to a file using pickle.
+    Write to a temporary file and atomically replace the target file.
+
+    `write_fn` is responsible for writing the content to the open file handle.
+    """
+    tmp_path = path + ".tmp"
+    with open(tmp_path, mode) as f:
+        write_fn(f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, path)
+
+
+def save_obj(obj: Any, output_path: str, file_type: str, atomic: bool = False) -> None:
+    """
+    Save an object to a file in either pickle or JSON format.
 
     Args:
-        obj (Any): The object to be pickled.
-        output_path (str): The path where the pickled file will be saved.
+        obj: The object to be serialized.
+        output_path: The path where the file will be saved.
+        file_type: Serialization format, either "pickle" or "json".
+        atomic: If True, perform an atomic write via a temporary file.
     """
     if file_type == "pickle":
-        import pickle
-
-        with open(output_path, "wb") as file:
-            pickle.dump(obj, file)
+        if atomic:
+            _atomic_write(
+                output_path,
+                "wb",
+                lambda f: pickle.dump(obj, f),
+            )
+        else:
+            with open(output_path, "wb") as f:
+                pickle.dump(obj, f)
 
     elif file_type == "json":
-        import json
+        if atomic:
+            _atomic_write(
+                output_path,
+                "w",
+                lambda f: json.dump(obj, f, indent=4, cls=NumpyEncoder),
+            )
+        else:
+            with open(output_path, "w") as f:
+                json.dump(obj, f, indent=4, cls=NumpyEncoder)
 
-        with open(output_path, "w") as f:
-            json.dump(obj, f, indent=4)
+    else:
+        raise ValueError(f"Unsupported file_type: {file_type!r}")
 
 
 def get_frame_size(frame) -> tuple[int, int]:
