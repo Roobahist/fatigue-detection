@@ -1,5 +1,9 @@
+import json
+import os
+import pickle
+import random
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import IO, Any, Callable, Dict, Optional, Union
 
 import numpy as np
 
@@ -16,9 +20,6 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def set_seed(seed=42):
-    import os
-    import random
-
     import numpy as np
     import tensorflow as tf
 
@@ -166,7 +167,7 @@ def get_frame_size(frame) -> tuple[int, int]:
     return (w, h)
 
 
-def read_obj(input_path, file_type: Optional[str] = None):
+def load_obj(input_path, file_type: Optional[str] = None):
     """
     Load an object from a file using pickle.
 
@@ -180,14 +181,12 @@ def read_obj(input_path, file_type: Optional[str] = None):
         file_type = "pickle"
 
     if file_type == "pickle":
-        import pickle
 
         with open(input_path, "rb") as file:
             obj = pickle.load(file)
         return obj
 
     if file_type == "json":
-        import json
 
         with open(input_path, "r") as f:
             obj = json.load(f)
@@ -204,8 +203,6 @@ def update_file_name(
     prefix: str = "",
     extension: str = "",
 ):
-    import os
-
     relative_path = os.path.relpath(file_path, input_folder)
     base_name, ext = os.path.splitext(relative_path)
     if remove_suffix and base_name.endswith(remove_suffix):
