@@ -11,6 +11,8 @@ import torch.nn as nn
 from Zh.experiments.e13.dataclasses import *
 from Zh.experiments.e13.helpers import *
 from Zh.src.utils.common import save_obj
+from Zh.src.utils.file_folder import create_folders
+from Zh.src.utils.serialized_parallel import process
 
 try:
     import optuna
@@ -23,6 +25,11 @@ except ImportError:
 # ============================================================================
 # Hyperparameter Search
 # ============================================================================
+
+
+def _default_save_model(model: nn.Module, path: str) -> None:
+    """Default model saving function."""
+    torch.save(model.state_dict(), path)
 
 
 class HyperparameterSearcher:
@@ -165,6 +172,8 @@ class NestedCVEngine:
         split_fn: Callable[[List[Any], int, int], Tuple[List[Any], List[Any]]],
         device: torch.device,
         save_model_fn: Callable[[nn.Module, str], None] = None,
+        parallel_inner_cv: bool = False,
+        max_workers: Optional[int] = None,
     ):
         """
         Initialize the generic nested CV engine.
@@ -189,18 +198,24 @@ class NestedCVEngine:
                 Saves model to disk. If None, uses torch.save(model.state_dict(), path).
 
             device: Device to use (auto-detect if None)
+
+            parallel_inner_cv: Whether to parallelize inner CV folds (only for grid/random search)
+
+            max_workers: Maximum number of parallel workers for inner CV (None = auto-detect from SLURM)
         """
         self.model_builder = model_builder
         self.train_fn = train_fn
         self.train_fixed_epochs_fn = train_fixed_epochs_fn
         self.evaluate_fn = evaluate_fn
         self.split_fn = split_fn
-        self.save_model_fn = save_model_fn or (
-            lambda m, p: torch.save(m.state_dict(), p)
-        )
+        self.save_model_fn = save_model_fn or _default_save_model
         self.device = device
+        self.parallel_inner_cv = parallel_inner_cv
+        self.max_workers = max_workers or 0
 
         print(f"NestedCVEngine initialized on device: {self.device}")
+        if parallel_inner_cv:
+            print(f"Parallel inner CV enabled with max_workers={self.max_workers}")
 
     def run(
         self,
@@ -225,7 +240,7 @@ class NestedCVEngine:
         Returns:
             Dictionary with complete nested CV results
         """
-        os.makedirs(output_dir, exist_ok=True)
+        create_folders(output_dir)
 
         outer_folds = cv_cfg.outer_folds
         inner_folds = cv_cfg.inner_folds
@@ -282,10 +297,10 @@ class NestedCVEngine:
 
             # Evaluate final model
             outer_train_metric = self.evaluate_fn(
-                final_model, outer_train_ids, best_hparams
+                final_model, outer_train_ids, best_hparams, outer_train_ids
             )
             outer_test_metric = self.evaluate_fn(
-                final_model, outer_test_ids, best_hparams
+                final_model, outer_test_ids, best_hparams, outer_train_ids
             )
 
             # Save model
@@ -365,43 +380,93 @@ class NestedCVEngine:
         searcher: HyperparameterSearcher,
         verbose: bool,
     ) -> Tuple[Dict[str, Any], int, List[InnerFoldResult]]:
-        """Grid or random hyperparameter search."""
+        """Grid or random hyperparameter search with optional parallelization."""
         configs = searcher.generate_configs()
 
         if verbose:
             print(f"\nEvaluating {len(configs)} hyperparameter configurations...")
+            if self.parallel_inner_cv:
+                print(
+                    f"Running inner CV in parallel mode with {self.max_workers or 'auto'} workers..."
+                )
+            else:
+                print("Running inner CV in serial mode...")
 
+        # Prepare worker parameters for each config
+        worker_params_list = [
+            {
+                "outer_train_ids": outer_train_ids,
+                "outer_test_ids": outer_test_ids,
+                "config": config,
+                "inner_folds": inner_folds,
+                "config_idx": config_idx,
+            }
+            for config_idx, config in enumerate(configs)
+        ]
+
+        # Process all configs (parallel or serial based on self.parallel_inner_cv)
+        config_results = process(
+            worker_function=self._evaluate_single_config_worker,
+            worker_params_list=worker_params_list,
+            parallel=self.parallel_inner_cv,
+            max_workers=self.max_workers,
+            use_tqdm=verbose,
+            auto_slice=False,  # Don't use SLURM slicing for inner CV
+        )
+
+        # Find best configuration
         best_hparams = None
         best_mean_val_metric = float("inf")
         best_mean_epoch = 0
         all_inner_results = []
 
-        for config_idx, config in enumerate(configs):
-            if verbose:
-                print(f"\n--- Config {config_idx + 1}/{len(configs)} ---")
-                print(json.dumps(config, indent=2, cls=NumpyEncoder))
-
-            inner_results = self._run_inner_cv(
-                outer_train_ids, outer_test_ids, config, inner_folds, verbose
-            )
-
-            mean_val_metric = np.mean([r.inner_val_metric for r in inner_results])
-            mean_epoch = int(
-                np.round(np.mean([r.best_epoch for r in inner_results]))
-            )  # or weighted average maybe?
-
-            if verbose:
-                print(f"Mean validation metric: {mean_val_metric:.4f}")
-                print(f"Mean best epoch: {mean_epoch}")
+        for result in config_results:
+            config_idx = result["config_idx"]
+            inner_results = result["inner_results"]
+            mean_val_metric = result["mean_val_metric"]
+            mean_epoch = result["mean_epoch"]
 
             all_inner_results.extend(inner_results)
 
             if mean_val_metric < best_mean_val_metric:
                 best_mean_val_metric = mean_val_metric
-                best_hparams = config
+                best_hparams = configs[config_idx]
                 best_mean_epoch = mean_epoch
 
+        if verbose:
+            print(f"\nBest config: {configs.index(best_hparams) + 1}/{len(configs)}")
+            print(f"Best mean validation metric: {best_mean_val_metric:.4f}")
+
         return best_hparams, best_mean_epoch, all_inner_results
+
+    def _evaluate_single_config_worker(
+        self,
+        outer_train_ids: List[Any],
+        outer_test_ids: List[Any],
+        config: Dict[str, Any],
+        inner_folds: int,
+        config_idx: int,
+    ) -> Dict[str, Any]:
+        """
+        Worker function to evaluate a single hyperparameter configuration.
+        This runs in a separate process when using parallel mode.
+        """
+        # Run inner CV for this configuration
+        inner_results = self._run_inner_cv(
+            outer_train_ids, outer_test_ids, config, inner_folds, verbose=True
+        )
+
+        # Calculate metrics
+        mean_val_metric = np.mean([r.inner_val_metric for r in inner_results])
+        mean_epoch = int(np.round(np.mean([r.best_epoch for r in inner_results])))
+
+        return {
+            "config_idx": config_idx,
+            "config": config,
+            "inner_results": inner_results,
+            "mean_val_metric": mean_val_metric,
+            "mean_epoch": mean_epoch,
+        }
 
     def _bayesian_search(
         self,
@@ -411,7 +476,12 @@ class NestedCVEngine:
         searcher: HyperparameterSearcher,
         verbose: bool,
     ) -> Tuple[Dict[str, Any], int, List[InnerFoldResult]]:
-        """Bayesian hyperparameter search using Optuna."""
+        """Bayesian hyperparameter search using Optuna (sequential only)."""
+        if self.parallel_inner_cv:
+            print(
+                "Warning: Parallel inner CV is not supported for Bayesian search. Running sequentially."
+            )
+
         all_inner_results = []
         best_hparams_per_trial = {}
 
@@ -461,14 +531,16 @@ class NestedCVEngine:
         outer_test_ids: List[Any],
         hparams: Dict[str, Any],
         inner_folds: int,
-        verbose: bool,
+        verbose: bool = True,
     ) -> List[InnerFoldResult]:
         """Run inner cross-validation for a hyperparameter configuration."""
         inner_results = []
 
         for inner_idx in range(inner_folds):
             if verbose:
-                print(f"  Inner fold {inner_idx + 1}/{inner_folds}", end=" ")
+                print(f"\n{'=-'*40}")
+                print(f"Inner fold {inner_idx + 1}/{inner_folds}")
+                print(f"{'=-'*40}")
 
             # Split outer_train into inner_train and inner_val
             inner_train_ids, inner_val_ids = self.split_fn(
@@ -490,9 +562,9 @@ class NestedCVEngine:
                 )
 
             # Evaluate on all sets
-            train_metric = self.evaluate_fn(model, inner_train_ids, hparams)
-            val_metric = self.evaluate_fn(model, inner_val_ids, hparams)
-            outer_test_metric = self.evaluate_fn(model, outer_test_ids, hparams)
+            train_metric = self.evaluate_fn(model, inner_train_ids, hparams, inner_train_ids)
+            val_metric = self.evaluate_fn(model, inner_val_ids, hparams, inner_train_ids)
+            outer_test_metric = self.evaluate_fn(model, outer_test_ids, hparams, inner_train_ids)
 
             if verbose:
                 print(
@@ -574,61 +646,65 @@ class NestedCVEngine:
 # ============================================================================
 
 
-def create_adapter_example():
+# def create_adapter_example():
 
-    def model_builder(hparams):
-        """Build model with hyperparameters."""
-        # return MultiPathMILRegressor(create_config_from_hparams(hparams))
-        pass
+#     def model_builder(hparams):
+#         """Build model with hyperparameters."""
+#         # return MultiPathMILRegressor(create_config_from_hparams(hparams))
+#         pass
 
-    def train_fn(model, train_ids, val_ids, hparams):
-        """Train with early stopping."""
-        # train_loader = create_dataloader(train_ids, "train", hparams)
-        # val_loader = create_dataloader(val_ids, "val", hparams)
-        # model, best_val_loss = your_train_one_split(model, train_loader, val_loader, ...)
-        # return model, best_val_loss, model.best_epoch_
-        pass
+#     def train_fn(model, train_ids, val_ids, hparams):
+#         """Train with early stopping."""
+#         # train_loader = create_dataloader(train_ids, "train", hparams)
+#         # val_loader = create_dataloader(val_ids, "val", hparams)
+#         # model, best_val_loss = your_train_one_split(model, train_loader, val_loader, ...)
+#         # return model, best_val_loss, model.best_epoch_
+#         pass
 
-    def train_fixed_epochs_fn(model, train_ids, num_epochs, hparams):
-        """Train for fixed epochs without validation."""
-        # train_loader = create_dataloader(train_ids, "train", hparams)
-        # return train_for_fixed_epochs(model, train_loader, num_epochs, ...)
-        pass
+#     def train_fixed_epochs_fn(model, train_ids, num_epochs, hparams):
+#         """Train for fixed epochs without validation."""
+#         # train_loader = create_dataloader(train_ids, "train", hparams)
+#         # return train_for_fixed_epochs(model, train_loader, num_epochs, ...)
+#         pass
 
-    def evaluate_fn(model, data_ids, hparams):
-        """Evaluate model on data."""
-        # loader = create_dataloader(data_ids, "test", hparams)
-        # return evaluate_on_loader(model, loader, criterion, device)
-        pass
+#     def evaluate_fn(model, data_ids, hparams):
+#         """Evaluate model on data."""
+#         # loader = create_dataloader(data_ids, "test", hparams)
+#         # return evaluate_on_loader(model, loader, criterion, device)
+#         pass
 
-    def split_fn(data_ids, num_folds, fold_idx):
-        """Split data into train and test."""
-        # train_indices, test_indices = kfold_split_indices(len(data_ids), num_folds, fold_idx)
-        # return [data_ids[i] for i in train_indices], [data_ids[i] for i in test_indices]
-        pass
+#     def split_fn(data_ids, num_folds, fold_idx):
+#         """Split data into train and test."""
+#         # train_indices, test_indices = kfold_split_indices(len(data_ids), num_folds, fold_idx)
+#         # return [data_ids[i] for i in train_indices], [data_ids[i] for i in test_indices]
+#         pass
 
-    # Create engine with your adapters
-    engine = NestedCVEngine(
-        model_builder=model_builder,
-        train_fn=train_fn,
-        train_fixed_epochs_fn=train_fixed_epochs_fn,
-        evaluate_fn=evaluate_fn,
-        split_fn=split_fn,
-    )
+#     # Create engine with your adapters
+#     engine = NestedCVEngine(
+#         model_builder=model_builder,
+#         train_fn=train_fn,
+#         train_fixed_epochs_fn=train_fixed_epochs_fn,
+#         evaluate_fn=evaluate_fn,
+#         split_fn=split_fn,
+#         parallel_inner_cv=True,  # Enable parallel inner CV
+#         max_workers=4,  # Or None for auto-detection from SLURM
+#     )
 
-    # Run nested CV
-    results = engine.run(
-        data_ids=["video1", "video2", "..."],
-        outer_folds=5,
-        inner_folds=3,
-        search_strategy="bayesian",
-        search_space=lambda trial: {
-            "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-            "weight_decay": trial.suggest_float("wd", 1e-6, 1e-3, log=True),
-        },
-        output_dir="./results",
-        n_trials=20,
-        random_seed=42,
-    )
+#     # Run nested CV
+#     results = engine.run(
+#         data_ids=["video1", "video2", "..."],  # Your data IDs
+#         cv_cfg=CrossValidationConfig(
+#             outer_folds=5,
+#             inner_folds=3,
+#             search_strategy="random",  # or "grid"
+#             n_trials=20,
+#         ),
+#         search_space=lambda: {
+#             "learning_rate": np.random.uniform(1e-5, 1e-2),
+#             "weight_decay": np.random.uniform(1e-6, 1e-3),
+#         },
+#         output_dir="./results",
+#         random_seed=42,
+#     )
 
-    return results
+#     return results

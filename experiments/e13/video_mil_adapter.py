@@ -1,7 +1,8 @@
-import copy
+import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -11,34 +12,57 @@ from Zh.experiments.e13.datasets import RealVideoDataset
 from Zh.experiments.e13.helpers import *
 from Zh.experiments.e13.model import MultiPathMILRegressor
 from Zh.experiments.e13.nested_cv_engine import NestedCVEngine
+from Zh.src.utils.normalization import (
+    FileStats,
+    aggregate_stats_for_files,
+    stats_to_mean_std,
+)
 
 # ============================================================================
 # Helper utilities specific to your data format
 # ============================================================================
 
 
-def evaluate_on_loader(
-    model: nn.Module, loader: DataLoader, loss_fn: nn.Module, device: torch.device
-) -> float:
-    """Evaluate model on a dataloader."""
-    model.eval()
-    total_loss = 0.0
-    num_samples = 0
+def _apply_normalization_to_sample(
+    sample: Dict[str, Any],
+    prepared: Dict[str, Dict[str, torch.Tensor]],
+) -> None:
+    """
+    In-place normalization of a single sample dict using prepared stats.
 
-    with torch.no_grad():
-        for batch in loader:
-            batch_on_device = move_batch_to_device(batch, device)
-            preds = model(batch_on_device)
-            targets = torch.tensor(
-                [video["target"] for video in batch_on_device],
-                dtype=torch.float32,
-                device=device,
-            )
-            loss = loss_fn(preds, targets)
-            total_loss += loss.item() * len(batch)
-            num_samples += len(batch)
+    - Supports:
+        field: list[Tensor]  (e.g. list of windows, each (T, D) or (D,))
+        field: Tensor        (e.g. stacked already)
+    - Normalizes along the last dimension.
+    """
+    for field_name, stats in prepared.items():
+        if field_name not in sample:
+            continue
 
-    return total_loss / num_samples if num_samples > 0 else float("inf")
+        mean_vec = stats["mean"]
+        std_vec = stats["std"]
+
+        field_value = sample[field_name]
+
+        # a) list of tensors (your embeddings_list, blend_list, other_list)
+        if isinstance(field_value, list) and field_value:
+            device = field_value[0].device
+            m = mean_vec.to(device)
+            s = std_vec.to(device)
+
+            for i, tensor in enumerate(field_value):
+                # normalize along last dimension
+                sample[field_name][i] = (tensor - m) / s
+
+        # b) single tensor
+        elif torch.is_tensor(field_value):
+            device = field_value.device
+            m = mean_vec.to(device)
+            s = std_vec.to(device)
+            sample[field_name] = (field_value - m) / s
+
+        else:
+            raise ValueError("Unsupported field type: " + str(type(field_value)))
 
 
 def train_for_fixed_epochs(
@@ -57,6 +81,7 @@ def train_for_fixed_epochs(
             train_loader.dataset.set_training_epoch(epoch, num_epochs)
 
         for batch in train_loader:
+
             batch_on_device = move_batch_to_device(batch, device)
             preds = model(batch_on_device)
             targets = torch.tensor(
@@ -73,44 +98,101 @@ def train_for_fixed_epochs(
     return model
 
 
-def update_config_with_hparams(
-    base_cfg: Any, hparams: Dict[str, Any], params_prefix: str
-) -> Any:
-    """Update config object with hyperparameters using dotted keys."""
-    cfg = copy.deepcopy(base_cfg)
+def make_batch_transform(
+    train_video_ids: Optional[List[str]] = None,
+    data_cfg: Optional[DataConfig] = None,
+):
+    if not train_video_ids or not data_cfg or not data_cfg.normalization_info_path:
+        return None
 
-    for key, value in hparams.items():
-        subkeys = key.split(".")
-        current = cfg
+    train_subject_ids = {
+        get_subject_id_from_video_id(train_video_id, data_cfg.dataset_name)
+        for train_video_id in train_video_ids
+    }
 
-        if subkeys[0] != params_prefix:
+    normalization_info = pd.read_csv(data_cfg.normalization_info_path)
+    normalization_info = normalization_info[
+        normalization_info["subject_id"].isin(train_subject_ids)
+    ]
+
+    grouped = normalization_info.groupby("modality")
+
+    modality_stats = {}
+
+    for modality, group in grouped:
+        rows_to_iter = (
+            FileStats(
+                n=int(row["n"]),
+                mean=np.asarray(
+                    np.fromstring(row["mean"].strip("[]"), sep=" ", dtype=np.float64),
+                    dtype=np.float64,
+                ),
+                M2=np.asarray(
+                    np.fromstring(row["M2"].strip("[]"), sep=" ", dtype=np.float64),
+                    dtype=np.float64,
+                ),
+            )
+            for _, row in group.iterrows()
+        )
+
+        agg_stats = aggregate_stats_for_files(rows_to_iter)
+        mean, std = stats_to_mean_std(agg_stats)
+        modality_stats[modality] = {"mean": mean, "std": std}
+
+    if not data_cfg.field_normalization:
+        return None
+
+    prepared: Dict[str, Dict[str, torch.Tensor]] = {}
+
+    for field_name, cfg in data_cfg.field_normalization.items():
+        modality = cfg["modality"]
+        indices = cfg.get("indices", None)
+
+        if modality not in modality_stats:
+            logging.warning(
+                f"Modality '{modality}' not found in modality_stats; "
+                f"skipping field '{field_name}'."
+            )
             continue
 
-        # walk all but the last subkey
-        for subkey in subkeys[
-            1:-1
-        ]:  # skip the first which is the config name and last which is to be set
-            if not hasattr(current, subkey):
-                raise AttributeError(
-                    f"{current} has no attribute '{subkey}' for key '{key}' 1"
-                )
+        mean_np = modality_stats[modality]["mean"]
+        std_np = modality_stats[modality]["std"]
 
-            current = getattr(current, subkey)
+        if indices is not None:
+            idx = np.asarray(indices, dtype=np.int64)
+            mean_np = mean_np[idx]
+            std_np = std_np[idx]
 
-        if current is None:
-            raise AttributeError(
-                f"{current} has no attribute '{subkeys[-1]}' for key '{key}' 2"
-            )
+        mean_t = torch.from_numpy(mean_np.astype(np.float32))
+        std_t = torch.from_numpy(std_np.astype(np.float32))
 
-        last = subkeys[-1]
-        if hasattr(current, last):
-            setattr(current, last, value)
-        else:
-            raise AttributeError(
-                f"{current} has no attribute '{last}' for key '{key}' 3"
-            )
+        prepared[field_name] = {"mean": mean_t, "std": std_t}
 
-    return cfg
+    if not prepared:
+        return None
+
+    def batch_transform(batch):
+        """
+        batch is expected to be:
+            - either a list of sample dicts,
+            - or a collated dict with lists/tensors.
+        We'll assume your current setup: list[dict] from collate_videos.
+        """
+        # Case 1: list of dicts
+        if isinstance(batch, list):
+            for sample in batch:
+                _apply_normalization_to_sample(sample, prepared)
+            return batch
+
+        # Case 2: already collated dict {field: ...}
+        if isinstance(batch, dict):
+            # You can extend this branch later if you change collate behavior.
+            _apply_normalization_to_sample(batch, prepared)
+            return batch
+
+        raise ValueError(f"Unsupported batch type: {type(batch)}")
+
+    return batch_transform
 
 
 # ============================================================================
@@ -120,7 +202,7 @@ def update_config_with_hparams(
 
 class VideoMILAdapter:
     """
-    Adapter that connects the generic NestedCVEngine to your specific
+    Adapter that connects the generic NestedCVEngine to the
     Video MIL Regression implementation.
     """
 
@@ -148,7 +230,11 @@ class VideoMILAdapter:
         self.loss_fn = get_loss_fn(self.base_train_cfg.loss)
 
     def create_dataloader(
-        self, video_ids: List[str], mode: str, hparams: Dict[str, Any]
+        self,
+        video_ids: List[str],
+        mode: str,
+        hparams: Dict[str, Any],
+        train_video_ids: Optional[List[str]] = None,
     ) -> DataLoader:
         """Create dataloader for given video IDs and mode."""
         selection_cfg = update_config_with_hparams(
@@ -165,11 +251,14 @@ class VideoMILAdapter:
             mode=mode,
         )
 
+        batch_transform = make_batch_transform(train_video_ids, self.data_cfg)
+        collate_fn = make_collate_fn(batch_transform)
+
         return DataLoader(
             dataset,
-            batch_size=train_cfg.batch_size,
+            batch_size=int(train_cfg.batch_size),
             shuffle=(mode == "train"),
-            collate_fn=collate_videos,
+            collate_fn=collate_fn,
             num_workers=0,
         )
 
@@ -193,10 +282,13 @@ class VideoMILAdapter:
     ) -> Tuple[nn.Module, float, int]:
         """Train model with early stopping."""
         train_loader = self.create_dataloader(
-            video_ids=train_ids, mode="train", hparams=hparams
+            video_ids=train_ids,
+            mode="train",
+            hparams=hparams,
+            train_video_ids=train_ids,
         )
         val_loader = self.create_dataloader(
-            video_ids=val_ids, mode="val", hparams=hparams
+            video_ids=val_ids, mode="val", hparams=hparams, train_video_ids=train_ids
         )
 
         train_cfg = update_config_with_hparams(
@@ -223,7 +315,12 @@ class VideoMILAdapter:
         hparams: Dict[str, Any],
     ) -> nn.Module:
         """Train model for fixed epochs without validation."""
-        train_loader = self.create_dataloader(train_ids, "train", hparams)
+        train_loader = self.create_dataloader(
+            video_ids=train_ids,
+            mode="train",
+            hparams=hparams,
+            train_video_ids=train_ids,
+        )
 
         # Create optimizer
         train_cfg = update_config_with_hparams(
@@ -236,11 +333,28 @@ class VideoMILAdapter:
         )
 
     def evaluate_fn(
-        self, model: nn.Module, data_ids: List[str], hparams: Dict[str, Any]
+        self,
+        model: nn.Module,
+        data_ids: List[str],
+        hparams: Dict[str, Any],
+        train_ids: Optional[List[str]],
     ) -> float:
         """Evaluate model on data."""
-        loader = self.create_dataloader(data_ids, "test", hparams)
-        return evaluate_on_loader(model, loader, self.loss_fn, self.device)
+        loader = self.create_dataloader(
+            video_ids=data_ids, mode="test", hparams=hparams, train_video_ids=train_ids
+        )
+        thresholds, unique_classes = get_thresholds_unique_value_from_dataset_name(
+            self.data_cfg.dataset_name
+        )
+        return evaluate_on_loader(
+            model,
+            loader,
+            self.loss_fn,
+            self.device,
+            thresholds,
+            unique_classes,
+            verbose=True,
+        )[0]
 
     def split_fn(
         self, data_ids: List[str], num_folds: int, fold_idx: int
@@ -276,6 +390,8 @@ def nested_cv_video_mil(
     search_space: Dict[str, Any] = None,
     output_dir: str = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E11",
     random_seed: int = 42,
+    parallel_inner_cv: bool = False,
+    max_workers: int = 4,
 ) -> Dict[str, Any]:
     """
     Run nested cross-validation for Video MIL Regression.
@@ -321,6 +437,8 @@ def nested_cv_video_mil(
         evaluate_fn=adapter.evaluate_fn,
         split_fn=adapter.split_fn,
         device=adapter.device,
+        parallel_inner_cv=parallel_inner_cv,
+        max_workers=max_workers,
     )
 
     # Run nested CV
