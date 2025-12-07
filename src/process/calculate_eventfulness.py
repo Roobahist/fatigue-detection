@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from Zh.src.utils.common import read_obj
+from Zh.src.utils.common import load_obj
 from Zh.src.utils.file_folder import (
     copy_directory_structure,
     move_file,
@@ -33,14 +33,18 @@ def process_single_video(
         mode="r",
     )
     mh_output = MemmapHandler(
-        path=os.path.join(output_folder, os.path.relpath(file_path, input_folder)).replace(".dat", "__eventfulness.dat"),
+        path=os.path.join(
+            output_folder, os.path.relpath(file_path, input_folder)
+        ).replace(".dat", "__eventfulness.dat"),
         shape=(mh_input.shape[0], 1),
         dtype="float32",
         mode="w+",
     )
 
     start_frame = int(start_second * video_fps)
-    end_frame = int(end_second * video_fps) if end_second is not None else mh_input.shape[0]
+    end_frame = (
+        int(end_second * video_fps) if end_second is not None else mh_input.shape[0]
+    )
 
     for k in weights.keys():
         if k not in mh_input._column_names:
@@ -52,8 +56,8 @@ def process_single_video(
     eventfulness = np.zeros((end_frame - start_frame, 1))
     for k, v in weights.items():
         col_idx = mh_input._column_names.index(k)
-        eventfulness += (
-            v * mh_input.read(slice=(slice(start_frame, end_frame), slice(col_idx, col_idx + 1)))
+        eventfulness += v * mh_input.read(
+            slice=(slice(start_frame, end_frame), slice(col_idx, col_idx + 1))
         )
 
     mh_output.write(eventfulness)
@@ -79,10 +83,10 @@ def process_multiple_videos(
 ):
     if relative_selected_paths is None:
         relative_selected_paths = []
-        
+
     copy_directory_structure(input_folder, output_folder)
 
-    weights = read_obj(path_to_weights, file_type="json")
+    weights = load_obj(path_to_weights, file_type="json")
     move_file(path_to_weights, os.path.join(output_folder, "weights.json"), mode="cut")
 
     file_index_to_path = pick_selected_file_paths(
@@ -94,7 +98,6 @@ def process_multiple_videos(
         sort_and_dedupe=True,
     )
 
-    
     args_list = [
         {
             "input_folder": input_folder,
