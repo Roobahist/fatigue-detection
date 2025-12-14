@@ -1,0 +1,268 @@
+\documentclass[tikz, border=10pt]{standalone}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage[dvipsnames]{xcolor}
+\usetikzlibrary{calc,arrows.meta}
+
+\title{Thesis Window Overview}
+\author{Mojtaba Kanani}
+\date{December 2025}
+
+\begin{document}
+
+% --------------------------------------------------
+% Configuration
+% --------------------------------------------------
+
+% Total number of windows (numeric, used for geometry)
+\def\NumWindowsVal{20}      % <-- set the actual number here
+% Symbol used in labels (N)
+\def\NumWindowsSym{N}
+
+% How many windows to show at the start (1,2,...)
+\def\FrontWindows{5}
+
+% How many windows to show at the end (..., N-2,N-1,N)
+\def\BackWindows{5}
+
+% Window geometry (in TikZ coordinate units)
+\def\WindowWidth{2.8}        % width of each window
+\def\WindowHeight{1.5}       % height of each window
+
+% Vertical placement
+\def\WindowBottom{0}         % y of window baseline
+\def\WindowNumberBase{-0.3}  % y for window index row
+
+% Window style
+\def\WindowColor{Salmon}
+\def\WindowLineWidth{0.6pt}
+\def\WindowFillOpacity{0.1}   % 0 = outline only
+
+% Text inside each window: T_i in math notation
+\def\InnerTextPattern{\mathrm{T}}
+
+% Measurement lines configuration (in *window indices*)
+% e.g. 1/N
+\def\MeasurementRanges{1/\NumWindowsVal}
+\def\MeasurementColors{RedViolet}
+\def\MeasurementLabels{%
+  $\NumWindowsSym = \left\lfloor
+    \frac{\text{Recording Duration} \times \text{Sampling Rate} \;-\; \text{Epoch Size} \times \text{Sampling Rate}}
+         {\text{Stride} \times \text{Sampling Rate}}
+  \right\rfloor + 1$%
+}
+\def\MeasurementLevels{-1.5}
+
+% --------------------------------------------------
+% Derived helpers
+% --------------------------------------------------
+% First index of the trailing block: N - Back + 1 (numeric)
+\pgfmathtruncatemacro{\BackStart}{\NumWindowsVal - \BackWindows + 1}
+% Whether we actually have a middle gap
+\pgfmathtruncatemacro{\HasGap}{\NumWindowsVal > \FrontWindows + \BackWindows ? 1 : 0}
+
+% Helper: label for a back-block window index k as N, N-1, N-2, ...
+\newcommand{\WindowIndexBack}[1]{%
+  \pgfmathtruncatemacro{\tmpOffset}{\NumWindowsVal-#1}%
+  \ifnum\tmpOffset=0
+    \NumWindowsSym%
+  \else
+    \NumWindowsSym-\tmpOffset%
+  \fi}
+
+\begin{tikzpicture}[x=0.5cm,y=0.5cm]
+
+  % -----------------------------
+  % Row label for window indices
+  % -----------------------------
+  \node[anchor=east, font=\scriptsize]
+    at (-0.3, \WindowNumberBase - 0.3) {Epoch Index};
+
+  % -----------------------------
+  % Draw windows (front block, optional gap, back block)
+  % -----------------------------
+  \newcount\slot
+  \slot=0
+
+  % ---- Front block: windows 1..FrontWindows ----
+  \foreach \k in {1,...,\FrontWindows} {%
+    \pgfmathsetmacro{\xL}{\the\slot * \WindowWidth}
+    \pgfmathsetmacro{\xR}{(\the\slot + 1) * \WindowWidth}
+    \pgfmathsetmacro{\xC}{0.5*(\xL+\xR)}
+    \pgfmathsetmacro{\yB}{\WindowBottom}
+    \pgfmathsetmacro{\yT}{\WindowBottom + \WindowHeight}
+    \pgfmathsetmacro{\yC}{0.5*(\yB+\yT)}
+
+    % Window rectangle
+    \draw[
+      rounded corners,
+      draw=\WindowColor,
+      line width=\WindowLineWidth,
+      fill=\WindowColor,
+      fill opacity=\WindowFillOpacity
+    ] (\xL,\yB) rectangle (\xR,\yT);
+
+    % Inner label: T_k
+    \node[font=\scriptsize, align=center]
+      at (\xC,\yC)
+      {$\InnerTextPattern_{\k}$};
+
+    % Window index row below (plain numbers 1,2,...)
+    \node[anchor=north, font=\scriptsize]
+      at (\xC,\WindowNumberBase) {\k};
+
+    \global\advance\slot by 1
+  }
+
+  % ---- Middle gap with "..." if there is one ----
+  \ifnum\HasGap=1
+    \pgfmathsetmacro{\gapC}{\the\slot * \WindowWidth + 0.5*\WindowWidth}
+    \node[anchor=south, font=\scriptsize]
+      at (\gapC,\WindowBottom + 0.3) {$\cdots$};
+    \global\advance\slot by 1
+  \fi
+
+  % ---- Back block: windows BackStart..NumWindowsVal ----
+  \foreach \k in {\BackStart,...,\NumWindowsVal} {%
+    \pgfmathsetmacro{\xL}{\the\slot * \WindowWidth}
+    \pgfmathsetmacro{\xR}{(\the\slot + 1) * \WindowWidth}
+    \pgfmathsetmacro{\xC}{0.5*(\xL+\xR)}
+    \pgfmathsetmacro{\yB}{\WindowBottom}
+    \pgfmathsetmacro{\yT}{\WindowBottom + \WindowHeight}
+    \pgfmathsetmacro{\yC}{0.5*(\yB+\yT)}
+
+    % Window rectangle
+    \draw[
+      rounded corners,
+      draw=\WindowColor,
+      line width=\WindowLineWidth,
+      fill=\WindowColor,
+      fill opacity=\WindowFillOpacity
+    ] (\xL,\yB) rectangle (\xR,\yT);
+
+    % Inner label: T_{N - something}
+    \node[font=\scriptsize, align=center]
+      at (\xC,\yC)
+      {$\InnerTextPattern_{\WindowIndexBack{\k}}$};
+
+    % Window index row below: N-2, N-1, N ...
+    \node[anchor=north, font=\scriptsize]
+      at (\xC,\WindowNumberBase)
+      {$\WindowIndexBack{\k}$};
+
+    \global\advance\slot by 1
+  }
+
+  % Store last slot index for clamping measurement lines
+  \newcount\LastSlot
+  \LastSlot=\slot
+  \advance\LastSlot by -1
+
+  % -----------------------------
+  % Measurement lines
+  % -----------------------------
+  \makeatletter
+  \newcount\measurementIndex
+  \measurementIndex=0
+  
+  \foreach \mstart/\mstop in \MeasurementRanges {%
+    \pgfmathsetmacro{\currentIndex}{\the\measurementIndex}
+    
+    % Extract color
+    \foreach \col [count=\c from 0] in \MeasurementColors {%
+      \ifnum\c=\currentIndex\relax
+        \xdef\currentColor{\col}
+      \fi
+    }%
+    
+    % Extract label
+    \foreach \lbl [count=\l from 0] in \MeasurementLabels {%
+      \ifnum\l=\currentIndex\relax
+        \xdef\currentLabel{\lbl}
+      \fi
+    }%
+    
+    % Extract level
+    \foreach \lvl [count=\v from 0] in \MeasurementLevels {%
+      \ifnum\v=\currentIndex\relax
+        \xdef\currentLevel{\lvl}
+      \fi
+    }%
+    
+    % ---- Map window indices -> display slots ----
+    \newcount\slotStart
+    \newcount\slotStop
+    \slotStart=-1
+    \slotStop=-1
+
+    % slotStart
+    \ifnum\HasGap=0
+      \slotStart=\numexpr\mstart-1\relax
+    \else
+      \ifnum\mstart<=\FrontWindows
+        \slotStart=\numexpr\mstart-1\relax
+      \else
+        \ifnum\mstart>=\BackStart
+          \slotStart=\numexpr\FrontWindows+1+(\mstart-\BackStart)\relax
+        \else
+          \slotStart=-1 % in hidden middle region
+        \fi
+      \fi
+    \fi
+
+    % slotStop
+    \ifnum\HasGap=0
+      \slotStop=\numexpr\mstop-1\relax
+    \else
+      \ifnum\mstop<=\FrontWindows
+        \slotStop=\numexpr\mstop-1\relax
+      \else
+        \ifnum\mstop>=\BackStart
+          \slotStop=\numexpr\FrontWindows+1+(\mstop-\BackStart)\relax
+        \else
+          \slotStop=-1 % in hidden middle region
+        \fi
+      \fi
+    \fi
+
+    % ---- Clamp endpoints that fall into the hidden middle ----
+    % If both are in the hidden region: skip.
+    % If only one is hidden: clamp it to nearest visible side.
+    \ifnum\slotStart<0
+      \ifnum\slotStop<0
+        % both invisible -> skip this range
+      \else
+        % clamp start to first visible slot (0)
+        \slotStart=0
+      \fi
+    \else
+      \ifnum\slotStop<0
+        % clamp stop to last visible slot
+        \slotStop=\LastSlot
+      \fi
+    \fi
+
+    % Draw only if we have a valid interval
+    \ifnum\slotStart>-1
+      \ifnum\slotStop>-1
+        \pgfmathsetmacro{\xL}{\the\slotStart * \WindowWidth}
+        \pgfmathsetmacro{\xR}{(\the\slotStop + 1) * \WindowWidth}
+        \pgfmathsetmacro{\xC}{0.5*(\xL+\xR)}
+        
+        % Line with arrows
+        \draw[\currentColor, line width=0.8pt, {Rays[n=2]}-{Rays[n=2]}]
+          (\xL,\currentLevel) -- (\xR,\currentLevel);
+        
+        % Label (uses symbolic N)
+        \node[anchor=north, font=\scriptsize, text=\currentColor]
+          at (\xC,\currentLevel) {\currentLabel};
+      \fi
+    \fi
+    
+    \global\advance\measurementIndex by 1
+  }%
+  \makeatother
+
+\end{tikzpicture}
+
+\end{document}

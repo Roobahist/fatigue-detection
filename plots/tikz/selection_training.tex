@@ -1,0 +1,149 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\pgfplotsset{compat=1.18}
+
+\begin{document}
+
+% ==========================================
+% Configuration
+% ==========================================
+
+% Initial (begin) values
+\def\kOneBegin{2}
+\def\kTwoBegin{2}
+\def\kThreeBegin{12}
+
+% Final (end) values
+\def\kOneEnd{10}
+\def\kTwoEnd{4}
+\def\kThreeEnd{2}
+
+% Fraction of training where the change finishes (0–1)
+\def\TransitionFrac{0.60}
+
+% Line colors
+\def\kOneColor{teal}
+\def\kTwoColor{orange}
+\def\kThreeColor{purple}
+\def\KTotalColor{black}
+
+% Line styles
+\def\kOneStyle{very thick}
+\def\kTwoStyle{very thick}
+\def\kThreeStyle{very thick}
+\def\KTotalStyle{ultra thick}
+
+% Legend position (relative to axis, 0–1)
+\def\LegendX{1.05}      % move left/right
+\def\LegendY{1.0}       % move up/down
+\def\LegendAnchor{north west}
+
+% ==========================================
+% Derived quantities
+% ==========================================
+
+\pgfmathsetmacro{\KBegin}{\kOneBegin + \kTwoBegin + \kThreeBegin}
+\pgfmathsetmacro{\KEnd}{\kOneEnd + \kTwoEnd + \kThreeEnd}
+\pgfmathsetmacro{\KMax}{max(\KBegin,\KEnd)}
+
+% x-coordinate (0–100) of the transition
+\pgfmathsetmacro{\TransitionX}{100*\TransitionFrac}
+\pgfmathtruncatemacro{\TransitionPct}{100*\TransitionFrac}
+
+\begin{tikzpicture}
+
+  \begin{axis}[
+    width=10cm,
+    height=\KMax*0.5cm,
+    xmin=0, xmax=100,
+    ymin=0, ymax={\KMax + 2},
+    xlabel={Training progress (\%)},
+    ylabel={Number of windows},
+    % ticks & grids
+    xtick={0,10,...,100},
+    ytick distance=1,
+    xmajorgrids=true,
+    ymajorgrids=true,
+    grid style={gray!20},
+    scaled y ticks=false,
+    % legend outside, configurable
+    legend style={
+      at={(\LegendX,\LegendY)},
+      anchor=\LegendAnchor,
+      draw=none
+    },
+    legend cell align=left
+  ]
+
+    % -------------------------------
+    % k1(t)
+    % -------------------------------
+    \addplot[
+      \kOneStyle,
+      color=\kOneColor
+    ] coordinates {
+      (0,              \kOneBegin)
+      (\TransitionX,   \kOneEnd)
+      (100,            \kOneEnd)
+    };
+    \addlegendentry{$k_1$ top avg}
+
+    % -------------------------------
+    % k2(t)
+    % -------------------------------
+    \addplot[
+      \kTwoStyle,
+      color=\kTwoColor
+    ] coordinates {
+      (0,              \kTwoBegin)
+      (\TransitionX,   \kTwoEnd)
+      (100,            \kTwoEnd)
+    };
+    \addlegendentry{$k_2$ top max}
+
+    % -------------------------------
+    % k3(t)
+    % -------------------------------
+    \addplot[
+      \kThreeStyle,
+      color=\kThreeColor
+    ] coordinates {
+      (0,              \kThreeBegin)
+      (\TransitionX,   \kThreeEnd)
+      (100,            \kThreeEnd)
+    };
+    \addlegendentry{$k_3$ probability avg}
+
+    % -------------------------------
+    % K(t) = k1 + k2 + k3
+    % -------------------------------
+    \addplot[
+      \KTotalStyle,
+      color=\KTotalColor
+    ] coordinates {
+      (0,              \KBegin)
+      (\TransitionX,   \KEnd)
+      (100,            \KEnd)
+    };
+    \addlegendentry{$K = k_1 + k_2 + k_3$}
+
+    % -------------------------------
+    % Vertical line at transition point
+    % -------------------------------
+    \addplot[
+      gray!60,
+      dashed
+    ] coordinates {
+      (\TransitionX,0)
+      (\TransitionX,\KMax + 1)
+    };
+
+    \node[gray!60, anchor=north west]
+      at (axis cs:\TransitionX,0) {transition at \TransitionPct\%};
+
+  \end{axis}
+
+\end{tikzpicture}
+
+\end{document}

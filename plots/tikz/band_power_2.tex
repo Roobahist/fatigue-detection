@@ -1,0 +1,475 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepackage{amsmath}
+
+\begin{document}
+
+% ==================================================
+% Configuration
+% ==================================================
+
+% ---------------- Plot configuration ----------------
+\def\PlotWidth{8cm}
+\def\PlotHeight{6cm}
+
+\def\StartSample{30}
+\def\EndSample{170}
+
+\def\ActiveStart{50}
+\def\ActiveEnd{150}
+
+\def\YMinMain{-8e-5}
+\def\YMaxMain{ 8e-5}
+
+\def\ShowLegend{0}
+
+% ---------------- Line styles (active segments) ----------------
+\def\FzLineColor{OrangeRed}
+\def\FzLineWidth{1.2pt}
+\def\FzLineStyle{solid}
+
+\def\CzLineColor{MidnightBlue}
+\def\CzLineWidth{1.2pt}
+\def\CzLineStyle{solid}
+
+\def\PzLineColor{YellowOrange}
+\def\PzLineWidth{1.2pt}
+\def\PzLineStyle{solid}
+
+\def\CFourLineColor{Gray}
+\def\CFourLineWidth{1.0pt}
+\def\CFourLineStyle{solid}
+
+\def\CThreeLineColor{Gray}
+\def\CThreeLineWidth{1.0pt}
+\def\CThreeLineStyle{dashed}
+
+\def\OzLineColor{Gray}
+\def\OzLineWidth{1.0pt}
+\def\OzLineStyle{dotted}
+
+% ---------------- Inactive (grayed-out) style ----------------
+\def\InactiveLineColor{gray!60}
+\def\InactiveLineWidth{0.8pt}
+\def\InactiveLineStyle{solid}
+
+% ---------------- Vertical epoch boundary lines ----------------
+\def\ShowEpochLines{1}
+\def\EpochLineColor{black}
+\def\EpochLineWidth{1pt}
+\def\EpochLineStyle{dashed}
+
+% ---------------- Epoch arrow line between boundaries ----------------
+\def\ShowEpochArrowLine{1}
+\def\EpochArrowFrac{0.9}
+\def\EpochArrowY{-5.0e-5}
+\def\EpochArrowColor{black}
+\def\EpochArrowWidth{1pt}
+\def\EpochArrowStyle{<->}
+\def\EpochArrowText{epoch = 4s}
+\def\EpochArrowTextColor{black}
+\def\EpochArrowTextYOffset{-5e-6}
+
+% ---------------- Which channels are drawn? ----------------
+\def\ShowFz{1}
+\def\ShowCz{1}
+\def\ShowPz{1}
+\def\ShowCThree{0}
+\def\ShowCFour{0}
+\def\ShowOz{0}
+
+% ==================================================
+% Connector configuration (epoch -> band powers)
+% ==================================================
+
+\def\ShowBandConnectors{1}
+
+\def\ConnectorStartXRel{1.1}
+\def\ConnectorStartYRel{0.5}
+
+\def\ConnectorOutAngle{0}
+\def\ConnectorInAngle{180}
+
+\def\ConnectorLineWidth{0.9pt}
+\def\ConnectorLineStyle{}
+
+\def\BandLabelGap{0.12cm}
+
+\def\StackXShift{3cm}
+\def\StackTopYOffset{2.1cm}
+
+\def\StackLineGap{0.015cm}
+\def\StackGroupGap{0.03cm}
+
+% --- channel-colored pieces used inside math ---
+\def\FzChanText{\textcolor{\FzLineColor}{\mathrm{Fz}}}
+\def\CzChanText{\textcolor{\CzLineColor}{\mathrm{Cz}}}
+\def\PzChanText{\textcolor{\PzLineColor}{\mathrm{Pz}}}
+
+% Band-power label texts (channel name colored)
+\def\FzAlphaText{$P_{\alpha,\FzChanText}$}
+\def\FzBetaText {$P_{\beta,\FzChanText}$}
+\def\FzThetaText{$P_{\theta,\FzChanText}$}
+
+\def\CzAlphaText{$P_{\alpha,\CzChanText}$}
+\def\CzBetaText {$P_{\beta,\CzChanText}$}
+\def\CzThetaText{$P_{\theta,\CzChanText}$}
+
+\def\PzAlphaText{$P_{\alpha,\PzChanText}$}
+\def\PzBetaText {$P_{\beta,\PzChanText}$}
+\def\PzThetaText{$P_{\theta,\PzChanText}$}
+
+\def\BandLabelTextColor{black}
+
+% ==================================================
+% Channel-wise tiredness ratios configuration
+% ==================================================
+
+\def\ShowChannelRatios{1}
+
+\def\RatioXShift{1.0cm}
+\def\RatioYOffset{0cm}
+
+\def\RatioFzText{$T_{\FzChanText} = \dfrac{P_{\theta,\FzChanText}}{P_{\alpha,\FzChanText} + P_{\beta,\FzChanText}}$}
+\def\RatioCzText{$T_{\CzChanText} = \dfrac{P_{\theta,\CzChanText}}{P_{\alpha,\CzChanText} + P_{\beta,\CzChanText}}$}
+\def\RatioPzText{$T_{\PzChanText} = \dfrac{P_{\theta,\PzChanText}}{P_{\alpha,\PzChanText} + P_{\beta,\PzChanText}}$}
+
+\def\RatioTextColor{black}
+
+\def\RatioConnectorOutAngle{0}
+\def\RatioConnectorInAngle{180}
+\def\RatioConnectorLineWidth{0.8pt}
+\def\RatioConnectorLineStyle{}
+\def\RatioLabelGap{0.12cm}
+
+% ==================================================
+% Final T (sum of T_ch) connector configuration
+% ==================================================
+
+\def\ShowFinalTConnectors{1}
+
+\def\FinalConnXShift{3cm}
+\def\FinalConnYShift{0cm}
+
+\def\FinalTLabelXShift{4.5cm}
+\def\FinalTLabelYShift{0cm}
+
+\def\FinalTText{$T = T_{\FzChanText} + T_{\CzChanText} + T_{\PzChanText}$}
+\def\FinalTTextColor{black}
+
+\def\FinalOutAngle{0}
+\def\FinalInAngle{180}
+\def\FinalConnectorWidth{1pt}
+\def\FinalConnectorStyle{}
+\def\FinalLabelGap{0.18cm}
+
+% ==================================================
+% Load CSV data
+% ==================================================
+\pgfplotstableread[
+    col sep=comma
+]{Data/eeg_halfs.csv}\eegdata
+
+% ==================================================
+% Begin drawing
+% ==================================================
+\begin{tikzpicture}
+
+\begin{axis}[
+    width=\PlotWidth,
+    height=\PlotHeight,
+    xmin=\StartSample,
+    xmax=\EndSample,
+    ymin=\YMinMain,
+    ymax=\YMaxMain,
+    xlabel={Time (512 Hz)},
+    ylabel={Voltage ($\mu$V)},
+    xtick=\empty,
+    grid=major,
+    grid style={dashed, gray!30},
+    axis lines=left,
+    tick align=outside,
+    enlargelimits=false,
+    legend style={at={(1.02,0.5)}, anchor=west, font=\small},
+]
+
+% ==================================================
+% Signals
+% ==================================================
+
+\ifnum\ShowFz=1
+  \addplot[
+      color=\InactiveLineColor,
+      line width=\InactiveLineWidth,
+      \InactiveLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Fz,
+      restrict expr to domain={\coordindex}{\StartSample:\EndSample}
+  ] {\eegdata};
+
+  \addplot[
+      color=\FzLineColor,
+      line width=\FzLineWidth,
+      \FzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Fz,
+      restrict expr to domain={\coordindex}{\ActiveStart:\ActiveEnd}
+  ] {\eegdata};
+\fi
+
+\ifnum\ShowCz=1
+  \addplot[
+      color=\InactiveLineColor,
+      line width=\InactiveLineWidth,
+      \InactiveLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Cz,
+      restrict expr to domain={\coordindex}{\StartSample:\EndSample}
+  ] {\eegdata};
+
+  \addplot[
+      color=\CzLineColor,
+      line width=\CzLineWidth,
+      \CzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Cz,
+      restrict expr to domain={\coordindex}{\ActiveStart:\ActiveEnd}
+  ] {\eegdata};
+\fi
+
+\ifnum\ShowPz=1
+  \addplot[
+      color=\InactiveLineColor,
+      line width=\InactiveLineWidth,
+      \InactiveLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Pz,
+      restrict expr to domain={\coordindex}{\StartSample:\EndSample}
+  ] {\eegdata};
+
+  \addplot[
+      color=\PzLineColor,
+      line width=\PzLineWidth,
+      \PzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Pz,
+      restrict expr to domain={\coordindex}{\ActiveStart:\ActiveEnd}
+  ] {\eegdata};
+\fi
+
+% ==================================================
+% Epoch markers
+% ==================================================
+\ifnum\ShowEpochLines=1
+  \addplot[
+      color=\EpochLineColor,
+      line width=\EpochLineWidth,
+      \EpochLineStyle,
+  ] coordinates {(\ActiveStart,\YMinMain) (\ActiveStart,\YMaxMain)};
+
+  \addplot[
+      color=\EpochLineColor,
+      line width=\EpochLineWidth,
+      \EpochLineStyle,
+  ] coordinates {(\ActiveEnd,\YMinMain) (\ActiveEnd,\YMaxMain)};
+\fi
+
+\ifnum\ShowEpochArrowLine=1
+  \pgfmathsetmacro{\ArrowLeft}{\ActiveStart + (1 - \EpochArrowFrac)/2 * (\ActiveEnd - \ActiveStart)}
+  \pgfmathsetmacro{\ArrowRight}{\ActiveEnd - (1 - \EpochArrowFrac)/2 * (\ActiveEnd - \ActiveStart)}
+  \pgfmathsetmacro{\ArrowMid}{(\ActiveStart + \ActiveEnd)/2}
+
+  \draw[
+      color=\EpochArrowColor,
+      line width=\EpochArrowWidth,
+      \EpochArrowStyle,
+  ] (axis cs:\ArrowLeft,\EpochArrowY) -- (axis cs:\ArrowRight,\EpochArrowY);
+
+  \node[text=\EpochArrowTextColor, anchor=north]
+      at (axis cs:\ArrowMid,\EpochArrowY + \EpochArrowTextYOffset)
+      {\EpochArrowText};
+\fi
+
+% Start point for band connectors
+\ifnum\ShowBandConnectors=1
+  \coordinate (ConnStart) at (rel axis cs:\ConnectorStartXRel,\ConnectorStartYRel);
+\fi
+
+\end{axis}
+
+% ==================================================
+% Band power labels + connectors (epoch -> bands)
+% ==================================================
+\ifnum\ShowBandConnectors=1
+
+  \coordinate (StackAnchor) at ([xshift=\StackXShift,yshift=\StackTopYOffset]current axis.east);
+
+  \pgfmathsetmacro{\YPosFzAlpha}{0}
+  \pgfmathsetmacro{\YPosFzBeta}{-\StackLineGap}
+  \pgfmathsetmacro{\YPosFzTheta}{-2*\StackLineGap}
+
+  \pgfmathsetmacro{\YPosCzAlpha}{-2*\StackLineGap - \StackGroupGap}
+  \pgfmathsetmacro{\YPosCzBeta}{-3*\StackLineGap - \StackGroupGap}
+  \pgfmathsetmacro{\YPosCzTheta}{-4*\StackLineGap - \StackGroupGap}
+
+  \pgfmathsetmacro{\YPosPzAlpha}{-4*\StackLineGap - 2*\StackGroupGap}
+  \pgfmathsetmacro{\YPosPzBeta}{-5*\StackLineGap - 2*\StackGroupGap}
+  \pgfmathsetmacro{\YPosPzTheta}{-6*\StackLineGap - 2*\StackGroupGap}
+
+  % Fz
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (FzAlpha) at ([yshift=\YPosFzAlpha cm]StackAnchor) {\FzAlphaText};
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (FzBeta)  at ([yshift=\YPosFzBeta cm] StackAnchor) {\FzBetaText};
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (FzTheta) at ([yshift=\YPosFzTheta cm]StackAnchor) {\FzThetaText};
+
+  % Cz
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (CzAlpha) at ([yshift=\YPosCzAlpha cm]StackAnchor) {\CzAlphaText};
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (CzBeta)  at ([yshift=\YPosCzBeta cm] StackAnchor) {\CzBetaText};
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (CzTheta) at ([yshift=\YPosCzTheta cm]StackAnchor) {\CzThetaText};
+
+  % Pz
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (PzAlpha) at ([yshift=\YPosPzAlpha cm]StackAnchor) {\PzAlphaText};
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (PzBeta)  at ([yshift=\YPosPzBeta cm] StackAnchor) {\PzBetaText};
+  \node[font=\small, text=\BandLabelTextColor, anchor=west]
+      (PzTheta) at ([yshift=\YPosPzTheta cm]StackAnchor) {\PzThetaText};
+
+  % All connectors black, with small gap to labels
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]FzAlpha.west);
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]FzBeta.west);
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]FzTheta.west);
+
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]CzAlpha.west);
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]CzBeta.west);
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]CzTheta.west);
+
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]PzAlpha.west);
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]PzBeta.west);
+  \draw[line width=\ConnectorLineWidth, color=black, \ConnectorLineStyle]
+      (ConnStart) to[out=\ConnectorOutAngle, in=\ConnectorInAngle]
+      ([xshift=-\BandLabelGap]PzTheta.west);
+
+\fi % ShowBandConnectors
+
+% ==================================================
+% Channel-wise tiredness ratios + connectors (bands -> T_ch)
+% ==================================================
+\ifnum\ShowChannelRatios=1
+
+  \coordinate (RatioAnchorFz) at ([xshift=\RatioXShift]FzBeta.east);
+  \coordinate (RatioAnchorCz) at ([xshift=\RatioXShift]CzBeta.east);
+  \coordinate (RatioAnchorPz) at ([xshift=\RatioXShift]PzBeta.east);
+
+  \node[font=\small, text=\RatioTextColor, anchor=west]
+      (RatioFz) at ([yshift=\RatioYOffset]RatioAnchorFz) {\RatioFzText};
+  \node[font=\small, text=\RatioTextColor, anchor=west]
+      (RatioCz) at ([yshift=\RatioYOffset]RatioAnchorCz) {\RatioCzText};
+  \node[font=\small, text=\RatioTextColor, anchor=west]
+      (RatioPz) at ([yshift=\RatioYOffset]RatioAnchorPz) {\RatioPzText};
+
+  % All connectors black, with gaps at both ends
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]FzAlpha.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioFz.west);
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]FzBeta.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioFz.west);
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]FzTheta.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioFz.west);
+
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]CzAlpha.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioCz.west);
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]CzBeta.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioCz.west);
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]CzTheta.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioCz.west);
+
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]PzAlpha.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioPz.west);
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]PzBeta.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioPz.west);
+  \draw[line width=\RatioConnectorLineWidth, color=black, \RatioConnectorLineStyle]
+      ([xshift=\RatioLabelGap]PzTheta.east)
+      to[out=\RatioConnectorOutAngle, in=\RatioConnectorInAngle]
+      ([xshift=-\RatioLabelGap]RatioPz.west);
+
+\fi % ShowChannelRatios
+
+% ==================================================
+% Connect T_ch → Final T
+% ==================================================
+\ifnum\ShowFinalTConnectors=1
+
+    \coordinate (FinalStart) at ([xshift=\FinalConnXShift, yshift=\FinalConnYShift] RatioAnchorCz);
+
+    \node[font=\small, text=\FinalTTextColor, anchor=west]
+        (FinalTLabel)
+        at ([xshift=\FinalTLabelXShift, yshift=\FinalTLabelYShift] RatioAnchorCz)
+        {\FinalTText};
+
+    \draw[line width=\FinalConnectorWidth, color=black, \FinalConnectorStyle]
+        ([xshift=\FinalLabelGap]RatioFz.east)
+        to[out=\FinalOutAngle, in=\FinalInAngle]
+        ([xshift=-\FinalLabelGap]FinalTLabel.west);
+
+    \draw[line width=\FinalConnectorWidth, color=black, \FinalConnectorStyle]
+        ([xshift=\FinalLabelGap]RatioCz.east)
+        to[out=\FinalOutAngle, in=\FinalInAngle]
+        ([xshift=-\FinalLabelGap]FinalTLabel.west);
+
+    \draw[line width=\FinalConnectorWidth, color=black, \FinalConnectorStyle]
+        ([xshift=\FinalLabelGap]RatioPz.east)
+        to[out=\FinalOutAngle, in=\FinalInAngle]
+        ([xshift=-\FinalLabelGap]FinalTLabel.west);
+
+\fi
+
+\end{tikzpicture}
+
+\end{document}

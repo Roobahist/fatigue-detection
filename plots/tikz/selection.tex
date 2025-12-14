@@ -1,0 +1,477 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{calc,patterns}
+
+\begin{document}
+
+% ==================================================
+% Configuration
+% ==================================================
+
+% Symbolic parameters
+\def\NumWindowsSymbol{N}      % Total number of windows
+
+% LEFT STACK (sorted by avg, starting from i)
+\def\LeftStartSymbol{i}
+\def\LeftThresholdSymbol{k_1}
+\def\LeftThresholdValue{5}
+\def\LeftTotalValue{10}
+\def\LeftSelectedFront{2}
+\def\LeftSelectedBack{2}
+\def\LeftUnselectedFront{1}
+\def\LeftUnselectedBack{2}
+
+% MIDDLE STACK (sorted by max, starting from j)
+\def\MiddleStartSymbol{j}
+\def\MiddleThresholdSymbol{k_2}
+\def\MiddleThresholdValue{4}
+\def\MiddleTotalValue{10}
+\def\MiddleSelectedFront{2}
+\def\MiddleSelectedBack{2}
+\def\MiddleUnselectedFront{1}
+\def\MiddleUnselectedBack{2}
+
+% RIGHT STACK (random sampling weighted by avg, starting from l)
+\def\RightStartSymbol{l}
+\def\RightThresholdSymbol{k_3}
+\def\RightThresholdValue{6}        % k_3 = 6 (number of selected windows)
+\def\RightTotalValue{10}
+\def\RightFront{4}                 % Show first 3 windows
+\def\RightBack{4}                  % Show last 3 windows
+% Which specific indices are selected (randomly picked)
+\def\RightSelectedIndices{2,3,7,9,10}  % 5 out of 10 randomly selected
+
+% Geometry
+\def\WindowWidth{3}
+\def\WindowHeight{2}
+\def\WindowVStep{2.3}
+\def\StackGap{10}              % Horizontal gap between stacks
+
+% Window style
+\def\WindowLineWidth{0.6pt}
+\def\WindowFillOpacity{0.1}
+
+% Bar height
+\pgfmathsetmacro{\BarHeight}{\WindowHeight/4}
+
+% ===== LEFT STACK Parameters =====
+\def\LeftWindowColors{teal, teal, teal, teal, gray, gray, gray, gray}
+\def\LeftAvgBarColors{teal, teal, teal, teal, gray, gray, gray, gray}
+\def\LeftMaxBarColors{gray!30, gray!30, gray!30, gray!30, gray!30, gray!30, gray!30, gray!30}
+\def\LeftAvgBarLengths{5.0, 4.4, 3.8, 3.5, 3.2, 2.8, 2.5, 2.0}
+\def\LeftMaxBarLengths{4.0, 2.8, 3.6, 4.4, 0.2, 2.5, 0.7, 1.5}
+
+% ===== MIDDLE STACK Parameters =====
+\def\MiddleWindowColors{orange, orange, orange, orange, gray, gray, gray, gray}
+\def\MiddleAvgBarColors{gray!30, gray!30, gray!30, gray!30, gray!30, gray!30, gray!30, gray!30}
+\def\MiddleMaxBarColors{orange, orange, orange, orange, gray, gray, gray, gray}
+\def\MiddleAvgBarLengths{2.0, 0.5, 1.0, 2.8, 5.0, 1.5, 1.2, 4.5}
+\def\MiddleMaxBarLengths{5.0, 4.8, 4.5, 4.2, 3.0, 2.5, 2.0, 1.8}
+
+% ===== RIGHT STACK Parameters (6 visible windows: 3 front + 3 back) =====
+\def\RightWindowColors{gray, purple, gray, purple, gray, purple, gray, gray}
+\def\RightAvgBarColors{gray, purple, gray, purple, gray, purple, gray, gray}
+\def\RightMaxBarColors{gray!30, gray!30, gray!30, gray!30, gray!30, gray!30, gray!30, gray!30}
+\def\RightAvgBarLengths{3.0, 4.8, 3.8, 1.2, 4.5, 5.0, 2.0, 0.5}
+\def\RightMaxBarLengths{2.5, 4.0, 2.8, 0.2, 3.5, 1.0, 3.0, 5.0}
+
+% ==================================================
+% Main Drawing
+% ==================================================
+
+\begin{tikzpicture}[x=0.5cm,y=0.5cm]
+
+  % ==================================================
+  % LEFT STACK
+  % ==================================================
+  \begin{scope}[shift={(0,0)}]
+    \newcount\row
+    \newcount\visIndex
+    \row=0
+    \visIndex=0
+
+    % Title for left stack
+    \node[font=\small\bfseries, color=black, anchor=south] 
+      at (0 + 0.5*\WindowWidth, -20.5) {(a)};
+
+    % Helper: fetch per-window parameters for LEFT stack
+    \newcommand{\GetLeftParams}{%
+      \pgfmathtruncatemacro{\idx}{\the\visIndex}%
+      \foreach \val [count=\c from 1] in \LeftAvgBarLengths {%
+        \ifnum\c=\idx\relax \xdef\currentAvgLen{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \LeftMaxBarLengths {%
+        \ifnum\c=\idx\relax \xdef\currentMaxLen{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \LeftAvgBarColors {%
+        \ifnum\c=\idx\relax \xdef\currentAvgColor{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \LeftMaxBarColors {%
+        \ifnum\c=\idx\relax \xdef\currentMaxColor{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \LeftWindowColors {%
+        \ifnum\c=\idx\relax \xdef\currentWindowColor{\val}\fi
+      }%
+    }
+
+    % Helper: draw a window
+    \newcommand{\DrawLeftWindow}[1]{%
+      \global\advance\visIndex by 1
+      \GetLeftParams
+      
+      \pgfmathsetmacro{\WindowBottom}{-\the\row * \WindowVStep}
+      \pgfmathsetmacro{\WindowLeft}{0}
+      \pgfmathsetmacro{\WindowRight}{\WindowLeft + \WindowWidth}
+      \pgfmathsetmacro{\WindowTop}{\WindowBottom + \WindowHeight}
+      \pgfmathsetmacro{\AvgY}{\WindowBottom + 0.66*\WindowHeight}
+      \pgfmathsetmacro{\MaxY}{\WindowBottom + 0.33*\WindowHeight}
+
+      \draw[fill=\currentAvgColor, draw=\currentAvgColor]
+        (\WindowLeft - \currentAvgLen, \AvgY - \BarHeight/2)
+          rectangle
+        (\WindowLeft, \AvgY + \BarHeight/2);
+
+      \draw[fill=\currentMaxColor, draw=\currentMaxColor]
+        (\WindowLeft - \currentMaxLen, \MaxY - \BarHeight/2)
+          rectangle
+        (\WindowLeft, \MaxY + \BarHeight/2);
+
+      \draw[
+        rounded corners,
+        draw=\currentWindowColor,
+        line width=\WindowLineWidth,
+        fill=\currentWindowColor,
+        fill opacity=\WindowFillOpacity
+      ] (\WindowLeft,\WindowBottom) rectangle (\WindowRight,\WindowTop);
+
+      \pgfmathtruncatemacro{\offset}{#1}%
+      \def\IndexExpr{}%
+      
+      \ifnum\offset=1
+        \def\IndexExpr{\LeftStartSymbol + 1}%
+      \else\ifnum\offset=2
+        \def\IndexExpr{\LeftStartSymbol + 2}%
+      \else\ifnum\offset=\numexpr\LeftThresholdValue-2\relax
+        \def\IndexExpr{\LeftStartSymbol + \LeftThresholdSymbol - 2}%
+      \else\ifnum\offset=\numexpr\LeftThresholdValue-1\relax
+        \def\IndexExpr{\LeftStartSymbol + \LeftThresholdSymbol - 1}%
+      \else\ifnum\offset=\LeftThresholdValue\relax
+        \def\IndexExpr{\LeftStartSymbol + \LeftThresholdSymbol}%
+      \else\ifnum\offset=\numexpr\LeftThresholdValue+1\relax
+        \def\IndexExpr{\LeftStartSymbol + \LeftThresholdSymbol + 1}%
+      \else\ifnum\offset=\numexpr\LeftThresholdValue+2\relax
+        \def\IndexExpr{\LeftStartSymbol + \LeftThresholdSymbol + 2}%
+      \else\ifnum\offset=\numexpr\LeftTotalValue-2\relax
+        \def\IndexExpr{\LeftStartSymbol + \NumWindowsSymbol - 2}%
+      \else\ifnum\offset=\numexpr\LeftTotalValue-1\relax
+        \def\IndexExpr{\LeftStartSymbol + \NumWindowsSymbol - 1}%
+      \else\ifnum\offset=\LeftTotalValue\relax
+        \def\IndexExpr{\LeftStartSymbol + \NumWindowsSymbol}%
+      \else
+        \edef\IndexExpr{\LeftStartSymbol + \number\offset}%
+      \fi\fi\fi\fi\fi\fi\fi\fi\fi\fi
+
+      \node[font=\scriptsize, align=center]
+        at (\WindowLeft + 0.5*\WindowWidth, \WindowBottom + 0.46*\WindowHeight)
+        {{\color{\currentAvgColor}$\mathrm{avg}_{\IndexExpr}$}\\
+         {\color{\currentMaxColor}$\mathrm{max}_{\IndexExpr}$}};
+
+      \global\advance\row by 1
+    }
+
+    \newcommand{\DrawLeftGap}{%
+      \pgfmathsetmacro{\dotsY}{-\the\row * \WindowVStep + 0.5*\WindowHeight}
+      \node[font=\scriptsize]
+        at (0 + 0.5*\WindowWidth, \dotsY) {$\vdots$};
+      \global\advance\row by 1
+    }
+
+    % Draw LEFT stack
+    \foreach \k in {1,...,\LeftSelectedFront} {%
+      \DrawLeftWindow{\k}
+    }
+    
+    \ifnum\LeftSelectedFront<\numexpr\LeftThresholdValue-\LeftSelectedBack+1\relax
+      \DrawLeftGap
+    \fi
+    
+    \foreach \k in {1,...,\LeftSelectedBack} {%
+      \pgfmathtruncatemacro{\offset}{\LeftThresholdValue - \LeftSelectedBack + \k}
+      \DrawLeftWindow{\offset}
+    }
+
+    \foreach \k in {1,...,\LeftUnselectedFront} {%
+      \pgfmathtruncatemacro{\offset}{\LeftThresholdValue + \k}
+      \DrawLeftWindow{\offset}
+    }
+    
+    \ifnum\numexpr\LeftThresholdValue+\LeftUnselectedFront\relax<\numexpr\LeftTotalValue-\LeftUnselectedBack+1\relax
+      \DrawLeftGap
+    \fi
+    
+    \foreach \k in {1,...,\LeftUnselectedBack} {%
+      \pgfmathtruncatemacro{\offset}{\LeftTotalValue - \LeftUnselectedBack + \k}
+      \DrawLeftWindow{\offset}
+    }
+  \end{scope}
+
+  % ==================================================
+  % MIDDLE STACK
+  % ==================================================
+  \begin{scope}[shift={(\StackGap,0)}]
+    \newcount\rowM
+    \newcount\visIndexM
+    \rowM=0
+    \visIndexM=0
+
+    % Title for middle stack
+    \node[font=\small\bfseries, color=black, anchor=south] 
+      at (0 + 0.5*\WindowWidth, -20.5) {(b)};
+
+    % Helper: fetch per-window parameters for MIDDLE stack
+    \newcommand{\GetMiddleParams}{%
+      \pgfmathtruncatemacro{\idx}{\the\visIndexM}%
+      \foreach \val [count=\c from 1] in \MiddleAvgBarLengths {%
+        \ifnum\c=\idx\relax \xdef\currentAvgLen{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \MiddleMaxBarLengths {%
+        \ifnum\c=\idx\relax \xdef\currentMaxLen{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \MiddleAvgBarColors {%
+        \ifnum\c=\idx\relax \xdef\currentAvgColor{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \MiddleMaxBarColors {%
+        \ifnum\c=\idx\relax \xdef\currentMaxColor{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \MiddleWindowColors {%
+        \ifnum\c=\idx\relax \xdef\currentWindowColor{\val}\fi
+      }%
+    }
+
+    % Helper: draw a window
+    \newcommand{\DrawMiddleWindow}[1]{%
+      \global\advance\visIndexM by 1
+      \GetMiddleParams
+      
+      \pgfmathsetmacro{\WindowBottom}{-\the\rowM * \WindowVStep}
+      \pgfmathsetmacro{\WindowLeft}{0}
+      \pgfmathsetmacro{\WindowRight}{\WindowLeft + \WindowWidth}
+      \pgfmathsetmacro{\WindowTop}{\WindowBottom + \WindowHeight}
+      \pgfmathsetmacro{\AvgY}{\WindowBottom + 0.66*\WindowHeight}
+      \pgfmathsetmacro{\MaxY}{\WindowBottom + 0.33*\WindowHeight}
+
+      \draw[fill=\currentAvgColor, draw=\currentAvgColor]
+        (\WindowLeft - \currentAvgLen, \AvgY - \BarHeight/2)
+          rectangle
+        (\WindowLeft, \AvgY + \BarHeight/2);
+
+      \draw[fill=\currentMaxColor, draw=\currentMaxColor]
+        (\WindowLeft - \currentMaxLen, \MaxY - \BarHeight/2)
+          rectangle
+        (\WindowLeft, \MaxY + \BarHeight/2);
+
+      \draw[
+        rounded corners,
+        draw=\currentWindowColor,
+        line width=\WindowLineWidth,
+        fill=\currentWindowColor,
+        fill opacity=\WindowFillOpacity
+      ] (\WindowLeft,\WindowBottom) rectangle (\WindowRight,\WindowTop);
+
+      \pgfmathtruncatemacro{\offset}{#1}%
+      \def\IndexExpr{}%
+      
+      \ifnum\offset=1
+        \def\IndexExpr{\MiddleStartSymbol + 1}%
+      \else\ifnum\offset=2
+        \def\IndexExpr{\MiddleStartSymbol + 2}%
+      \else\ifnum\offset=\numexpr\MiddleThresholdValue-2\relax
+        \def\IndexExpr{\MiddleStartSymbol + \MiddleThresholdSymbol - 2}%
+      \else\ifnum\offset=\numexpr\MiddleThresholdValue-1\relax
+        \def\IndexExpr{\MiddleStartSymbol + \MiddleThresholdSymbol - 1}%
+      \else\ifnum\offset=\MiddleThresholdValue\relax
+        \def\IndexExpr{\MiddleStartSymbol + \MiddleThresholdSymbol}%
+      \else\ifnum\offset=\numexpr\MiddleThresholdValue+1\relax
+        \def\IndexExpr{\MiddleStartSymbol + \MiddleThresholdSymbol + 1}%
+      \else\ifnum\offset=\numexpr\MiddleThresholdValue+2\relax
+        \def\IndexExpr{\MiddleStartSymbol + \MiddleThresholdSymbol + 2}%
+      \else\ifnum\offset=\numexpr\MiddleTotalValue-2\relax
+        \def\IndexExpr{\MiddleStartSymbol + \NumWindowsSymbol - 2}%
+      \else\ifnum\offset=\numexpr\MiddleTotalValue-1\relax
+        \def\IndexExpr{\MiddleStartSymbol + \NumWindowsSymbol - 1}%
+      \else\ifnum\offset=\MiddleTotalValue\relax
+        \def\IndexExpr{\MiddleStartSymbol + \NumWindowsSymbol}%
+      \else
+        \edef\IndexExpr{\MiddleStartSymbol + \number\offset}%
+      \fi\fi\fi\fi\fi\fi\fi\fi\fi\fi
+
+      \node[font=\scriptsize, align=center]
+        at (\WindowLeft + 0.5*\WindowWidth, \WindowBottom + 0.46*\WindowHeight)
+        {{\color{\currentAvgColor}$\mathrm{avg}_{\IndexExpr}$}\\
+         {\color{\currentMaxColor}$\mathrm{max}_{\IndexExpr}$}};
+
+      \global\advance\rowM by 1
+    }
+
+    \newcommand{\DrawMiddleGap}{%
+      \pgfmathsetmacro{\dotsY}{-\the\rowM * \WindowVStep + 0.5*\WindowHeight}
+      \node[font=\scriptsize]
+        at (0 + 0.5*\WindowWidth, \dotsY) {$\vdots$};
+      \global\advance\rowM by 1
+    }
+
+    % Draw MIDDLE stack
+    \foreach \k in {1,...,\MiddleSelectedFront} {%
+      \DrawMiddleWindow{\k}
+    }
+    
+    \ifnum\MiddleSelectedFront<\numexpr\MiddleThresholdValue-\MiddleSelectedBack+1\relax
+      \DrawMiddleGap
+    \fi
+    
+    \foreach \k in {1,...,\MiddleSelectedBack} {%
+      \pgfmathtruncatemacro{\offset}{\MiddleThresholdValue - \MiddleSelectedBack + \k}
+      \DrawMiddleWindow{\offset}
+    }
+
+    \foreach \k in {1,...,\MiddleUnselectedFront} {%
+      \pgfmathtruncatemacro{\offset}{\MiddleThresholdValue + \k}
+      \DrawMiddleWindow{\offset}
+    }
+    
+    \ifnum\numexpr\MiddleThresholdValue+\MiddleUnselectedFront\relax<\numexpr\MiddleTotalValue-\MiddleUnselectedBack+1\relax
+      \DrawMiddleGap
+    \fi
+    
+    \foreach \k in {1,...,\MiddleUnselectedBack} {%
+      \pgfmathtruncatemacro{\offset}{\MiddleTotalValue - \MiddleUnselectedBack + \k}
+      \DrawMiddleWindow{\offset}
+    }
+  \end{scope}
+
+  % ==================================================
+  % RIGHT STACK (Random Sampling)
+  % ==================================================
+  \begin{scope}[shift={(2*\StackGap,0)}]
+    \newcount\rowR
+    \newcount\visIndexR
+    \rowR=0
+    \visIndexR=0
+
+    % Title for right stack
+    \node[font=\small\bfseries, color=black, anchor=south] 
+      at (0 + 0.5*\WindowWidth, -20.5) {(c)};
+
+    % Helper: fetch per-window parameters for RIGHT stack
+    \newcommand{\GetRightParams}{%
+      \pgfmathtruncatemacro{\idx}{\the\visIndexR}%
+      \foreach \val [count=\c from 1] in \RightAvgBarLengths {%
+        \ifnum\c=\idx\relax \xdef\currentAvgLen{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \RightMaxBarLengths {%
+        \ifnum\c=\idx\relax \xdef\currentMaxLen{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \RightAvgBarColors {%
+        \ifnum\c=\idx\relax \xdef\currentAvgColor{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \RightMaxBarColors {%
+        \ifnum\c=\idx\relax \xdef\currentMaxColor{\val}\fi
+      }%
+      \foreach \val [count=\c from 1] in \RightWindowColors {%
+        \ifnum\c=\idx\relax \xdef\currentWindowColor{\val}\fi
+      }%
+    }
+
+    % Helper: draw a window
+    \newcommand{\DrawRightWindow}[1]{%
+      \global\advance\visIndexR by 1
+      \GetRightParams
+      
+      \pgfmathsetmacro{\WindowBottom}{-\the\rowR * \WindowVStep}
+      \pgfmathsetmacro{\WindowLeft}{0}
+      \pgfmathsetmacro{\WindowRight}{\WindowLeft + \WindowWidth}
+      \pgfmathsetmacro{\WindowTop}{\WindowBottom + \WindowHeight}
+      \pgfmathsetmacro{\AvgY}{\WindowBottom + 0.66*\WindowHeight}
+      \pgfmathsetmacro{\MaxY}{\WindowBottom + 0.33*\WindowHeight}
+
+      % STRIPED avg bar for right stack
+      \draw[pattern=north west lines, pattern color=\currentAvgColor, draw=\currentAvgColor]
+        (\WindowLeft - \currentAvgLen, \AvgY - \BarHeight/2)
+          rectangle
+        (\WindowLeft, \AvgY + \BarHeight/2);
+
+      \draw[fill=\currentMaxColor, draw=\currentMaxColor]
+        (\WindowLeft - \currentMaxLen, \MaxY - \BarHeight/2)
+          rectangle
+        (\WindowLeft, \MaxY + \BarHeight/2);
+
+      \draw[
+        rounded corners,
+        draw=\currentWindowColor,
+        line width=\WindowLineWidth,
+        fill=\currentWindowColor,
+        fill opacity=\WindowFillOpacity
+      ] (\WindowLeft,\WindowBottom) rectangle (\WindowRight,\WindowTop);
+
+      \pgfmathtruncatemacro{\offset}{#1}%
+      \def\IndexExpr{}%
+      
+      \ifnum\offset=1
+        \def\IndexExpr{\RightStartSymbol + 1}%
+      \else\ifnum\offset=2
+        \def\IndexExpr{\RightStartSymbol + 2}%
+      \else\ifnum\offset=3
+        \def\IndexExpr{\RightStartSymbol + 3}%
+      \else\ifnum\offset=4
+        \def\IndexExpr{\RightStartSymbol + 4}%
+      \else\ifnum\offset=\numexpr\RightTotalValue-3\relax
+        \def\IndexExpr{\RightStartSymbol + \NumWindowsSymbol - 3}%
+      \else\ifnum\offset=\numexpr\RightTotalValue-2\relax
+        \def\IndexExpr{\RightStartSymbol + \NumWindowsSymbol - 2}%
+      \else\ifnum\offset=\numexpr\RightTotalValue-1\relax
+        \def\IndexExpr{\RightStartSymbol + \NumWindowsSymbol - 1}%
+      \else\ifnum\offset=\RightTotalValue\relax
+        \def\IndexExpr{\RightStartSymbol + \NumWindowsSymbol}%
+      \else
+        \edef\IndexExpr{\RightStartSymbol + \number\offset}%
+      \fi\fi\fi\fi\fi\fi\fi\fi
+
+      \node[font=\scriptsize, align=center]
+        at (\WindowLeft + 0.5*\WindowWidth, \WindowBottom + 0.46*\WindowHeight)
+        {{\color{\currentAvgColor}$\mathrm{avg}_{\IndexExpr}$}\\
+         {\color{\currentMaxColor}$\mathrm{max}_{\IndexExpr}$}};
+
+      \global\advance\rowR by 1
+    }
+
+    \newcommand{\DrawRightGap}{%
+      \pgfmathsetmacro{\dotsY}{-\the\rowR * \WindowVStep + 0.5*\WindowHeight}
+      \node[font=\scriptsize]
+        at (0 + 0.5*\WindowWidth, \dotsY) {$\vdots$};
+      \global\advance\rowR by 1
+    }
+
+    % Draw RIGHT stack (in original order, not sorted)
+    % Front windows
+    \foreach \k in {1,...,\RightFront} {%
+      \DrawRightWindow{\k}
+    }
+    
+    % Gap if needed
+    \ifnum\RightFront<\numexpr\RightTotalValue-\RightBack+1\relax
+      \DrawRightGap
+    \fi
+    
+    % Back windows
+    \foreach \k in {1,...,\RightBack} {%
+      \pgfmathtruncatemacro{\offset}{\RightTotalValue - \RightBack + \k}
+      \DrawRightWindow{\offset}
+    }
+  \end{scope}
+    \node[font=\large, color=black, align=left, anchor=west] 
+      at (0, -23) 
+      {\textbf{(a)} $k_1$ windows selected based on top avg \\ \textbf{(b)} $k_2$ windows selected based on top max \\ \textbf{(c)} $k_3$ windows selected based on avg as probability \\ in each step, windows should be different from previous steps};
+
+\end{tikzpicture}
+
+\end{document}

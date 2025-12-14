@@ -1,0 +1,418 @@
+\documentclass[tikz, border=10pt]{standalone}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{calc,arrows.meta}
+\usepackage{pgfplotstable}
+
+\title{Thesis Plots}
+\author{Mojtaba Kanani}
+\date{December 2025}
+
+% --------------------------------------------------
+% Histogram style switches
+% --------------------------------------------------
+\newif\ifHistogramFilled        % boolean flag: filled vs outline
+
+\begin{document}
+
+% --------------------------------------------------
+% Configuration
+% --------------------------------------------------
+\def\TotalFrames{179}              % total number of frames you have
+\def\FrameRanges{1/3, 62/67, 126/128}            % ranges to SHOW: a/b, c/d, e/e for single frames
+
+% Row bases (in tikz y-units)
+\def\FrameNumberBase{0}            % y position of frame-number row
+\def\HistogramBase{1.1}            % y position of histogram baseline
+
+% Histogram configuration
+\def\HistogramScale{4}             % vertical scale factor for bar height
+\def\HistogramColor{black}         % color of bars (draw and/or fill)
+\def\HistogramBarFraction{0.95}    % fraction of image width used for bar (0<...<=1)
+\HistogramFilledtrue               % set to \HistogramFilledfalse for outline bars
+
+% Highlight windows configuration
+% Windows in frame indices, e.g. 45/50, 48/52 etc.
+\def\HighlightRanges{1/64, 65/128, 129/193} % example: two windows
+\def\HighlightColor{cyan}
+\def\HighlightLineWidth{0.6pt}
+\def\HighlightFillOpacity{0.1}     % 0 = transparent (outline only)
+\def\HighlightBottom{-0.9}         % vertical span of highlight
+\def\HighlightTop{3}
+
+% Horizontal measurement lines configuration
+% Each entry: start/stop frame range
+\def\MeasurementRanges{1/64, 1/64}
+% Corresponding colors (must match number of ranges)
+\def\MeasurementColors{cyan, magenta}
+% Corresponding labels (must match number of ranges)
+\def\MeasurementLabels{Window Size = 64, Stride = 64}
+% Vertical positions (negative = below frame numbers)
+\def\MeasurementLevels{-1.5, -2.5}
+
+% CSV with one column: row k -> frame (k+1) or whatever convention you use
+\pgfplotstableread[col sep=comma]{Data/eventfulness_1-1_15fps.csv}\FrameValues
+
+\begin{tikzpicture}[x=0.5cm,y=0.5cm]
+
+  % -----------------------------
+  % Row labels (use the bases)
+  % -----------------------------
+  \node[anchor=east, font=\scriptsize] at (-0.3, \FrameNumberBase - 0.3) {Frame Number};
+  \node[anchor=east, font=\scriptsize] at (-0.3, \HistogramBase + 0.1) {Eventfulness};
+
+  % state for compressed x-position and last shown frame index
+  \newcount\displayindex
+  \newcount\prevEnd
+  \displayindex=0
+  \prevEnd=0
+  
+  % Store gap positions and ALL visible frame ranges
+  \newcount\gapCounter
+  \gapCounter=0
+  
+  \newcount\rangeCounter
+  \rangeCounter=0
+
+  % -----------------------------
+  % Draw frames + histogram
+  % -----------------------------
+  \foreach \start/\stop in \FrameRanges {%
+
+    % Store this visible range
+    \expandafter\xdef\csname rangeStart\the\rangeCounter\endcsname{\start}
+    \expandafter\xdef\csname rangeStop\the\rangeCounter\endcsname{\stop}
+    \global\advance\rangeCounter by 1
+
+    % gap before this range? draw "..." and store position
+    \ifnum\start>\numexpr\prevEnd+1\relax
+      \node[anchor=south, inner sep=0pt, font=\scriptsize] (gap\the\gapCounter)
+        at (\the\displayindex+0.5, 0.4) {$\cdots$};
+      % Store gap information: start frame of gap, end frame of gap, x position
+      \expandafter\xdef\csname gapStart\the\gapCounter\endcsname{\the\numexpr\prevEnd+1\relax}
+      \expandafter\xdef\csname gapEnd\the\gapCounter\endcsname{\the\numexpr\start-1\relax}
+      \expandafter\xdef\csname gapX\the\gapCounter\endcsname{\the\displayindex}
+      \global\advance\gapCounter by 1
+      \global\advance\displayindex by 1
+    \fi
+
+    % frames in [start, stop]
+    \foreach \i in {\start,...,\stop} {%
+
+      % filenames: frame_00040.png etc.
+      \ifnum\i<10
+        \edef\fname{frame_0000\i.png}%
+      \else
+        \ifnum\i<100
+          \edef\fname{frame_000\i.png}%
+        \else
+          \edef\fname{frame_00\i.png}%
+        \fi
+      \fi
+
+      % image node at compressed position
+      \node[anchor=south west,inner sep=0pt] (img\i)
+        at (\the\displayindex, 0)
+        {\includegraphics[height=0.5cm]{Pictures/Frames/\fname}};
+
+      % frame number row: centered under the frame slot
+      \node[anchor=north, inner sep=0.1cm, font=\scriptsize]
+        at (\the\displayindex+0.5, \FrameNumberBase) {\i};
+
+      % histogram bar for this frame
+      % row index in table is i (adjust if your CSV is 0-based or has headers)
+      \pgfplotstablegetelem{\numexpr\i\relax}{0}\of{\FrameValues}
+      \edef\thisvalue{\pgfplotsretval}%
+      \pgfmathsetmacro{\barheight}{\HistogramScale * \thisvalue}%
+
+      % bar width as fraction of image width, centered under the image
+      \pgfmathsetmacro{\barLeftFrac}{(1 - \HistogramBarFraction)/2}
+      \pgfmathsetmacro{\barRightFrac}{(1 + \HistogramBarFraction)/2}
+
+      \coordinate (barL) at ($(img\i.south west)!\barLeftFrac!(img\i.south east)$);
+      \coordinate (barR) at ($(img\i.south west)!\barRightFrac!(img\i.south east)$);
+
+      \ifHistogramFilled
+        \draw[draw=\HistogramColor, fill=\HistogramColor]
+          ($(barL |- 0,\HistogramBase)$)
+          rectangle ($(barR |- 0,\HistogramBase+\barheight)$);
+      \else
+        \draw[draw=\HistogramColor]
+          ($(barL |- 0,\HistogramBase)$)
+          rectangle ($(barR |- 0,\HistogramBase+\barheight)$);
+      \fi
+
+      \global\advance\displayindex by 1
+    }%
+
+    \global\prevEnd=\stop\relax
+  }%
+
+  % trailing gap after last range? final "..."
+  \ifnum\TotalFrames>\numexpr\prevEnd\relax
+    \node[anchor=south, inner sep=0pt, font=\scriptsize] (gap\the\gapCounter)
+      at (\the\displayindex+0.5, 0.4) {$\cdots$};
+    \expandafter\xdef\csname gapStart\the\gapCounter\endcsname{\the\numexpr\prevEnd+1\relax}
+    \expandafter\xdef\csname gapEnd\the\gapCounter\endcsname{\TotalFrames}
+    \expandafter\xdef\csname gapX\the\gapCounter\endcsname{\the\displayindex}
+    \global\advance\gapCounter by 1
+  \fi
+
+  % -----------------------------
+  % Draw highlight windows + stats
+  % -----------------------------
+  \makeatletter
+  \foreach \hstart/\hstop in \HighlightRanges {%
+    
+    % ===========================
+    % Determine if window overlaps with any visible range or connecting gap
+    % ===========================
+    \xdef\shouldDraw{0}
+    \xdef\foundLeftCoord{0}
+    \xdef\foundRightCoord{0}
+    
+    % Check all visible ranges to see if window overlaps
+    \newcount\tempRange
+    \tempRange=0
+    \loop\ifnum\tempRange<\rangeCounter
+      \expandafter\let\expandafter\rStart\csname rangeStart\the\tempRange\endcsname
+      \expandafter\let\expandafter\rStop\csname rangeStop\the\tempRange\endcsname
+      
+      % Check if [hstart, hstop] overlaps with [rStart, rStop]
+      \ifnum\hstart<\numexpr\rStop+1\relax
+        \ifnum\hstop>\numexpr\rStart-1\relax
+          \xdef\shouldDraw{1}
+        \fi
+      \fi
+      
+      \advance\tempRange by 1
+    \repeat
+    
+    % Also check if window overlaps with any gap that connects two visible ranges
+    \ifnum\gapCounter>1
+      \newcount\tempGap
+      \tempGap=0
+      \loop\ifnum\tempGap<\numexpr\gapCounter-1\relax % Exclude trailing gap
+        \expandafter\let\expandafter\gStart\csname gapStart\the\tempGap\endcsname
+        \expandafter\let\expandafter\gEnd\csname gapEnd\the\tempGap\endcsname
+        
+        % Check if [hstart, hstop] overlaps with [gStart, gEnd]
+        \ifnum\hstart<\numexpr\gEnd+1\relax
+          \ifnum\hstop>\numexpr\gStart-1\relax
+            \xdef\shouldDraw{1}
+          \fi
+        \fi
+        
+        \advance\tempGap by 1
+      \repeat
+    \fi
+    
+    % Only proceed if we should draw this window
+    \ifnum\shouldDraw=1
+    
+      % ===========================
+      % Compute avg and max for full range
+      % ===========================
+      \xdef\winSum{0}
+      \xdef\winMax{0}
+      \newcount\winCount
+      \winCount=0
+
+      \foreach \f in {\hstart,...,\hstop}{%
+        \pgfplotstablegetelem{\numexpr\f\relax}{0}\of{\FrameValues}
+        \let\thisvalue\pgfplotsretval
+        
+        \pgfmathparse{\winSum + \thisvalue}
+        \xdef\winSum{\pgfmathresult}
+        
+        \pgfmathparse{max(\winMax, \thisvalue)}
+        \xdef\winMax{\pgfmathresult}
+        
+        \global\advance\winCount by 1
+      }%
+      
+      \pgfmathparse{\winSum / \the\winCount}
+      \xdef\winAvg{\pgfmathresult}
+
+      % ===========================
+      % Determine left boundary
+      % ===========================
+      % First check if hstart node exists
+      \pgfutil@ifundefined{pgf@sh@ns@img\hstart}{
+        % Start node doesn't exist
+        % Check if hstart is in a connecting gap (not trailing gap)
+        \newcount\tempGap
+        \tempGap=0
+        \loop\ifnum\tempGap<\numexpr\gapCounter-1\relax
+          \ifnum\foundLeftCoord=0
+            \expandafter\let\expandafter\gStart\csname gapStart\the\tempGap\endcsname
+            \expandafter\let\expandafter\gEnd\csname gapEnd\the\tempGap\endcsname
+            \expandafter\let\expandafter\gX\csname gapX\the\tempGap\endcsname
+            \ifnum\hstart>\numexpr\gStart-1\relax
+              \ifnum\hstart<\numexpr\gEnd+1\relax
+                % hstart is in this connecting gap
+                \coordinate (winL) at (\gX+0.5, 0);
+                \xdef\foundLeftCoord{1}
+              \fi
+            \fi
+          \fi
+          \advance\tempGap by 1
+        \repeat
+        
+        % If not in gap, find first visible frame >= hstart
+        \ifnum\foundLeftCoord=0
+          \foreach \checkFrame in {\hstart,...,\hstop}{%
+            \ifnum\foundLeftCoord=0
+              \pgfutil@ifundefined{pgf@sh@ns@img\checkFrame}{}{%
+                \coordinate (winL) at (img\checkFrame.south west);
+                \xdef\foundLeftCoord{1}
+              }%
+            \fi
+          }%
+        \fi
+      }{
+        % Start node exists
+        \coordinate (winL) at (img\hstart.south west);
+        \xdef\foundLeftCoord{1}
+      }
+
+      % ===========================
+      % Determine right boundary
+      % ===========================
+      % First check if hstop node exists
+      \pgfutil@ifundefined{pgf@sh@ns@img\hstop}{
+        % Stop node doesn't exist - need to find where to end
+        \xdef\lastVisibleFrame{0}
+        
+        % Find last visible frame in range [hstart, hstop]
+        \foreach \checkFrame in {\hstop,...,\hstart}{%
+          \ifnum\lastVisibleFrame=0
+            \pgfutil@ifundefined{pgf@sh@ns@img\checkFrame}{}{%
+              \xdef\lastVisibleFrame{\checkFrame}
+            }%
+          \fi
+        }%
+        
+        \ifnum\lastVisibleFrame>0
+          % We found at least one visible frame
+          % Now check if hstop extends into ANY gap (including trailing)
+          \xdef\gapFound{0}
+          \newcount\tempGap
+          \tempGap=0
+          \loop\ifnum\tempGap<\gapCounter
+            \ifnum\gapFound=0
+              \expandafter\let\expandafter\gStart\csname gapStart\the\tempGap\endcsname
+              \expandafter\let\expandafter\gEnd\csname gapEnd\the\tempGap\endcsname
+              \expandafter\let\expandafter\gX\csname gapX\the\tempGap\endcsname
+              
+              % Check if this gap comes after lastVisibleFrame and hstop extends into it
+              \ifnum\gStart>\lastVisibleFrame\relax
+                \ifnum\hstop>\numexpr\gStart-1\relax
+                  % hstop extends into this gap
+                  \coordinate (winR) at (\gX+0.5, 0);
+                  \xdef\foundRightCoord{1}
+                  \xdef\gapFound{1}
+                \fi
+              \fi
+            \fi
+            \advance\tempGap by 1
+          \repeat
+          
+          % If no gap found, use last visible frame
+          \ifnum\gapFound=0
+            \coordinate (winR) at (img\lastVisibleFrame.south east);
+            \xdef\foundRightCoord{1}
+          \fi
+        \fi
+      }{
+        % Stop node exists
+        \coordinate (winR) at (img\hstop.south east);
+        \xdef\foundRightCoord{1}
+      }
+
+      % ===========================
+      % Draw window and stats only if we found both coordinates
+      % ===========================
+      \ifnum\foundLeftCoord=1
+        \ifnum\foundRightCoord=1
+          \coordinate (winC) at ($(winL)!0.5!(winR)$);
+          
+          % Highlight rectangle
+          \draw[
+            rounded corners,
+            draw=\HighlightColor,
+            line width=\HighlightLineWidth,
+            fill=\HighlightColor,
+            fill opacity=\HighlightFillOpacity
+          ]
+          ($(winL |- 0,\HighlightBottom)$)
+          rectangle
+          ($(winR |- 0,\HighlightTop)$);
+
+          % Stats label at top center of window
+          \node[anchor=south, font=\scriptsize, text=\HistogramColor, align=center]
+            at ($(winC |- 0,\HighlightTop)$)
+            {avg=\pgfmathprintnumber[fixed,precision=2]{\winAvg}\\
+             max=\pgfmathprintnumber[fixed,precision=2]{\winMax}};
+        \fi
+      \fi
+    \fi
+  }%
+  \makeatother
+
+  % -----------------------------
+  % Draw measurement lines
+  % -----------------------------
+  \makeatletter
+  \newcount\measurementIndex
+  \measurementIndex=0
+  
+  \foreach \mstart/\mstop in \MeasurementRanges {%
+    \pgfmathsetmacro{\currentIndex}{\the\measurementIndex}
+    
+    % Extract color
+    \foreach \col [count=\c from 0] in \MeasurementColors {%
+      \ifnum\c=\currentIndex\relax
+        \xdef\currentColor{\col}
+      \fi
+    }%
+    
+    % Extract label
+    \foreach \lbl [count=\l from 0] in \MeasurementLabels {%
+      \ifnum\l=\currentIndex\relax
+        \xdef\currentLabel{\lbl}
+      \fi
+    }%
+    
+    % Extract level
+    \foreach \lvl [count=\v from 0] in \MeasurementLevels {%
+      \ifnum\v=\currentIndex\relax
+        \xdef\currentLevel{\lvl}
+      \fi
+    }%
+    
+    % Check that both nodes exist
+    \pgfutil@ifundefined{pgf@sh@ns@img\mstart}{}{%
+      \pgfutil@ifundefined{pgf@sh@ns@img\mstop}{}{%
+        \coordinate (measL) at (img\mstart.south west);
+        \coordinate (measR) at (img\mstop.south east);
+        \coordinate (measC) at ($(measL)!0.5!(measR)$);
+        
+        % Draw line with arrows
+        \draw[\currentColor, line width=0.8pt, {Rays[n=2]}-{Rays[n=2]}]
+          ($(measL |- 0,\currentLevel)$) -- ($(measR |- 0,\currentLevel)$);
+        
+        % Add label below the line
+        \node[anchor=north, font=\scriptsize, text=\currentColor]
+          at ($(measC |- 0,\currentLevel)$)
+          {\currentLabel};
+      }%
+    }%
+    
+    \global\advance\measurementIndex by 1
+  }%
+  \makeatother
+
+\end{tikzpicture}
+
+\end{document}

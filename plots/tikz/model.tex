@@ -1,0 +1,383 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{calc,arrows.meta,patterns}
+\usepackage{amsmath}
+
+\begin{document}
+
+% ==================================================
+% Configuration
+% ==================================================
+
+% --- Individual vector stack dimensions ---
+% Input vectors (embed)
+\def\InputEmbedWidth{0.3}
+\def\InputEmbedHeight{3.0}
+\def\NumInputEmbedVectors{6}
+
+% Input vectors (blend)
+\def\InputBlendWidth{0.3}
+\def\InputBlendHeight{1.5}
+\def\NumInputBlendVectors{6}
+
+% Input vectors (other)
+\def\InputOtherWidth{0.3}
+\def\InputOtherHeight{0.8}
+\def\NumInputOtherVectors{6}
+
+% Output vectors (temporal outputs from encoders)
+\def\OutputEmbedWidth{0.3}
+\def\OutputEmbedHeight{1.5}
+
+\def\OutputBlendWidth{0.3}
+\def\OutputBlendHeight{0.75}
+
+\def\OutputOtherWidth{0.3}
+\def\OutputOtherHeight{0.4}
+
+% Final temporal output (inside each block and after pooling)
+\def\FinalTemporalWidth{0.3}
+\def\FinalTemporalHeight{2.5}
+
+% --- Common vector stacking offsets ---
+\def\VectorOffsetX{0.06}
+\def\VectorOffsetY{0.06}
+
+% --- Dimension label configuration ---
+\def\DimLabelGap{0.3}
+
+% --- Temporal encoder block geometry ---
+\def\EncoderWidth{3.2}
+\def\EncoderHeight{1.4}
+\def\InputToEncoderDist{3.5}
+\def\EncoderToOutputDist{2.7}
+
+% --- Fully connected block geometry (inside temporal block) ---
+\def\FCWidth{3.2}
+\def\FCHeight{1.4}
+\def\OutputsToFCDist{4.0}
+\def\FCDistToFinalOutput{2.7}
+
+% --- Multiple-instance pooling block geometry ---
+\def\MIPoolWidth{3.2}
+\def\MIPoolHeight{1.4}
+\def\BlocksToPoolDist{5.0}     % distance from front block temporal vector to MI-pooling block
+\def\PoolToFinalDist{2.7}      % distance from MI block to pooled temporal vector
+
+% --- Extra FC + outputs after pooling ---
+\def\PostPoolFCDist{3.5}         % pooled vector -> post-pool FC center
+\def\PostPoolFCToScalarDist{2.5} % post-pool FC -> outputs base (x distance)
+
+% Main scalar output (size 1)
+\def\ScalarOutputWidth{0.3}
+\def\ScalarOutputHeight{0.3}
+\def\ScalarOutputDimText{$1$}
+
+% Auxiliary output (size 9)
+\def\AuxOutputWidth{0.3}
+\def\AuxOutputHeight{1}
+\def\AuxOutputDimText{$9$}
+\def\AuxOutputYOffset{2.5}   % vertical offset between scalar and auxiliary outputs
+
+% Show / hide auxiliary head: 1 = show, 0 = hide
+\def\ShowAuxOutput{0}
+
+% Style controls for auxiliary loss (striped)
+\def\AuxVectorPattern{north east lines}
+\def\AuxVectorPatternColor{red!60}
+
+% --- Connector configuration ---
+\def\ConnectorGap{0.3}
+\def\ConnLineWidth{0.9pt}
+\def\ConnColor{black}
+\def\ConnStyle{solid}
+
+% --- S-shaped connectors (inside each block) ---
+\def\FCConnOutAngle{0}
+\def\FCConnInAngle{180}
+\def\FCConnLooseness{1.1}
+
+% --- S-shaped connectors (blocks -> MI pooling) ---
+\def\PoolConnOutAngle{0}
+\def\PoolConnInAngle{180}
+\def\PoolConnLooseness{1.1}
+
+% --- Vertical stacking of temporal paths ---
+\def\PathVerticalGap{3}
+
+% --- Block repetition configuration ---
+\def\NumBlocks{4}              % Number of times to repeat the entire block
+\def\BlockOffsetX{-0.2}        % Horizontal offset between blocks
+\def\BlockOffsetY{0.2}         % Vertical offset between blocks
+\def\BlockBgColor{white}       % Background color for each block
+\def\BlockPadding{0.5}         % Padding around the content
+
+% --- Bounding box coordinates (fixed for all blocks) ---
+\def\BBoxLeft{-1.5}
+\def\BBoxRight{18}
+\def\BBoxTop{7}
+\def\BBoxBottom{-4}
+
+% --- Text configuration ---
+\def\EncoderText{Temporal encoder:\\LSTM}
+\def\FCText{Fully connected\\network}
+\def\MIPoolText{Multiple instance\\pooling}
+\def\TemporalOutputDimText{$d_{\text{temporal}}$}
+
+% --- Styles ---
+\tikzset{
+  vectorRect/.style={
+    draw,
+    fill=blue!10,
+    rounded corners=1pt
+  },
+  encoderBlock/.style={
+    draw,
+    fill=gray!10,
+    rounded corners=2pt,
+    thick
+  },
+  fcBlock/.style={
+    draw,
+    fill=orange!10,
+    rounded corners=2pt,
+    thick
+  },
+  miBlock/.style={
+    draw,
+    fill=green!10,
+    rounded corners=2pt,
+    thick
+  },
+  conn/.style={
+    -{Latex[length=3mm]},
+    line width=\ConnLineWidth,
+    draw=\ConnColor,
+    \ConnStyle
+  }
+}
+
+% ==================================================
+% Helper macro: draw a stack of 1D vectors (vertical label)
+% ==================================================
+\newcommand{\drawVectorStack}[6]{%
+  \begin{scope}[shift={#6}]
+    \pgfmathtruncatemacro{\Last}{#2-1}
+    \foreach \i in {0,...,\Last}{%
+      \draw[vectorRect]
+        (\i * -\VectorOffsetX, \i * \VectorOffsetY)
+        rectangle ++(#3, #4);
+    }
+    \pgfmathsetmacro{\eastX}{\Last * -\VectorOffsetX + #3}
+    \pgfmathsetmacro{\eastY}{\Last * \VectorOffsetY + 0.5 * #4}
+    \pgfmathsetmacro{\westX}{\Last * -\VectorOffsetX}
+    \coordinate (#1-east) at (\eastX,\eastY);
+    \coordinate (#1-west) at (\westX,\eastY);
+    \node[rotate=90] (#1-dimlabel)
+      at ($(#1-west)+(-\DimLabelGap,0)$) {#5};
+  \end{scope}
+}
+
+% ==================================================
+% Helper macro: draw a stack of 1D vectors (horizontal label on west side)
+% ==================================================
+\newcommand{\drawVectorStackHorizontalLeft}[6]{%
+  \begin{scope}[shift={#6}]
+    \pgfmathtruncatemacro{\Last}{#2-1}
+    \foreach \i in {0,...,\Last}{%
+      \draw[vectorRect]
+        (\i * -\VectorOffsetX, \i * \VectorOffsetY)
+        rectangle ++(#3, #4);
+    }
+    \pgfmathsetmacro{\eastX}{\Last * -\VectorOffsetX + #3}
+    \pgfmathsetmacro{\eastY}{\Last * \VectorOffsetY + 0.5 * #4}
+    \pgfmathsetmacro{\westX}{\Last * -\VectorOffsetX}
+    \coordinate (#1-east) at (\eastX,\eastY);
+    \coordinate (#1-west) at (\westX,\eastY);
+    \node (#1-dimlabel)
+      at ($(#1-west)+(-\DimLabelGap,0)$) {#5};
+  \end{scope}
+}
+
+% ==================================================
+% Helper macro: one temporal path
+% ==================================================
+\newcommand{\drawTemporalPath}[9]{%
+  \begin{scope}[shift={(0,#2)}]
+    \drawVectorStack{#1-in}{#6}{#4}{#5}{#3}{(0,0)}
+    \coordinate (#1-encoder-center) at ($(#1-in-east)+(\InputToEncoderDist,0)$);
+    \node[encoderBlock,
+          minimum width=\EncoderWidth cm,
+          minimum height=\EncoderHeight cm,
+          align=center]
+      (#1-encoder) at (#1-encoder-center) {#7};
+    \coordinate (#1-inputConn)   at ($(#1-in-east)+(2*\ConnectorGap,0)$);
+    \coordinate (#1-encConnLeft) at ($(#1-encoder.west)+(-\ConnectorGap,0)$);
+    \draw[conn] (#1-inputConn) -- (#1-encConnLeft);
+    \pgfmathsetmacro{\outputShift}{-0.5*#9}
+    \drawVectorStack{#1-out}{1}{\OutputEmbedWidth}{#9}{#8}
+      {($(#1-encoder.east)+(\EncoderToOutputDist,\outputShift)$)}
+    \coordinate (#1-encConnRight) at ($(#1-encoder.east)+(\ConnectorGap,0)$);
+    \coordinate (#1-outConnLeft)  at ($(#1-out-dimlabel.north)+(-\ConnectorGap,0)$);
+    \draw[conn] (#1-encConnRight) -- (#1-outConnLeft);
+  \end{scope}
+}
+
+% ==================================================
+% Main content: complete architecture (content only)
+% ==================================================
+\newcommand{\drawArchitectureContent}{
+  \drawTemporalPath{embed}{\PathVerticalGap}%
+    {$d_{\text{embed}}$}{\InputEmbedWidth}{\InputEmbedHeight}{\NumInputEmbedVectors}%
+    {\EncoderText}{$d_{\text{temporal,embed}}$}{\OutputEmbedHeight};
+  \drawTemporalPath{blend}{0}%
+    {$d_{\text{blend}}$}{\InputBlendWidth}{\InputBlendHeight}{\NumInputBlendVectors}%
+    {\EncoderText}{$d_{\text{temporal,blend}}$}{\OutputBlendHeight};
+  \drawTemporalPath{other}{-\PathVerticalGap}%
+    {$d_{\text{other}}$}{\InputOtherWidth}{\InputOtherHeight}{\NumInputOtherVectors}%
+    {\EncoderText}{$d_{\text{temporal,other}}$}{\OutputOtherHeight};
+
+  \coordinate (fc-center) at ($(blend-out-east)+(\OutputsToFCDist,0)$);
+  \node[fcBlock,
+        minimum width=\FCWidth cm,
+        minimum height=\FCHeight cm,
+        align=center]
+    (fc) at (fc-center) {\FCText};
+
+  \coordinate (embed-out-conn) at ($(embed-out-east)+(\ConnectorGap,0)$);
+  \coordinate (embed-fc-conn)  at ($(fc.west)+(-\ConnectorGap,0)$);
+  \draw[conn]
+    (embed-out-conn)
+      to[out=\FCConnOutAngle, in=\FCConnInAngle, looseness=\FCConnLooseness]
+    (embed-fc-conn);
+
+  \coordinate (blend-out-conn) at ($(blend-out-east)+(\ConnectorGap,0)$);
+  \coordinate (blend-fc-conn)  at ($(fc.west)+(-\ConnectorGap,0)$);
+  \draw[conn]
+    (blend-out-conn)
+      to[out=\FCConnOutAngle, in=\FCConnInAngle, looseness=\FCConnLooseness]
+    (blend-fc-conn);
+
+  \coordinate (other-out-conn) at ($(other-out-east)+(\ConnectorGap,0)$);
+  \coordinate (other-fc-conn)  at ($(fc.west)+(-\ConnectorGap,0)$);
+  \draw[conn]
+    (other-out-conn)
+      to[out=\FCConnOutAngle, in=\FCConnInAngle, looseness=\FCConnLooseness]
+    (other-fc-conn);
+
+  \pgfmathsetmacro{\finalShift}{-0.5*\FinalTemporalHeight}
+  \drawVectorStack{temporal}{1}{\FinalTemporalWidth}{\FinalTemporalHeight}%
+    {\TemporalOutputDimText}%
+    {($(fc.east)+(\FCDistToFinalOutput,\finalShift)$)}
+
+  \coordinate (fcConnRight)   at ($(fc.east)+(\ConnectorGap,0)$);
+  \coordinate (tempConnLeft)  at ($(temporal-dimlabel.north)+(-\ConnectorGap,0)$);
+  \draw[conn] (fcConnRight) -- (tempConnLeft);
+}
+
+% ==================================================
+% Complete block: background + content
+% ==================================================
+\newcommand{\drawCompleteBlock}{
+  \fill[fill=\BlockBgColor, rounded corners=3pt]
+    (\BBoxLeft, \BBoxBottom) rectangle (\BBoxRight, \BBoxTop);
+  \draw[line width=1pt, rounded corners=3pt]
+    (\BBoxLeft, \BBoxBottom) rectangle (\BBoxRight, \BBoxTop);
+  \drawArchitectureContent
+}
+
+% ==================================================
+% Main picture: multiple stacked blocks + MI pooling
+% ==================================================
+\begin{tikzpicture}
+
+  \pgfmathtruncatemacro{\LastBlock}{\NumBlocks-1}
+  \pgfmathsetmacro{\BBoxMidY}{0.5*(\BBoxTop+\BBoxBottom)}
+
+  \foreach \i in {0,...,\LastBlock}{%
+    \begin{scope}[shift={(\i*\BlockOffsetX, \i*\BlockOffsetY)}]
+      \drawCompleteBlock
+      \coordinate (block-\i-east) at (\BBoxRight,\BBoxMidY);
+      \coordinate (block-\i-temporal-east) at (temporal-east);
+    \end{scope}
+  }
+
+  % MI pooling block
+  \coordinate (mipool-center) at ($(block-\LastBlock-temporal-east)+(\BlocksToPoolDist,0)$);
+  \node[miBlock,
+        minimum width=\MIPoolWidth cm,
+        minimum height=\MIPoolHeight cm,
+        align=center]
+    (mipool) at (mipool-center) {\MIPoolText};
+
+  \coordinate (mipool-in) at ($(mipool.west)+(-\ConnectorGap,0)$);
+  \foreach \i in {0,...,\LastBlock}{%
+    \coordinate (block-\i-out-conn) at (block-\i-east);
+    \draw[conn]
+      (block-\i-out-conn)
+        to[out=\PoolConnOutAngle, in=\PoolConnInAngle, looseness=\PoolConnLooseness]
+      (mipool-in);
+  }
+
+  % Pooled temporal vector
+  \pgfmathsetmacro{\pooledShift}{-0.5*\FinalTemporalHeight}
+  \drawVectorStack{temporalPooled}{1}{\FinalTemporalWidth}{\FinalTemporalHeight}%
+    {\TemporalOutputDimText}%
+    {($(mipool.east)+(\PoolToFinalDist,\pooledShift)$)}
+
+  \coordinate (mipoolConnRight)   at ($(mipool.east)+(\ConnectorGap,0)$);
+  \coordinate (tempPooledConnLeft)  at ($(temporalPooled-dimlabel.north)+(-\ConnectorGap,0)$);
+  \draw[conn] (mipoolConnRight) -- (tempPooledConnLeft);
+
+  % Post-pooling FC
+  \coordinate (postfc-center) at ($(temporalPooled-east)+(\PostPoolFCDist,0)$);
+  \node[fcBlock,
+        minimum width=\FCWidth cm,
+        minimum height=\FCHeight cm,
+        align=center]
+    (postfc) at (postfc-center) {\FCText};
+
+  \coordinate (tempPooledConnRight) at ($(temporalPooled-east)+(\ConnectorGap,0)$);
+  \coordinate (postfcConnLeft)      at ($(postfc.west)+(-\ConnectorGap,0)$);
+  \draw[conn]
+    (tempPooledConnRight)
+      to[out=\FCConnOutAngle, in=\FCConnInAngle, looseness=\FCConnLooseness]
+    (postfcConnLeft);
+
+  % Final outputs (size 1 and optional size 9)
+  \pgfmathsetmacro{\scalarShift}{-0.5*\ScalarOutputHeight}
+  \drawVectorStackHorizontalLeft{scalarOut}{1}{\ScalarOutputWidth}{\ScalarOutputHeight}%
+    {\ScalarOutputDimText}%
+    {($(postfc.east)+(\PostPoolFCToScalarDist,\scalarShift)$)}
+
+  % Scalar connector: straight horizontal, with gap before label
+  \coordinate (postfcConnRight)  at ($(postfc.east)+(\ConnectorGap,0)$);
+  \coordinate (scalarConnLeft)   at ($(scalarOut-dimlabel)+(-\ConnectorGap,0)$);
+  \draw[conn] (postfcConnRight) -- (scalarConnLeft);
+
+  % Auxiliary head and connector (conditionally shown)
+  \ifnum\ShowAuxOutput=1\relax
+    \pgfmathsetmacro{\auxShift}{\scalarShift - \AuxOutputYOffset}
+    {%
+      \tikzset{
+        vectorRect/.style={
+          draw,
+          pattern=\AuxVectorPattern,
+          pattern color=\AuxVectorPatternColor,
+          rounded corners=1pt
+        }
+      }
+      \drawVectorStackHorizontalLeft{auxOut}{1}{\AuxOutputWidth}{\AuxOutputHeight}%
+        {\AuxOutputDimText}%
+        {($(postfc.east)+(\PostPoolFCToScalarDist,\auxShift)$)}
+    }
+    \coordinate (auxConnLeft)      at ($(auxOut-dimlabel)+(-\ConnectorGap,0)$);
+    \draw[conn]
+      (postfcConnRight)
+        to[out=\FCConnOutAngle, in=\FCConnInAngle, looseness=\FCConnLooseness]
+      (auxConnLeft);
+  \fi
+
+\end{tikzpicture}
+
+\end{document}

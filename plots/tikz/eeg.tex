@@ -1,0 +1,272 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+
+\begin{document}
+
+% ==================================================
+% Configuration
+% ==================================================
+
+% ---------------- Head geometry -------------------
+\def\HeadRadius{3.0}
+\def\NoseLength{0.5}
+\pgfmathsetmacro{\InnerRadius}{0.80*\HeadRadius}
+
+\def\FzFrac{0.5}
+\def\PzFrac{0.5}
+\def\CFrac{0.5}
+
+\def\ElectrodeSize{11pt}
+\def\ElectrodeLabelSize{\small}
+
+% ---------------- Plot configuration ----------------
+\def\PlotWidth{12cm}
+\def\PlotHeight{7cm}
+
+% Center the plot vertically with the head
+\def\PlotYOffset{-2.5cm}
+
+% Horizontal distance between head and plot
+\def\PlotXOffset{6cm}
+
+% Data window
+\def\StartSample{0}
+\def\EndSample{200}  % only first 0..EndSample samples are shown
+
+% Manual y-limits (chosen based on Fz, Cz, Pz)
+\def\YMinMain{-8e-5}
+\def\YMaxMain{ 8e-5}
+
+% Toggle legend: 1 = show, 0 = hide
+\def\ShowLegend{0}
+
+% ---------------- Line styles ----------------
+\def\FzLineColor{OrangeRed}
+\def\FzLineWidth{1.2pt}
+\def\FzLineStyle{solid}
+
+\def\CzLineColor{MidnightBlue}
+\def\CzLineWidth{1.2pt}
+\def\CzLineStyle{solid}
+
+\def\PzLineColor{YellowOrange}
+\def\PzLineWidth{1.2pt}
+\def\PzLineStyle{solid}
+
+\def\CFourLineColor{Gray}
+\def\CFourLineWidth{1.0pt}
+\def\CFourLineStyle{solid}
+
+\def\CThreeLineColor{Gray}
+\def\CThreeLineWidth{1.0pt}
+\def\CThreeLineStyle{dashed}
+
+\def\OzLineColor{Gray}
+\def\OzLineWidth{1.0pt}
+\def\OzLineStyle{dotted}
+
+% ---------------- Which channels are drawn? 1 = show, 0 = hide ----------------
+\def\ShowFz{1}
+\def\ShowCz{1}
+\def\ShowPz{1}
+\def\ShowCThree{0}   % C3
+\def\ShowCFour{0}    % C4
+\def\ShowOz{0}
+
+% ---------------- Head electrode colors ----------------
+\colorlet{ColorFz}{OrangeRed}
+\colorlet{TextColorFz}{white}
+\colorlet{ColorCz}{MidnightBlue}
+\colorlet{TextColorCz}{white}
+\colorlet{ColorPz}{YellowOrange}
+\colorlet{TextColorPz}{white}
+\colorlet{ColorC3}{Gray}
+\colorlet{TextColorC3}{white}
+\colorlet{ColorC4}{Gray}
+\colorlet{TextColorC4}{white}
+\colorlet{ColorOz}{Gray}
+\colorlet{TextColorOz}{white}
+
+% ---------------- TikZ styles ----------------
+\tikzset{
+    head/.style={thick},
+    innercircle/.style={thin, gray, dashed},
+    centerline/.style={thin, gray},
+    electrode/.style={
+        circle,
+        draw=black,
+        minimum size=\ElectrodeSize,
+        inner sep=1pt,
+        font=\ElectrodeLabelSize\bfseries
+    }
+}
+
+% ==================================================
+% Load CSV data
+% ==================================================
+\pgfplotstableread[
+    col sep=comma,
+    skip first n=\StartSample
+]{Data/eeg_halfs.csv}\eegdata
+
+% ==================================================
+% Begin drawing
+% ==================================================
+\begin{tikzpicture}[scale=1]
+
+% ==================================================
+% HEAD DIAGRAM
+% ==================================================
+\begin{scope}
+    \draw[head] (0,0) circle (\HeadRadius);
+
+    \coordinate (NoseBaseLeft)  at (-0.4, \HeadRadius - 0.02);
+    \coordinate (NoseBaseRight) at ( 0.4, \HeadRadius - 0.02);
+    \coordinate (NoseTip)       at (0, \HeadRadius + \NoseLength);
+    \draw[head] (NoseBaseLeft) -- (NoseTip) -- (NoseBaseRight);
+
+    \draw[innercircle] (0,0) circle (\InnerRadius);
+    \draw[centerline] (-\HeadRadius,0) -- (\HeadRadius,0);
+    \draw[centerline] (0,-\HeadRadius) -- (0,\HeadRadius);
+
+    \pgfmathsetmacro{\FzRadius}{\FzFrac*\InnerRadius}
+    \pgfmathsetmacro{\PzRadius}{\PzFrac*\InnerRadius}
+    \pgfmathsetmacro{\CRadius}{\CFrac*\InnerRadius}
+
+    \node[electrode, fill=ColorCz, text=TextColorCz] (Cz) at (0,0) {Cz};
+    \node[electrode, fill=ColorFz, text=TextColorFz] (Fz) at (0, \FzRadius) {Fz};
+    \node[electrode, fill=ColorPz, text=TextColorPz] (Pz) at (0,-\PzRadius) {Pz};
+    \node[electrode, fill=ColorOz, text=TextColorOz] (Oz) at (0,-\InnerRadius) {Oz};
+    \node[electrode, fill=ColorC3, text=TextColorC3] (C3) at (-\CRadius,0) {C3};
+    \node[electrode, fill=ColorC4, text=TextColorC4] (C4) at (\CRadius,0) {C4};
+\end{scope}
+
+% ==================================================
+% EEG MULTI-CHANNEL LINE PLOT
+% ==================================================
+\begin{scope}[xshift=\PlotXOffset, yshift=\PlotYOffset]
+
+\begin{axis}[
+    width=\PlotWidth,
+    height=\PlotHeight,
+    xmin=0,
+    xmax=\EndSample,
+    ymin=\YMinMain,
+    ymax=\YMaxMain,
+    xlabel={Time (512 Hz)},
+    ylabel={Voltage ($\mu$V)},
+    xtick=\empty,
+    grid=major,
+    grid style={dashed, gray!30},
+    axis lines=left,
+    tick align=outside,
+    enlargelimits=false,
+    legend style={at={(1.02,0.5)}, anchor=west, font=\small},
+]
+
+% Fz
+\ifnum\ShowFz=1
+  \addplot[
+      color=\FzLineColor,
+      line width=\FzLineWidth,
+      \FzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Fz,
+      restrict expr to domain={\coordindex}{0:\EndSample}
+  ] {\eegdata};
+  \ifnum\ShowLegend=1
+    \addlegendentry{Fz}
+  \fi
+\fi
+
+% Cz
+\ifnum\ShowCz=1
+  \addplot[
+      color=\CzLineColor,
+      line width=\CzLineWidth,
+      \CzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Cz,
+      restrict expr to domain={\coordindex}{0:\EndSample}
+  ] {\eegdata};
+  \ifnum\ShowLegend=1
+    \addlegendentry{Cz}
+  \fi
+\fi
+
+% C3
+\ifnum\ShowCThree=1
+  \addplot[
+      color=\CThreeLineColor,
+      line width=\CThreeLineWidth,
+      \CThreeLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=C3,
+      restrict expr to domain={\coordindex}{0:\EndSample}
+  ] {\eegdata};
+  \ifnum\ShowLegend=1
+    \addlegendentry{C3}
+  \fi
+\fi
+
+% C4
+\ifnum\ShowCFour=1
+  \addplot[
+      color=\CFourLineColor,
+      line width=\CFourLineWidth,
+      \CFourLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=C4,
+      restrict expr to domain={\coordindex}{0:\EndSample}
+  ] {\eegdata};
+  \ifnum\ShowLegend=1
+    \addlegendentry{C4}
+  \fi
+\fi
+
+% Pz
+\ifnum\ShowPz=1
+  \addplot[
+      color=\PzLineColor,
+      line width=\PzLineWidth,
+      \PzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Pz,
+      restrict expr to domain={\coordindex}{0:\EndSample}
+  ] {\eegdata};
+  \ifnum\ShowLegend=1
+    \addlegendentry{Pz}
+  \fi
+\fi
+
+% Oz
+\ifnum\ShowOz=1
+  \addplot[
+      color=\OzLineColor,
+      line width=\OzLineWidth,
+      \OzLineStyle,
+  ] table[
+      x expr=\coordindex,
+      y=Oz,
+      restrict expr to domain={\coordindex}{0:\EndSample}
+  ] {\eegdata};
+  \ifnum\ShowLegend=1
+    \addlegendentry{Oz}
+  \fi
+\fi
+
+\end{axis}
+\end{scope}
+
+\end{tikzpicture}
+
+\end{document}
