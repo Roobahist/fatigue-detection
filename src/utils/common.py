@@ -3,10 +3,53 @@ import os
 import pickle
 import random
 from pathlib import Path
+from dataclasses import asdict, is_dataclass
 from typing import IO, Any, Callable, Dict, Optional, Union
 
 import numpy as np
 
+class UniversalJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles dataclasses, numpy, torch, and other common types."""
+    
+    def default(self, obj: Any) -> Any:
+        import torch
+        # Dataclasses
+        if is_dataclass(obj):
+            return asdict(obj)
+        
+        # PyTorch tensors
+        if isinstance(obj, torch.Tensor):
+            return obj.detach().cpu().numpy().tolist()
+        
+        # NumPy types
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        
+        # Path objects
+        if isinstance(obj, Path):
+            return str(obj)
+        
+        # Sets (convert to list)
+        if isinstance(obj, set):
+            return list(obj)
+        
+        # Bytes
+        if isinstance(obj, bytes):
+            return obj.decode('utf-8')
+        
+        # Fallback: try to get __dict__
+        if hasattr(obj, '__dict__'):
+            return obj.__dict__
+        
+        # Let the base class raise TypeError
+        return super().default(obj)
+    
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -148,11 +191,11 @@ def save_obj(obj: Any, output_path: str, file_type: str, atomic: bool = False) -
             _atomic_write(
                 output_path,
                 "w",
-                lambda f: json.dump(obj, f, indent=4, cls=NumpyEncoder),
+                lambda f: json.dump(obj, f, indent=4, cls=UniversalJSONEncoder),
             )
         else:
             with open(output_path, "w") as f:
-                json.dump(obj, f, indent=4, cls=NumpyEncoder)
+                json.dump(obj, f, indent=4, cls=UniversalJSONEncoder)
 
     else:
         raise ValueError(f"Unsupported file_type: {file_type!r}")

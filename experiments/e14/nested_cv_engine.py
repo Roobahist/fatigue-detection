@@ -456,13 +456,16 @@ class NestedCVEngine:
         fold_checkpoint: Optional[Dict] = None,
     ) -> Tuple[Dict[str, Any], int, List[InnerFoldResult]]:
         """
-        Grid or random search with FULL checkpoint support (including partial configs).
+        Grid or random hyperparameter search with:
+        - Outer-fold resume
+        - Config-level resume
+        - Inner-fold resume per config
         """
         configs = searcher.generate_configs()
 
-        # Check completed configs
-        completed_configs = []
-        config_results = []
+        # Load completed configs (if any)
+        completed_configs: List[int] = []
+        config_results: List[Dict[str, Any]] = []
 
         if fold_checkpoint and "config_results" in fold_checkpoint:
             config_results = fold_checkpoint["config_results"]
@@ -482,7 +485,7 @@ class NestedCVEngine:
         if verbose:
             print(f"\nEvaluating {len(configs)} hyperparameter configurations...")
             if self.parallel_inner_cv:
-                print(f"Running inner CV in parallel mode...")
+                print("Running inner CV in parallel mode...")
             else:
                 print("Running inner CV in serial mode...")
 
@@ -521,10 +524,10 @@ class NestedCVEngine:
                 )
 
         # Find best configuration
-        best_hparams = None
+        best_hparams: Optional[Dict[str, Any]] = None
         best_mean_val_metric = float("inf")
         best_mean_epoch = 0
-        all_inner_results = []
+        all_inner_results: List[InnerFoldResult] = []
 
         for result in config_results:
             config_idx = result["config_idx"]
@@ -539,12 +542,17 @@ class NestedCVEngine:
                 best_hparams = configs[config_idx]
                 best_mean_epoch = mean_epoch
 
+        if best_hparams is None:
+            raise RuntimeError("No valid hyperparameter configuration evaluated.")
+
         if verbose:
-            print(f"\nBest config: {configs.index(best_hparams) + 1}/{len(configs)}")
-            print(f"Best mean validation metric: {best_mean_val_metric:.4f}")
+            print(
+                f"\nBest config: {configs.index(best_hparams) + 1}/{len(configs)} "
+                f"(mean val metric = {best_mean_val_metric:.4f})"
+            )
 
         return best_hparams, best_mean_epoch, all_inner_results
-    
+
     def _evaluate_single_config_worker(
         self,
         outer_train_ids: List[Any],
@@ -557,13 +565,13 @@ class NestedCVEngine:
     ) -> Dict[str, Any]:
         """
         Worker function to evaluate a single config WITH inner-fold checkpointing.
-        
-        Key change: Now supports resuming from partial inner fold completion.
+
+        This is run in a separate process when using parallel mode.
         """
-        # Check for partial progress
-        completed_inner_results = []
+        # Check for partial progress for this config
+        completed_inner_results: List[InnerFoldResult] = []
         start_inner_fold = 0
-        
+
         if checkpoint_mgr and outer_idx is not None:
             partial = checkpoint_mgr.load_partial_config(outer_idx, config_idx)
             if partial:
