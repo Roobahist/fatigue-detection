@@ -1,0 +1,28 @@
+========================================
+Monitor Job Started
+========================================
+Job ID: 38257796
+Node: th22
+Start time: Sat Dec  6 18:53:13 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251206_185309_E14
+Log dir: logs/20251206_185309_E14
+========================================
+[2025-12-06 18:53:13] ==========================================
+[2025-12-06 18:53:13] Monitor starting on th22
+[2025-12-06 18:53:13] Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251206_185309_E14
+[2025-12-06 18:53:13] Log directory: logs/20251206_185309_E14
+[2025-12-06 18:53:13] Dataset: DROZY
+[2025-12-06 18:53:13] Configuration: 5 outer folds, 4 inner folds, 10 trials
+[2025-12-06 18:53:13] Max submissions: 50
+[2025-12-06 18:53:13] Check interval: 60 seconds
+[2025-12-06 18:53:13] ==========================================
+[2025-12-06 18:53:13] Submitting initial training job (attempt 1/50)...
+[2025-12-06 18:53:13] Initial training job submitted: 38257797
+[2025-12-06 18:59:13] Training job 38257797 has finished
+[2025-12-06 18:59:13] Previous job state: TIMEOUT
+[2025-12-06 18:59:13] Training not complete. Resubmitting with --resume (attempt 2/50)...
+[2025-12-06 18:59:13] Training job resubmitted: 38257863 (submission #2)
+[2025-12-06 19:02:14] Training job 38257863 has finished
+[2025-12-06 19:02:14] Previous job state: FAILED
+[2025-12-06 19:02:14] Training not complete. Resubmitting with --resume (attempt 3/50)...
+[2025-12-06 19:02:14] Training job resubmitted: 38257887 (submission #3)

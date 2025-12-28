@@ -1,0 +1,120 @@
+========================================
+Monitor Job Started
+========================================
+Job ID: 38258823
+Node: th22
+Start time: Sat Dec  6 20:16:17 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251206_201603_E14
+Log dir: logs/20251206_201603_E14
+========================================
+[2025-12-06 20:16:17] ==========================================
+[2025-12-06 20:16:17] Monitor starting on th22
+[2025-12-06 20:16:17] Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251206_201603_E14
+[2025-12-06 20:16:17] Log directory: logs/20251206_201603_E14
+[2025-12-06 20:16:17] Dataset: DROZY
+[2025-12-06 20:16:17] Configuration: 3 outer folds, 2 inner folds, 3 trials
+[2025-12-06 20:16:17] Max submissions: 50
+[2025-12-06 20:16:17] Check interval: 60 seconds
+[2025-12-06 20:16:17] ==========================================
+[2025-12-06 20:16:17] Submitting initial training job (attempt 1/50)...
+[2025-12-06 20:16:17] Initial training job submitted: 38258825
+[2025-12-06 20:27:18] Training job 38258825 has finished
+[2025-12-06 20:27:18] Previous job state: TIMEOUT
+[2025-12-06 20:27:18] Training not complete. Resubmitting with --resume (attempt 2/50)...
+[2025-12-06 20:27:18] Training job resubmitted: 38259036 (submission #2)
+[2025-12-06 20:38:18] Training job 38259036 has finished
+[2025-12-06 20:38:18] Previous job state: TIMEOUT
+[2025-12-06 20:38:18] Training not complete. Resubmitting with --resume (attempt 3/50)...
+[2025-12-06 20:38:19] Training job resubmitted: 38259227 (submission #3)
+[2025-12-06 20:49:19] Training job 38259227 has finished
+[2025-12-06 20:49:19] Previous job state: TIMEOUT
+[2025-12-06 20:49:19] Training not complete. Resubmitting with --resume (attempt 4/50)...
+[2025-12-06 20:49:19] Training job resubmitted: 38259353 (submission #4)
+[2025-12-06 21:00:20] Training job 38259353 has finished
+[2025-12-06 21:00:20] Previous job state: TIMEOUT
+[2025-12-06 21:00:20] Training not complete. Resubmitting with --resume (attempt 5/50)...
+[2025-12-06 21:00:20] Training job resubmitted: 38259453 (submission #5)
+[2025-12-06 21:11:20] Training job 38259453 has finished
+[2025-12-06 21:11:20] Previous job state: TIMEOUT
+[2025-12-06 21:11:20] Training not complete. Resubmitting with --resume (attempt 6/50)...
+[2025-12-06 21:11:20] Training job resubmitted: 38259653 (submission #6)
+[2025-12-06 21:22:21] Training job 38259653 has finished
+[2025-12-06 21:22:21] Previous job state: TIMEOUT
+[2025-12-06 21:22:21] Training not complete. Resubmitting with --resume (attempt 7/50)...
+[2025-12-06 21:22:21] Training job resubmitted: 38259814 (submission #7)
+[2025-12-06 21:33:21] Training job 38259814 has finished
+[2025-12-06 21:33:21] Previous job state: TIMEOUT
+[2025-12-06 21:33:22] Training not complete. Resubmitting with --resume (attempt 8/50)...
+[2025-12-06 21:33:22] Training job resubmitted: 38259947 (submission #8)
+[2025-12-06 21:44:22] Training job 38259947 has finished
+[2025-12-06 21:44:22] Previous job state: TIMEOUT
+[2025-12-06 21:44:22] Training not complete. Resubmitting with --resume (attempt 9/50)...
+[2025-12-06 21:44:22] Training job resubmitted: 38260016 (submission #9)
+[2025-12-06 21:55:23] Training job 38260016 has finished
+[2025-12-06 21:55:23] Previous job state: TIMEOUT
+[2025-12-06 21:55:23] Training not complete. Resubmitting with --resume (attempt 10/50)...
+[2025-12-06 21:55:23] Training job resubmitted: 38260162 (submission #10)
+[2025-12-06 22:06:28] Training job 38260162 has finished
+[2025-12-06 22:06:28] Previous job state: TIMEOUT
+[2025-12-06 22:06:28] Training not complete. Resubmitting with --resume (attempt 11/50)...
+[2025-12-06 22:06:28] Training job resubmitted: 38260277 (submission #11)
+[2025-12-06 22:17:28] Training job 38260277 has finished
+[2025-12-06 22:17:28] Previous job state: TIMEOUT
+[2025-12-06 22:17:28] Training not complete. Resubmitting with --resume (attempt 12/50)...
+[2025-12-06 22:17:28] Training job resubmitted: 38260382 (submission #12)
+[2025-12-06 22:28:29] Training job 38260382 has finished
+[2025-12-06 22:28:29] Previous job state: TIMEOUT
+[2025-12-06 22:28:29] Training not complete. Resubmitting with --resume (attempt 13/50)...
+[2025-12-06 22:28:29] Training job resubmitted: 38260503 (submission #13)
+[2025-12-06 22:39:29] Training job 38260503 has finished
+[2025-12-06 22:39:29] Previous job state: TIMEOUT
+[2025-12-06 22:39:29] Training not complete. Resubmitting with --resume (attempt 14/50)...
+[2025-12-06 22:39:29] Training job resubmitted: 38260608 (submission #14)
+[2025-12-06 22:50:30] Training job 38260608 has finished
+[2025-12-06 22:50:30] Previous job state: TIMEOUT
+[2025-12-06 22:50:30] Training not complete. Resubmitting with --resume (attempt 15/50)...
+[2025-12-06 22:50:30] Training job resubmitted: 38260726 (submission #15)
+[2025-12-06 23:01:34] Training job 38260726 has finished
+[2025-12-06 23:01:34] Previous job state: TIMEOUT
+[2025-12-06 23:01:34] Training not complete. Resubmitting with --resume (attempt 16/50)...
+[2025-12-06 23:01:34] Training job resubmitted: 38260877 (submission #16)
+[2025-12-06 23:12:42] Training job 38260877 has finished
+[2025-12-06 23:12:42] Previous job state: TIMEOUT
+[2025-12-06 23:12:42] Training not complete. Resubmitting with --resume (attempt 17/50)...
+[2025-12-06 23:12:42] Training job resubmitted: 38260979 (submission #17)
+[2025-12-06 23:23:43] Training job 38260979 has finished
+[2025-12-06 23:23:43] Previous job state: TIMEOUT
+[2025-12-06 23:23:43] Training not complete. Resubmitting with --resume (attempt 18/50)...
+[2025-12-06 23:23:43] Training job resubmitted: 38261049 (submission #18)
+[2025-12-06 23:34:44] Training job 38261049 has finished
+[2025-12-06 23:34:44] Previous job state: TIMEOUT
+[2025-12-06 23:34:44] Training not complete. Resubmitting with --resume (attempt 19/50)...
+[2025-12-06 23:34:44] Training job resubmitted: 38261125 (submission #19)
+[2025-12-06 23:45:45] Training job 38261125 has finished
+[2025-12-06 23:45:45] Previous job state: TIMEOUT
+[2025-12-06 23:45:45] Training not complete. Resubmitting with --resume (attempt 20/50)...
+[2025-12-06 23:45:45] Training job resubmitted: 38261282 (submission #20)
+[2025-12-06 23:56:48] Training job 38261282 has finished
+[2025-12-06 23:56:48] Previous job state: TIMEOUT
+[2025-12-06 23:56:48] Training not complete. Resubmitting with --resume (attempt 21/50)...
+[2025-12-06 23:56:48] Training job resubmitted: 38261420 (submission #21)
+[2025-12-07 00:07:56] Training job 38261420 has finished
+[2025-12-07 00:07:56] Previous job state: TIMEOUT
+[2025-12-07 00:07:56] Training not complete. Resubmitting with --resume (attempt 22/50)...
+[2025-12-07 00:07:56] Training job resubmitted: 38261488 (submission #22)
+[2025-12-07 00:18:58] Training job 38261488 has finished
+[2025-12-07 00:18:58] Previous job state: TIMEOUT
+[2025-12-07 00:18:58] Training not complete. Resubmitting with --resume (attempt 23/50)...
+[2025-12-07 00:18:58] Training job resubmitted: 38261541 (submission #23)
+[2025-12-07 00:29:58] Training job 38261541 has finished
+[2025-12-07 00:29:58] Previous job state: TIMEOUT
+[2025-12-07 00:29:58] Training not complete. Resubmitting with --resume (attempt 24/50)...
+[2025-12-07 00:29:58] Training job resubmitted: 38261594 (submission #24)
+[2025-12-07 00:41:00] Training job 38261594 has finished
+[2025-12-07 00:41:01] Previous job state: TIMEOUT
+[2025-12-07 00:41:01] Training not complete. Resubmitting with --resume (attempt 25/50)...
+[2025-12-07 00:41:01] Training job resubmitted: 38261641 (submission #25)
+[2025-12-07 00:52:08] Training job 38261641 has finished
+[2025-12-07 00:52:08] Previous job state: TIMEOUT
+[2025-12-07 00:52:08] Training not complete. Resubmitting with --resume (attempt 26/50)...
+[2025-12-07 00:52:08] Training job resubmitted: 38261754 (submission #26)

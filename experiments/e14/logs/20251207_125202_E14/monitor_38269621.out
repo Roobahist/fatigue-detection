@@ -1,0 +1,24 @@
+========================================
+Monitor Job Started
+========================================
+Job ID: 38269621
+Node: mmg1
+Start time: Sun Dec  7 15:07:10 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+Log dir: logs/20251207_125202_E14
+========================================
+[2025-12-07 15:07:10] ==========================================
+[2025-12-07 15:07:10] Monitor starting on mmg1
+[2025-12-07 15:07:10] Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+[2025-12-07 15:07:10] Log directory: logs/20251207_125202_E14
+[2025-12-07 15:07:10] Dataset: DROZY
+[2025-12-07 15:07:10] Configuration: 5 outer folds, 4 inner folds, 1 trials
+[2025-12-07 15:07:10] Max submissions: 50
+[2025-12-07 15:07:10] Check interval: 60 seconds
+[2025-12-07 15:07:10] ==========================================
+[2025-12-07 15:07:10] Submitting initial training job (attempt 1/50)...
+[2025-12-07 15:07:10] Initial training job submitted: 38269622
+[2025-12-07 15:24:10] Training job 38269622 has finished
+[2025-12-07 15:24:10] Previous job state: CANCELLED+
+[2025-12-07 15:24:10] Training not complete. Resubmitting with --resume (attempt 2/50)...
+[2025-12-07 15:24:10] Training job resubmitted: 38269662 (submission #2)

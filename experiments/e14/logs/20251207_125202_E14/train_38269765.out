@@ -1,0 +1,221 @@
+========================================
+Training Job Started
+========================================
+Job ID: 38269765
+Node: fg4
+GPU: 0
+Start time: Sun Dec  7 15:52:56 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+Resume flag: --resume
+========================================
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+PyTorch: Using GPU: Tesla V100-PCIE-16GB
+NestedCVEngine initialized on device: cuda
+Parallel inner CV enabled with max_workers=12
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14/checkpoints
+
+================================================================================
+RESUMING FROM CHECKPOINT
+Completed folds: []
+Starting from fold: 0
+================================================================================
+
+
+================================================================================
+OUTER FOLD 1/5
+================================================================================
+Resuming hyperparameter search: 1/1 configs completed
+
+Evaluating 1 hyperparameter configurations...
+Running inner CV in parallel mode...
+
+Best config: 1/1 (mean val metric = 2.6675)
+
+Best hyperparameters: {
+  "train.lr": 0.00037520558551242813,
+  "train.batch_size": 64,
+  "model.temporal.hidden_size": 64,
+  "model.temporal.num_layers": 1,
+  "model.temporal.dropout": 0.30990986410335564,
+  "sel.window_size": 32
+}
+Chosen epochs: 69
+
+Retraining on full outer training set for 69 epochs...
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Mean Loss: 0.04244838452633516
+Confusion Matrix:
+[[ 0  0  0  0  0  0  0  0  0]
+ [ 0 27  0  0  0  0  0  0  0]
+ [ 0  0 36  0  0  0  0  0  0]
+ [ 0  0  0 27  0  0  0  0  0]
+ [ 0  0  0  0  9  0  0  0  0]
+ [ 0  0  0  0  0 27  0  0  0]
+ [ 0  0  0  0  0  0 53  1  0]
+ [ 0  0  0  0  0  0  0 45  0]
+ [ 0  0  0  0  0  0  0  0 18]]
+Classification Report:
+{
+    "1.0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+    },
+    "2.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 27.0
+    },
+    "3.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 36.0
+    },
+    "4.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 27.0
+    },
+    "5.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 9.0
+    },
+    "6.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 27.0
+    },
+    "7.0": {
+        "precision": 1.0,
+        "recall": 0.9814814814814815,
+        "f1-score": 0.9906542056074766,
+        "support": 54.0
+    },
+    "8.0": {
+        "precision": 0.9782608695652174,
+        "recall": 1.0,
+        "f1-score": 0.989010989010989,
+        "support": 45.0
+    },
+    "9.0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 18.0
+    },
+    "accuracy": 0.9958847736625515,
+    "macro avg": {
+        "precision": 0.8864734299516908,
+        "recall": 0.8868312757201645,
+        "f1-score": 0.8866294660687184,
+        "support": 243.0
+    },
+    "weighted avg": {
+        "precision": 0.9959742351046699,
+        "recall": 0.9958847736625515,
+        "f1-score": 0.9958881547666595,
+        "support": 243.0
+    }
+}
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Mean Loss: 1.3048999500863345
+Confusion Matrix:
+[[ 0  0  0  0  0  0  0  0  0]
+ [ 0  4  5  0  0  0  0  0  0]
+ [ 0  0 13  5  9  0  0  0  0]
+ [ 0  0  0  1  8  0  0  0  0]
+ [ 0  0  0  0  0  0  0  0  0]
+ [ 0  0  0  0  9  9  0  0  0]
+ [ 0  0  0  1  8  0  0  9  0]
+ [ 0  0  0  0  0  0  0  0  0]
+ [ 0  0  0  0  0  0  0  0  0]]
+Classification Report:
+{
+    "1.0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+    },
+    "2.0": {
+        "precision": 1.0,
+        "recall": 0.4444444444444444,
+        "f1-score": 0.6153846153846154,
+        "support": 9.0
+    },
+    "3.0": {
+        "precision": 0.7222222222222222,
+        "recall": 0.48148148148148145,
+        "f1-score": 0.5777777777777777,
+        "support": 27.0
+    },
+    "4.0": {
+        "precision": 0.14285714285714285,
+        "recall": 0.1111111111111111,
+        "f1-score": 0.125,
+        "support": 9.0
+    },
+    "5.0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+    },
+    "6.0": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1-score": 0.6666666666666666,
+        "support": 18.0
+    },
+    "7.0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 18.0
+    },
+    "8.0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+    },
+    "9.0": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1-score": 0.0,
+        "support": 0.0
+    },
+    "accuracy": 0.3333333333333333,
+    "macro avg": {
+        "precision": 0.318342151675485,
+        "recall": 0.17078189300411523,
+        "f1-score": 0.22053656220322887,
+        "support": 81.0
+    },
+    "weighted avg": {
+        "precision": 0.5899470899470899,
+        "recall": 0.3333333333333333,
+        "f1-score": 0.423005698005698,
+        "support": 81.0
+    }
+}
+
+Final outer train metric: 0.0424
+Final outer test metric: 1.3049
+Model saved to: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14/outer_fold_0_model.pt
+
+================================================================================
+OUTER FOLD 2/5
+================================================================================
+
+Evaluating 1 hyperparameter configurations...
+Running inner CV in parallel mode...

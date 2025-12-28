@@ -1,0 +1,20 @@
+========================================
+Monitor Job Started
+========================================
+Job ID: 38269761
+Node: th23
+Start time: Sun Dec  7 15:51:20 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+Log dir: logs/20251207_125202_E14
+========================================
+[2025-12-07 15:51:20] ==========================================
+[2025-12-07 15:51:20] Monitor starting on th23
+[2025-12-07 15:51:20] Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+[2025-12-07 15:51:20] Log directory: logs/20251207_125202_E14
+[2025-12-07 15:51:20] Dataset: DROZY
+[2025-12-07 15:51:20] Configuration: 5 outer folds, 4 inner folds, 1 trials
+[2025-12-07 15:51:20] Max submissions: 50
+[2025-12-07 15:51:20] Check interval: 60 seconds
+[2025-12-07 15:51:20] ==========================================
+[2025-12-07 15:51:20] Submitting initial training job (attempt 1/50)...
+[2025-12-07 15:51:20] Initial training job submitted: 38269762

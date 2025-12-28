@@ -1,0 +1,48 @@
+========================================
+Monitor Job Started
+========================================
+Job ID: 38258439
+Node: th22
+Start time: Sat Dec  6 19:39:30 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251206_193924_E14
+Log dir: logs/20251206_193924_E14
+========================================
+[2025-12-06 19:39:30] ==========================================
+[2025-12-06 19:39:30] Monitor starting on th22
+[2025-12-06 19:39:30] Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251206_193924_E14
+[2025-12-06 19:39:30] Log directory: logs/20251206_193924_E14
+[2025-12-06 19:39:30] Dataset: DROZY
+[2025-12-06 19:39:30] Configuration: 5 outer folds, 4 inner folds, 10 trials
+[2025-12-06 19:39:30] Max submissions: 50
+[2025-12-06 19:39:30] Check interval: 60 seconds
+[2025-12-06 19:39:30] ==========================================
+[2025-12-06 19:39:30] Submitting initial training job (attempt 1/50)...
+[2025-12-06 19:39:30] Initial training job submitted: 38258440
+[2025-12-06 19:45:31] Training job 38258440 has finished
+[2025-12-06 19:45:31] Previous job state: TIMEOUT
+[2025-12-06 19:45:31] Training not complete. Resubmitting with --resume (attempt 2/50)...
+[2025-12-06 19:45:31] Training job resubmitted: 38258501 (submission #2)
+[2025-12-06 19:50:31] Training job 38258501 has finished
+[2025-12-06 19:50:31] Previous job state: FAILED
+[2025-12-06 19:50:31] Training not complete. Resubmitting with --resume (attempt 3/50)...
+[2025-12-06 19:50:31] Training job resubmitted: 38258563 (submission #3)
+[2025-12-06 19:51:31] Training job 38258563 has finished
+[2025-12-06 19:51:31] Previous job state: FAILED
+[2025-12-06 19:51:31] Training not complete. Resubmitting with --resume (attempt 4/50)...
+[2025-12-06 19:51:31] Training job resubmitted: 38258570 (submission #4)
+[2025-12-06 19:52:31] Training job 38258570 has finished
+[2025-12-06 19:52:31] Previous job state: FAILED
+[2025-12-06 19:52:31] Training not complete. Resubmitting with --resume (attempt 5/50)...
+[2025-12-06 19:52:31] Training job resubmitted: 38258595 (submission #5)
+[2025-12-06 19:53:31] Training job 38258595 has finished
+[2025-12-06 19:53:31] Previous job state: FAILED
+[2025-12-06 19:53:31] Training not complete. Resubmitting with --resume (attempt 6/50)...
+[2025-12-06 19:53:31] Training job resubmitted: 38258611 (submission #6)
+[2025-12-06 19:54:31] Training job 38258611 has finished
+[2025-12-06 19:54:31] Previous job state: FAILED
+[2025-12-06 19:54:31] Training not complete. Resubmitting with --resume (attempt 7/50)...
+[2025-12-06 19:54:31] Training job resubmitted: 38258634 (submission #7)
+[2025-12-06 20:00:31] Training job 38258634 has finished
+[2025-12-06 20:00:31] Previous job state: TIMEOUT
+[2025-12-06 20:00:31] Training not complete. Resubmitting with --resume (attempt 8/50)...
+[2025-12-06 20:00:31] Training job resubmitted: 38258683 (submission #8)

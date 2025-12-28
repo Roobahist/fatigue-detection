@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 462, in <module>
+    main()
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 363, in main
+    results = nested_cv_video_mil(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 448, in nested_cv_video_mil
+    results = engine.run(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 340, in run
+    final_model = self._retrain_on_full_outer_train(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 910, in _retrain_on_full_outer_train
+    model = self.train_fixed_epochs_fn(model, outer_train_ids, num_epochs, hparams)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 331, in train_fixed_epochs_fn
+    return train_for_fixed_epochs(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 94, in train_for_fixed_epochs
+    optimizer.zero_grad()
+AttributeError: 'tuple' object has no attribute 'zero_grad'

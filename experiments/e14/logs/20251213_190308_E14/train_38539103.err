@@ -1,0 +1,153 @@
+  0%|          | 0/16 [00:00<?, ?it/s]Epoch:   0%|          | 0/100 [00:00<?, ?it/s]Epoch:   0%|          | 0/100 [00:00<?, ?it/s]
+Epoch:   0%|          | 0/100 [00:00<?, ?it/s]Batch:   0%|          | 0/3 [00:00<?, ?it/s][AEpoch:   0%|          | 0/100 [00:00<?, ?it/s]
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][A
+Epoch:   0%|          | 0/100 [00:00<?, ?it/s]Batch:   0%|          | 0/6 [00:00<?, ?it/s][A
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][A
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][AEpoch:   0%|          | 0/100 [00:00<?, ?it/s]Epoch:   0%|          | 0/100 [00:00<?, ?it/s]
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][A
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][AEpoch:   0%|          | 0/100 [00:00<?, ?it/s]
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][A
+
+Batch:  17%|█▋        | 1/6 [00:14<01:13, 14.72s/it][ABatch:  17%|█▋        | 1/6 [00:14<01:13, 14.72s/it][A
+Batch:  17%|█▋        | 1/6 [00:15<01:17, 15.49s/it][A
+Batch:  33%|███▎      | 1/3 [00:19<00:38, 19.50s/it][A
+Batch:  33%|███▎      | 1/3 [00:24<00:48, 24.35s/it][A
+Batch:  33%|███▎      | 2/6 [00:24<00:47, 11.93s/it][A
+Batch:  33%|███▎      | 2/6 [00:29<00:57, 14.48s/it][A
+Batch:  33%|███▎      | 2/6 [00:30<01:01, 15.49s/it][A
+Batch:  67%|██████▋   | 2/3 [00:34<00:16, 16.70s/it][A
+Batch:  50%|█████     | 3/6 [00:34<00:33, 11.11s/it][A
+Batch:  50%|█████     | 3/6 [00:38<00:36, 12.27s/it][A
+Batch: 100%|██████████| 3/3 [00:41<00:00, 12.46s/it][ABatch: 100%|██████████| 3/3 [00:41<00:00, 13.88s/it]
+
+Batch:  50%|█████     | 3/6 [00:42<00:41, 13.90s/it][A
+Batch:  67%|██████▋   | 4/6 [00:45<00:22, 11.08s/it][A
+Batch:  67%|██████▋   | 2/3 [00:46<00:23, 23.17s/it][A
+Batch:  67%|██████▋   | 4/6 [00:46<00:21, 10.57s/it][AEpoch:   1%|          | 1/100 [00:53<1:29:05, 54.00s/it]
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][A
+Batch:  67%|██████▋   | 4/6 [00:55<00:27, 13.54s/it][A
+Batch:  83%|████████▎ | 5/6 [00:57<00:11, 11.36s/it][A
+Batch: 100%|██████████| 3/3 [00:58<00:00, 18.02s/it][ABatch: 100%|██████████| 3/3 [00:58<00:00, 19.53s/it]
+
+Batch: 100%|██████████| 6/6 [00:58<00:00,  7.81s/it][ABatch: 100%|██████████| 6/6 [00:58<00:00,  9.78s/it]
+
+Batch:  83%|████████▎ | 5/6 [01:01<00:12, 12.09s/it][A
+Batch: 100%|██████████| 6/6 [01:03<00:00,  8.46s/it][ABatch: 100%|██████████| 6/6 [01:03<00:00, 10.51s/it]
+
+Batch:  83%|████████▎ | 5/6 [01:08<00:13, 13.23s/it][A
+Batch: 100%|██████████| 6/6 [01:09<00:00,  9.07s/it][ABatch: 100%|██████████| 6/6 [01:09<00:00, 11.57s/it]
+Epoch:   1%|          | 1/100 [01:10<1:55:36, 70.06s/it]
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][A
+Batch:  33%|███▎      | 1/3 [00:16<00:32, 16.33s/it][AEpoch:   1%|          | 1/100 [01:11<1:57:41, 71.33s/it]
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][AEpoch:   1%|          | 1/100 [01:15<2:04:17, 75.32s/it]
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][A
+Batch:  17%|█▋        | 1/6 [01:18<06:34, 78.85s/it][A
+Batch:  17%|█▋        | 1/6 [00:11<00:56, 11.31s/it][AEpoch:   1%|          | 1/100 [01:23<2:18:29, 83.93s/it]
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][A
+Batch:  17%|█▋        | 1/6 [00:10<00:53, 10.78s/it][A
+Batch:  67%|██████▋   | 2/3 [00:33<00:16, 16.85s/it][A
+Batch:  33%|███▎      | 2/6 [00:22<00:44, 11.13s/it][A
+Batch:  17%|█▋        | 1/6 [00:10<00:53, 10.73s/it][A
+Batch:  33%|███▎      | 2/6 [00:19<00:38,  9.56s/it][A
+Batch: 100%|██████████| 3/3 [00:43<00:00, 13.85s/it][ABatch: 100%|██████████| 3/3 [00:43<00:00, 14.61s/it]
+
+Batch:  33%|███▎      | 1/3 [00:28<00:57, 28.87s/it][A
+Batch:  50%|█████     | 3/6 [00:31<00:30, 10.14s/it][A
+Batch:  50%|█████     | 3/6 [00:31<00:32, 10.88s/it][AEpoch:   2%|▏         | 2/100 [01:48<1:28:36, 54.25s/it]
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][A
+Batch:  33%|███▎      | 2/6 [00:24<00:50, 12.52s/it][A
+Batch:  67%|██████▋   | 4/6 [00:43<00:21, 10.77s/it][A
+Batch:  67%|██████▋   | 4/6 [00:41<00:20, 10.49s/it][A
+Batch:  67%|██████▋   | 2/3 [00:51<00:25, 25.11s/it][A
+Batch:  50%|█████     | 3/6 [00:41<00:43, 14.45s/it][A
+Batch:  83%|████████▎ | 5/6 [00:55<00:11, 11.47s/it][A
+Batch:  83%|████████▎ | 5/6 [00:52<00:10, 10.58s/it][A
+Batch: 100%|██████████| 6/6 [00:56<00:00,  7.88s/it][ABatch: 100%|██████████| 6/6 [00:56<00:00,  9.44s/it]
+
+Batch: 100%|██████████| 6/6 [00:53<00:00,  7.28s/it][ABatch: 100%|██████████| 6/6 [00:53<00:00,  8.91s/it]
+
+Batch:  33%|███▎      | 1/3 [00:20<00:41, 20.52s/it][A
+Batch: 100%|██████████| 3/3 [01:04<00:00, 19.67s/it][ABatch: 100%|██████████| 3/3 [01:04<00:00, 21.52s/it]
+
+Batch:  67%|██████▋   | 4/6 [00:54<00:27, 13.86s/it][A
+Batch:  67%|██████▋   | 2/3 [00:31<00:15, 15.13s/it][A
+Batch:  33%|███▎      | 1/3 [02:21<04:42, 141.04s/it][AEpoch:   2%|▏         | 2/100 [02:21<1:53:55, 69.75s/it]
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][AEpoch:   2%|▏         | 2/100 [02:21<1:55:27, 70.69s/it]
+Batch:   0%|          | 0/6 [00:00<?, ?it/s][A
+Batch:  83%|████████▎ | 5/6 [01:04<00:12, 12.59s/it][A
+Batch: 100%|██████████| 6/6 [01:06<00:00,  8.88s/it][ABatch: 100%|██████████| 6/6 [01:06<00:00, 11.03s/it]
+Epoch:   2%|▏         | 2/100 [02:30<2:04:04, 75.96s/it]
+Batch:   0%|          | 0/3 [00:00<?, ?it/s][ABatch:   0%|          | 0/3 [02:30<?, ?it/s]
+Epoch:   0%|          | 0/100 [02:30<?, ?it/s]
+ERROR:root:Error in task 2: CUDA out of memory. Tried to allocate 56.00 MiB. GPU 0 has a total capacity of 15.77 GiB of which 4.19 MiB is free. Process 4108314 has 1.33 GiB memory in use. Including non-PyTorch memory, this process has 4.12 GiB memory in use. Process 4108320 has 2.67 GiB memory in use. Process 4108315 has 1.29 GiB memory in use. Process 4108317 has 2.12 GiB memory in use. Process 4108319 has 1.66 GiB memory in use. Process 4108316 has 1.33 GiB memory in use. Process 4108318 has 1.24 GiB memory in use. Of the allocated memory 3.65 GiB is allocated by PyTorch, and 109.12 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+  0%|          | 0/16 [02:57<?, ?it/s]
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/mojtaba.kananisarche/Zh/src/utils/serialized_parallel.py", line 14, in wrapped_worker_function
+    return worker_function(**params)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 612, in _evaluate_single_config_worker
+    inner_results = self._run_inner_cv_with_checkpointing(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 783, in _run_inner_cv_with_checkpointing
+    model, best_val_metric, best_epoch = self.train_fn(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 302, in train_fn
+    model, best_val_loss = train_one_split(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/helpers.py", line 161, in train_one_split
+    preds = model(batch_on_device)  # [B]
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/model.py", line 312, in forward
+    window_emb = self.window_encoder(e, b, o)  # [d_window]
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/model.py", line 225, in forward
+    h_embed = self.embed_encoder(embed_seq)  # [d_temporal_embed]
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/model.py", line 142, in forward
+    outputs, _ = self.rnn(x_in)  # [T, 1, H*2]
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/rnn.py", line 1393, in forward
+    result = _VF.gru(
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 56.00 MiB. GPU 0 has a total capacity of 15.77 GiB of which 4.19 MiB is free. Process 4108314 has 1.33 GiB memory in use. Including non-PyTorch memory, this process has 4.12 GiB memory in use. Process 4108320 has 2.67 GiB memory in use. Process 4108315 has 1.29 GiB memory in use. Process 4108317 has 2.12 GiB memory in use. Process 4108319 has 1.66 GiB memory in use. Process 4108316 has 1.33 GiB memory in use. Process 4108318 has 1.24 GiB memory in use. Of the allocated memory 3.65 GiB is allocated by PyTorch, and 109.12 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 462, in <module>
+    main()
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 363, in main
+    results = nested_cv_video_mil(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 454, in nested_cv_video_mil
+    results = engine.run(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 309, in run
+    best_hparams, chosen_epochs, inner_results = self._hyperparameter_search(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 464, in _hyperparameter_search
+    return self._grid_or_random_search(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 532, in _grid_or_random_search
+    new_results = process(
+  File "/home/mojtaba.kananisarche/Zh/src/utils/serialized_parallel.py", line 121, in process
+    for result in tqdm(
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/multiprocessing/pool.py", line 870, in next
+    raise value
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 56.00 MiB. GPU 0 has a total capacity of 15.77 GiB of which 4.19 MiB is free. Process 4108314 has 1.33 GiB memory in use. Including non-PyTorch memory, this process has 4.12 GiB memory in use. Process 4108320 has 2.67 GiB memory in use. Process 4108315 has 1.29 GiB memory in use. Process 4108317 has 2.12 GiB memory in use. Process 4108319 has 1.66 GiB memory in use. Process 4108316 has 1.33 GiB memory in use. Process 4108318 has 1.24 GiB memory in use. Of the allocated memory 3.65 GiB is allocated by PyTorch, and 109.12 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 8 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

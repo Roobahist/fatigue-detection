@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 462, in <module>
+    main()
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 363, in main
+    results = nested_cv_video_mil(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 454, in nested_cv_video_mil
+    results = engine.run(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 394, in run
+    final_results = self._aggregate_results(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 934, in _aggregate_results
+    "outer_results": [
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 939, in <listcomp>
+    "inner_results": [
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 941, in <listcomp>
+    "inner_fold": ir.inner_fold,
+AttributeError: 'dict' object has no attribute 'inner_fold'

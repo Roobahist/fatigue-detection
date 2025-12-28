@@ -1,0 +1,30 @@
+========================================
+Training Job Started
+========================================
+Job ID: 38258611
+Node: fg1
+GPU: 0
+Start time: Sat Dec  6 19:53:51 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251206_193924_E14
+Resume flag: --resume
+========================================
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251206_193924_E14
+PyTorch: Using GPU: Tesla V100-PCIE-16GB
+NestedCVEngine initialized on device: cuda
+Parallel inner CV enabled with max_workers=5
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251206_193924_E14
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251206_193924_E14/checkpoints
+
+================================================================================
+RESUMING FROM CHECKPOINT
+Completed folds: []
+Starting from fold: 0
+================================================================================
+
+
+================================================================================
+OUTER FOLD 1/5
+================================================================================
+
+Evaluating 10 hyperparameter configurations...
+Running inner CV in parallel mode...

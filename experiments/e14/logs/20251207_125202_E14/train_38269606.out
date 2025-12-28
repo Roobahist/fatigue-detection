@@ -1,0 +1,45 @@
+========================================
+Training Job Started
+========================================
+Job ID: 38269606
+Node: fg3
+GPU: 0
+Start time: Sun Dec  7 14:59:26 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+Resume flag: --resume
+========================================
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+PyTorch: Using GPU: Tesla V100-PCIE-16GB
+NestedCVEngine initialized on device: cuda
+Parallel inner CV enabled with max_workers=12
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251207_125202_E14/checkpoints
+
+================================================================================
+RESUMING FROM CHECKPOINT
+Completed folds: []
+Starting from fold: 0
+================================================================================
+
+
+================================================================================
+OUTER FOLD 1/5
+================================================================================
+Resuming hyperparameter search: 1/1 configs completed
+
+Evaluating 1 hyperparameter configurations...
+Running inner CV in parallel mode...
+
+Best config: 1/1 (mean val metric = 2.6675)
+
+Best hyperparameters: {
+  "train.lr": 0.00037520558551242813,
+  "train.batch_size": 64,
+  "model.temporal.hidden_size": 64,
+  "model.temporal.num_layers": 1,
+  "model.temporal.dropout": 0.30990986410335564,
+  "sel.window_size": 32
+}
+Chosen epochs: 69
+
+Retraining on full outer training set for 69 epochs...
