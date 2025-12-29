@@ -756,10 +756,8 @@ class NestedCVEngine:
     ) -> List[InnerFoldResult]:
         """
         Run inner CV with checkpointing after each inner fold.
-
-        Args:
-            start_fold: Which inner fold to start from (for resume)
-            completed_results: Already completed inner fold results
+        
+        NOW ALSO PASSES checkpoint info to train_fn for training-level checkpointing.
         """
         inner_results: List[InnerFoldResult] = (
             list(completed_results) if completed_results else []
@@ -776,13 +774,32 @@ class NestedCVEngine:
                 outer_train_ids, inner_folds, inner_idx
             )
 
-            # Create and train model
+            # Create model
             model = self.model_builder(hparams)
             model = model.to(self.device)
 
-            model, best_val_metric, best_epoch = self.train_fn(
-                model, inner_train_ids, inner_val_ids, hparams
-            )
+            # Train with checkpoint support - pass indices for training checkpointing
+            # Check if train_fn accepts checkpoint parameters
+            import inspect
+            sig = inspect.signature(self.train_fn)
+            
+            if 'checkpoint_mgr' in sig.parameters:
+                # New signature with checkpoint support
+                model, best_val_metric, best_epoch = self.train_fn(
+                    model, 
+                    inner_train_ids, 
+                    inner_val_ids, 
+                    hparams,
+                    checkpoint_mgr=checkpoint_mgr,
+                    outer_idx=outer_idx,
+                    config_idx=config_idx,
+                    inner_idx=inner_idx,
+                )
+            else:
+                # Old signature without checkpoint support (backward compatibility)
+                model, best_val_metric, best_epoch = self.train_fn(
+                    model, inner_train_ids, inner_val_ids, hparams
+                )
 
             if verbose:
                 print(
