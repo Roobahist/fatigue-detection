@@ -248,9 +248,7 @@ class AttentionMILPooling(nn.Module):
         self.activation = get_activation(attn_activation)
 
     def forward(self, H: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        H: [N_windows, D_window]
-        """
+        """H: [N_windows, D_window] -> z: [D_window], a: [N_windows]"""
         if H.ndim != 2:
             raise ValueError(f"Expected [N_windows, D_window], got {H.shape}")
         if H.size(0) == 0:
@@ -265,34 +263,43 @@ class AttentionMILPooling(nn.Module):
 
 class MultiPathMILRegressor(nn.Module):
     """
-    Main model:
-      - For each video:
+    Main model supporting both regression and classification tasks.
+    Task type is determined from data_cfg passed during initialization.
         - For each window: MultiPathWindowEncoder -> window embedding
         - AttentionMILPooling over windows -> video embedding
         - Regression head -> scalar fatigue score
     """
 
-    def __init__(self, cfg: ModelConfig):
+    def __init__(self, cfg: ModelConfig, data_cfg: DataConfig):
         super().__init__()
         self.cfg = cfg
+        self.task_type = data_cfg.task_type  # Get from single source of truth
+        self.num_classes = data_cfg.num_classes
+
         self.window_encoder = MultiPathWindowEncoder(cfg)
         self.mil_pool = AttentionMILPooling(
             cfg.d_window, cfg.attn_hidden_size, cfg.attn_activation
         )
-        self.reg_head = MLP(cfg.d_window, 1, cfg.reg_head_mlp)
+
+        # Task-specific head
+        if self.task_type == "classification":
+            if self.num_classes is None:
+                raise ValueError(
+                    "num_classes must be specified in DataConfig for classification task"
+                )
+            # Output logits for each class
+            self.head = MLP(cfg.d_window, self.num_classes, cfg.reg_head_mlp)
+        else:  # regression
+            # Output single value
+            self.head = MLP(cfg.d_window, 1, cfg.reg_head_mlp)
 
     def forward(self, batch: List[Dict]) -> torch.Tensor:
         """
-        batch: list of video dicts. Each video dict:
-          {
-            "embeddings": List[Tensor [T_w, d_embed]],
-            "blendshapes": List[Tensor [T_w, d_blend]],
-            "others": List[Tensor [T_w, d_other]],
-            "target": float (ignored here)
-          }
-        Assumes all tensors in batch are already on the same device as model.
+        batch: list of video dicts
+
         Returns:
-          preds: [B] tensor of scalar predictions.
+          - For regression: [B] tensor of scalar predictions
+          - For classification: [B, num_classes] tensor of logits
         """
         video_embeddings = []
 
@@ -313,7 +320,7 @@ class MultiPathMILRegressor(nn.Module):
                 e = emb_list[i]
                 b = blend_list[i]
                 o = other_list[i]
-                window_emb = self.window_encoder(e, b, o)  # [d_window]
+                window_emb = self.window_encoder(e, b, o)
                 window_embs.append(window_emb)
 
             H = torch.stack(window_embs, dim=0)  # [N_windows, d_window]
@@ -321,5 +328,9 @@ class MultiPathMILRegressor(nn.Module):
             video_embeddings.append(z)
 
         video_embeddings = torch.stack(video_embeddings, dim=0)  # [B, d_window]
-        preds = self.reg_head(video_embeddings).squeeze(-1)  # [B]
-        return preds
+        outputs = self.head(video_embeddings)  # [B, 1] or [B, num_classes]
+
+        if self.task_type == "regression":
+            return outputs.squeeze(-1)  # [B]
+        else:  # classification
+            return outputs  # [B, num_classes]
