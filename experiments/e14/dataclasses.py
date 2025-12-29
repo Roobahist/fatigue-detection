@@ -57,6 +57,7 @@ class TrainingConfig:
     use_scheduler: bool = False
     step_lr_step_size: int = 20
     step_lr_gamma: float = 0.1
+    training_time_limit: Optional[float] = 43200 # in seconds, e.g. 12 hours
 
 
 @dataclass
@@ -81,7 +82,7 @@ class CrossValidationConfig:
     search_strategy: str = "random"  # "grid", "random", "bayesian"
     n_trials: int = 20  # for random/bayesian search
     outer_folds: int = 5
-    inner_folds: int = 0  # 0 means no inner folds
+    inner_folds: int = 4
 
 
 @dataclass

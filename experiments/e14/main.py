@@ -144,6 +144,12 @@ def main():
         parser.add_argument("--train.step_lr_gamma", type=float, default=0.1)
         parser.add_argument("--train.momentum", type=float, default=0.9)
         parser.add_argument("--train.betas", type=float, nargs=2, default=(0.9, 0.999))
+        parser.add_argument(
+            "--train.training_time_limit",
+            type=float,
+            default=43200,
+            help="Time limit in seconds for training a single inner fold (e.g., 21600 for 6 hours). None for no limit.",
+        )
 
         # ---------------------------
         # SelectionConfig
@@ -249,6 +255,7 @@ def main():
             step_lr_gamma=vars(args)["train.step_lr_gamma"],
             momentum=vars(args)["train.momentum"],
             betas=tuple(vars(args)["train.betas"]),
+            training_time_limit=vars(args)["train.training_time_limit"]
         )
 
         # ---------- SelectionConfig ----------
