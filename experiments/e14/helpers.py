@@ -1,9 +1,9 @@
 import copy
 import json
 import os
-import pprint
+import time
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -12,6 +12,7 @@ from sklearn.metrics import classification_report
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from Zh.experiments.e14.checkpoint_manager import CheckpointManager
 from Zh.experiments.e14.dataclasses import *
 from Zh.experiments.e14.datasets import *
 
@@ -24,7 +25,7 @@ def evaluate_on_loader(
     thresholds: List[float],
     unique_classes: List[float],
     verbose: bool = True,
-) -> float:
+) -> Tuple[float, Tuple[List[float], List[float], List[float]]]:
     """Evaluate model on a dataloader."""
 
     model.eval()
@@ -117,10 +118,18 @@ def train_one_split(
     train_cfg: TrainingConfig,
     dataset_name: str = "UTA",
     verbose: bool = True,
+    checkpoint_mgr: Optional[CheckpointManager] = None,
+    outer_idx: Optional[int] = None,
+    config_idx: Optional[int] = None,
+    inner_idx: Optional[int] = None,
 ) -> Tuple[nn.Module, float]:
     """
-    Train on a single train/val split with early stopping.
-    Returns best model (loaded with best weights) and best validation loss.
+    Train on a single train/val split with:
+    - Early stopping
+    - Training-level checkpointing
+    - Time limit
+    
+    Returns best model and best validation loss.
     """
     device_str = train_cfg.device
     if device_str == "cuda" and not torch.cuda.is_available():
@@ -135,22 +144,63 @@ def train_one_split(
     optimizer, scheduler = build_optimizer(model, train_cfg)
     loss_fn = get_loss_fn(train_cfg.loss)
 
-    best_mean_val_loss = float("inf")
+    # Initialize training state
+    start_epoch = 0
+    best_val_loss = float("inf")
     best_state = deepcopy(model.state_dict())
     best_epoch = 0
-    best_val_loss = float("inf")
     epochs_without_improvement = 0
+    
+    # Track training start time for time limit
+    training_start_time = time.time()
+    time_limit_exceeded = False
 
-    for epoch in tqdm(range(train_cfg.num_epochs), desc="Epoch"):
+    # Try to resume from checkpoint
+    if checkpoint_mgr and outer_idx is not None and config_idx is not None and inner_idx is not None:
+        checkpoint = checkpoint_mgr.load_training_checkpoint(
+            outer_idx, config_idx, inner_idx
+        )
+        
+        if checkpoint:
+            start_epoch = checkpoint["epoch"] + 1
+            model.load_state_dict(checkpoint["model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            if scheduler and checkpoint["scheduler_state_dict"]:
+                scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            best_val_loss = checkpoint["best_val_loss"]
+            best_epoch = checkpoint["best_epoch"]
+            best_state = checkpoint["best_model_state_dict"]
+            epochs_without_improvement = checkpoint["epochs_without_improvement"]
+            
+            if verbose:
+                print(f"\n{'*' * 30} - {outer_idx, config_idx, inner_idx} - {'*' * 30}")
+                print(f"RESUMING from epoch {start_epoch}")
+                print(f"Best val loss so far: {best_val_loss:.4f} at epoch {best_epoch}")
+                print(f"Epochs without improvement: {epochs_without_improvement}")
+                print(f"{'*' * 60}\n")
+
+    # Training loop
+    for epoch in range(start_epoch, train_cfg.num_epochs):
+        # Check time limit
+        if train_cfg.training_time_limit is not None:
+            elapsed_time = time.time() - training_start_time
+            if elapsed_time >= train_cfg.training_time_limit:
+                if verbose:
+                    print(f"\n{'!' * 30} - {outer_idx, config_idx, inner_idx} -{'!' * 30}")
+                    print(f"TIME LIMIT EXCEEDED: {elapsed_time:.1f}s >= {train_cfg.training_time_limit:.1f}s")
+                    print(f"Stopping training and returning best model so far")
+                    print(f"{'!' * 60}\n")
+                time_limit_exceeded = True
+                break
+
         train_loader.dataset.set_training_epoch(epoch, train_cfg.num_epochs)
 
-        # Training
+        # Training phase
         model.train()
         train_loss_sum = 0.0
         train_samples = 0
 
-        for batch in tqdm(train_loader, desc="Batch"):
-            # Move batch to device
+        for batch in tqdm(train_loader, desc=f"[{outer_idx, config_idx, inner_idx}] Batch", disable=not verbose):
             batch_on_device = move_batch_to_device(batch, device)
             targets = torch.tensor(
                 [video["target"] for video in batch_on_device],
@@ -171,6 +221,7 @@ def train_one_split(
             train_loss_sum / train_samples if train_samples > 0 else float("inf")
         )
 
+        # Validation phase
         val_loss, (predicted_values, true_classes, predicted_classes) = (
             evaluate_on_loader(
                 model=model,
@@ -186,6 +237,7 @@ def train_one_split(
         if scheduler is not None:
             scheduler.step()
 
+        # Update best model
         if val_loss < best_val_loss - 1e-6:
             best_val_loss = val_loss
             best_state = deepcopy(model.state_dict())
@@ -194,6 +246,7 @@ def train_one_split(
         else:
             epochs_without_improvement += 1
 
+        # Verbose logging
         if verbose:
             cr = classification_report(
                 y_true=true_classes,
@@ -207,12 +260,22 @@ def train_one_split(
                 y_true=true_classes, y_pred=predicted_classes, all_labels=unique_classes
             )
 
+            elapsed = time.time() - training_start_time
+            time_remaining = (
+                f"{train_cfg.training_time_limit - elapsed:.1f}s"
+                if train_cfg.training_time_limit
+                else "unlimited"
+            )
+
             print(
-                "=" * 60 + "\n"
-                f"Epoch {epoch + 1}/{train_cfg.num_epochs}\n"
+                "=" * 30 + f" {outer_idx, config_idx, inner_idx} " + "=" * 30 + "\n"
+                f"Epoch {epoch + 1}/{train_cfg.num_epochs} | "
+                f"Elapsed: {elapsed:.1f}s | Remaining: {time_remaining}\n"
                 f"train loss: {train_loss:.4f}\n"
                 f"val loss: {val_loss:.4f}\n"
-                f"best val loss: {best_val_loss:.4f}\n" + "-" * 60 + "\n"
+                f"best val loss: {best_val_loss:.4f} (epoch {best_epoch})\n"
+                f"epochs w/o improvement: {epochs_without_improvement}\n"
+                + "-" * 60 + "\n"
                 "Confusion Matrix:\n"
                 f"{cm}\n" + "-" * 60 + "\n"
                 "Classification Report:\n"
@@ -221,12 +284,56 @@ def train_one_split(
                 + "=" * 60
             )
 
+        # Save checkpoint periodically (every 5 epochs or on improvement)
+        should_checkpoint = (
+            checkpoint_mgr 
+            and outer_idx is not None 
+            and config_idx is not None 
+            and inner_idx is not None
+            and (epoch % 5 == 0 or epochs_without_improvement == 0)
+        )
+        
+        if should_checkpoint:
+            checkpoint_mgr.save_training_checkpoint(
+                outer_idx=outer_idx,
+                config_idx=config_idx,
+                inner_idx=inner_idx,
+                epoch=epoch,
+                model_state=model.state_dict(),
+                optimizer_state=optimizer.state_dict(),
+                scheduler_state=scheduler.state_dict() if scheduler else None,
+                best_val_loss=best_val_loss,
+                best_epoch=best_epoch,
+                best_model_state=best_state,
+                epochs_without_improvement=epochs_without_improvement,
+            )
+
+        # Early stopping check
         if epochs_without_improvement >= train_cfg.early_stopping_patience:
-            print("Early stopping triggered.")
+            if verbose:
+                print(f"\n{'!' * 30} - {outer_idx, config_idx, inner_idx} -{'!' * 30}")
+                print("EARLY STOPPING triggered")
+                print(f"{'!' * 60}\n")
             break
 
+    # Load best model
     model.load_state_dict(best_state)
     model.best_epoch_ = best_epoch
+
+    # Clean up training checkpoint after successful completion
+    # (only if we didn't hit time limit - keep checkpoint if interrupted by time limit)
+    if (
+        checkpoint_mgr
+        and outer_idx is not None
+        and config_idx is not None
+        and inner_idx is not None
+        and not time_limit_exceeded
+    ):
+        checkpoint_mgr.clean_training_checkpoint(outer_idx, config_idx, inner_idx)
+
+    if verbose and time_limit_exceeded:
+        print(f"\nReturning best model from epoch {best_epoch} with val loss {best_val_loss:.4f}")
+
     return model, best_val_loss
 
 
@@ -395,7 +502,7 @@ def get_loss_fn(name: str):
         return nn.MSELoss()
     elif name == "smooth_l1":
         return nn.SmoothL1Loss()
-    elif name == ["l1", "mae"]:
+    elif name in ["l1", "mae"]:
         return nn.L1Loss()
     elif name == "huber":
         return nn.HuberLoss()
@@ -434,7 +541,7 @@ def get_target_from_video_id(video_id: str, dataset_name: str) -> float:
         raise ValueError(f"Unknown dataset for target extraction: {dataset_name}")
 
 
-def get_thresholds_unique_value_from_dataset_name(dataset_name: str) -> float:
+def get_thresholds_unique_value_from_dataset_name(dataset_name: str):
     if dataset_name == "UTA":
         thresholds = [2.5, 7.5]
         unique_classes = [0.0, 5.0, 10]
