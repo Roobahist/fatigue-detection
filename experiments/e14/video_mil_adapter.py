@@ -321,7 +321,7 @@ class VideoMILAdapter:
         model_cfg = update_config_with_hparams(
             self.base_model_cfg, hparams, params_prefix="model"
         )
-        return MultiPathMILRegressor(model_cfg)
+        return MultiPathMILRegressor(model_cfg, self.data_cfg)
 
     def train_fn(
         self,
