@@ -198,11 +198,17 @@ class RealVideoDataset(Dataset):
         # ---- 4) Load scalar target label for this video_id ----
         # Placeholder; you will replace this with your real label loader.
         # target = load_fatigue_label(video_id)
-        target = get_target_from_video_id(video_id, dataset_name=self.dataset_name)
+        raw_target = get_target_from_video_id(video_id, self.dataset_name)
+
+        if self.data_cfg.task_type == "classification":
+            # Convert to class index (0, 1, 2, ...)
+            target = self.data_cfg.class_labels.index(raw_target)
+        else:  # regression
+            target = float(raw_target)
 
         return {
             "embeddings": embeddings_list,
             "blendshapes": blend_list,
             "others": other_list,
-            "target": float(target),
+            "target": target,
         }
