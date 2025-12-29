@@ -8,15 +8,30 @@ from Zh.src.utils.file_folder import *
 
 
 def main():
-    # Reproducibility
     import argparse
 
     def build_parser():
         parser = argparse.ArgumentParser()
 
+        # Dataset and task configuration
         parser.add_argument(
             "--dataset_name", type=str, default="DROZY", choices=["UTA", "DROZY"]
         )
+        parser.add_argument(
+            "--task_type",
+            type=str,
+            default="regression",
+            choices=["regression", "classification"],
+            help="Task type: regression for continuous values, classification for discrete classes",
+        )
+        parser.add_argument(
+            "--num_classes",
+            type=int,
+            default=None,
+            help="Number of classes (required for classification, auto-set if not provided)",
+        )
+
+        # General settings
         parser.add_argument(
             "--seed", type=int, default=42, help="Random seed for reproducibility"
         )
@@ -55,6 +70,7 @@ def main():
             default=None,
             help="Output directory for results. If not specified, creates timestamped directory",
         )
+        
         # ---------------------------
         # TemporalConfig
         # ---------------------------
@@ -133,7 +149,11 @@ def main():
         parser.add_argument("--train.lr", type=float, default=1e-3)
         parser.add_argument("--train.weight_decay", type=float, default=1e-4)
         parser.add_argument(
-            "--train.loss", type=str, default="mse", choices=["mse", "mae", "huber"]
+            "--train.loss",
+            type=str,
+            default="mse",
+            help="Loss function. Regression: mse, smooth_l1, mae, huber. "
+            "Classification: cross_entropy, emd, combined_emd_ce, weighted_emd",
         )
         parser.add_argument("--train.early_stopping_patience", type=int, default=40)
         parser.add_argument(
@@ -255,7 +275,7 @@ def main():
             step_lr_gamma=vars(args)["train.step_lr_gamma"],
             momentum=vars(args)["train.momentum"],
             betas=tuple(vars(args)["train.betas"]),
-            training_time_limit=vars(args)["train.training_time_limit"]
+            training_time_limit=vars(args)["train.training_time_limit"],
         )
 
         # ---------- SelectionConfig ----------
@@ -280,36 +300,70 @@ def main():
             inner_folds=vars(args)["cv.inner_folds"],
         )
 
-        # ---------- DataConfig ----------
-        if vars(args)["dataset_name"] == "UTA":
+        # ---------- DataConfig (SINGLE SOURCE OF TRUTH for task) ----------
+        dataset_name = vars(args)["dataset_name"]
+        task_type = vars(args)["task_type"]
+        num_classes = vars(args)["num_classes"]
+
+        # Auto-configure based on dataset if num_classes not provided
+        if task_type == "classification" and num_classes is None:
+            if dataset_name == "UTA":
+                num_classes = 3
+                class_labels = [0.0, 5.0, 10.0]
+                thresholds = None
+            elif dataset_name == "DROZY":
+                num_classes = 9
+                class_labels = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                thresholds = None
+        elif task_type == "regression":
+            if dataset_name == "UTA":
+                class_labels = [0.0, 5.0, 10.0]
+                thresholds = [2.5, 7.5]  # For binning metrics
+            elif dataset_name == "DROZY":
+                class_labels = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                thresholds = [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+        else:
+            # Classification with custom num_classes
+            class_labels = None
+            thresholds = None
+
+        if dataset_name == "UTA":
             data_cfg = DataConfig(
                 dataset_name="UTA",
                 embeddings_dir="/work/long_lab/Mojtaba/data/UTA/3.1-embedding/dinov2-base/cls/ROI0",
                 features_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/features",
                 eventfulness_scores_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
                 normalization_info_path="/work/long_lab/Mojtaba/data/UTA/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
+                task_type=task_type,
+                num_classes=num_classes,
+                class_labels=class_labels,
+                thresholds=thresholds,
             )
-        elif vars(args)["dataset_name"] == "DROZY":
+        elif dataset_name == "DROZY":
             data_cfg = DataConfig(
                 dataset_name="DROZY",
                 embeddings_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.1-embedding/dinov2-base/cls/ROI0",
                 features_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/features",
                 eventfulness_scores_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
                 normalization_info_path="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
+                task_type=task_type,
+                num_classes=num_classes,
+                class_labels=class_labels,
+                thresholds=thresholds,
             )
 
         data_cfg.field_normalization = {
             "embeddings": {
-                "modality": "embeddings_ROI0",  # or ROI1/ROI2/ROI3, depending on which you use
-                "indices": None,  # use full vector
+                "modality": "embeddings_ROI0",
+                "indices": None,
             },
             "blendshapes": {
-                "modality": "features",  # features modality contains several kinds
-                "indices": list(range(7, 59)),  # first 52 dims are blendshapes
+                "modality": "features",
+                "indices": list(range(7, 59)),
             },
             "others": {
                 "modality": "features",
-                "indices": [1, 2, 3, 4],  # example: pick only some feature dims
+                "indices": [1, 2, 3, 4],
             },
         }
 
@@ -337,24 +391,36 @@ def main():
 
     # Determine output directory
     if vars(args).get("resume") and vars(args).get("resume_dir"):
-        # Resuming from specific directory
         output_dir = vars(args)["resume_dir"]
         resume = True
         print(f"\n{'='*80}")
         print(f"RESUMING FROM: {output_dir}")
         print(f"{'='*80}\n")
     elif vars(args).get("output_dir"):
-        # Using specified output directory
         output_dir = vars(args)["output_dir"]
         resume = vars(args).get("resume", False)
     else:
-        # Create new timestamped directory
-        output_dir = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E13"
+        task_suffix = "cls" if data_cfg.task_type == "classification" else "reg"
+        output_dir = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E14|{task_suffix}"
         resume = False
 
     create_folders(output_dir)
     save_obj(vars(args), os.path.join(output_dir, "args.json"), "json")
     save_obj(search_space, os.path.join(output_dir, "search_space.json"), "json")
+
+    # Print configuration summary
+    print(
+        f"\n{'='*80}\n"
+        f"CONFIGURATION SUMMARY\n"
+        f"{'='*80}\n"
+        f"  Dataset: {data_cfg.dataset_name}\n"
+        f"  Task Type: {data_cfg.task_type}\n"
+        f"  Num Classes: {data_cfg.num_classes}\n"
+        f"  Class Labels: {data_cfg.class_labels}\n"
+        f"  Loss Function: {train_cfg.loss}\n"
+        f"  Output Dir: {output_dir}\n"
+        f"{'='*80}\n"
+    )
 
     results = nested_cv_video_mil(
         video_ids=video_ids,
