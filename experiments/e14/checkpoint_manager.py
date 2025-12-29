@@ -1,8 +1,9 @@
 import json
 import logging
 import os
-import pickle
 from typing import Any, Dict, List, Optional
+
+import torch
 
 from Zh.src.utils.common import load_obj, save_obj
 from Zh.src.utils.file_folder import create_folders
@@ -10,25 +11,31 @@ from Zh.src.utils.file_folder import create_folders
 
 class CheckpointManager:
     """
-    Checkpoint manager with inner-fold-level resume support.
+    Enhanced checkpoint manager with training-level resume support.
 
     Directory layout:
 
         output_dir/
-            nested_cv_checkpoint.json          # main run-level checkpoint
+            nested_cv_checkpoint.json           # main run-level checkpoint
 
             checkpoints/
                 outer_fold_0/
-                    checkpoint.json            # metadata for this outer fold
-                    best_hparams.json          # best hyperparameters
+                    checkpoint.json             # metadata for this outer fold
+                    best_hparams.json           # best hyperparameters
                     inner_results.json          # all InnerFoldResult for this fold
                     config_results.json         # list of config-level results dicts
                     search_state.json           # Bayesian optimization state
                     partial_configs/
                         config_0/
-                            config.json        # hyperparameter config
-                            inner_results.json # completed inner folds for this config
-                            metadata.json     # num_inner_folds_completed, etc.
+                            config.json         # hyperparameter config
+                            inner_results.json  # hyperparameter config
+                            metadata.json       # num_inner_folds_completed, etc.
+                            training_checkpoints/  # NEW
+                                inner_fold_0/
+                                    checkpoint.pt
+                                    metadata.json
+                                inner_fold_1/
+                                    ...
                         config_1/
                             ...
                 outer_fold_1/
@@ -65,6 +72,112 @@ class CheckpointManager:
         partial_dir = self._partial_config_dir_path(outer_idx, config_idx)
         os.makedirs(partial_dir, exist_ok=True)
         return partial_dir
+
+    # -------------------------------------------------------------------------
+    # NEW: Training-level checkpointing
+    # -------------------------------------------------------------------------
+
+    def _training_checkpoint_dir_path(
+        self, outer_idx: int, config_idx: int, inner_idx: int
+    ) -> str:
+        partial_dir = self._partial_config_dir_path(outer_idx, config_idx)
+        return os.path.join(
+            partial_dir, "training_checkpoints", f"inner_fold_{inner_idx}"
+        )
+
+    def get_training_checkpoint_dir(
+        self, outer_idx: int, config_idx: int, inner_idx: int
+    ) -> str:
+        """Get directory for training checkpoints within an inner fold."""
+        train_dir = self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx)
+        os.makedirs(train_dir, exist_ok=True)
+        return train_dir
+
+    def save_training_checkpoint(
+        self,
+        outer_idx: int,
+        config_idx: int,
+        inner_idx: int,
+        epoch: int,
+        model_state: Dict[str, Any],
+        optimizer_state: Dict[str, Any],
+        scheduler_state: Optional[Dict[str, Any]],
+        best_val_loss: float,
+        best_epoch: int,
+        best_model_state: Dict[str, Any],
+        epochs_without_improvement: int,
+    ) -> None:
+        """
+        Save training state during train_one_split.
+        
+        This allows resuming training from a specific epoch if interrupted.
+        """
+        train_dir = self.get_training_checkpoint_dir(outer_idx, config_idx, inner_idx)
+        
+        checkpoint = {
+            "epoch": epoch,
+            "model_state_dict": model_state,
+            "optimizer_state_dict": optimizer_state,
+            "scheduler_state_dict": scheduler_state,
+            "best_val_loss": best_val_loss,
+            "best_epoch": best_epoch,
+            "best_model_state_dict": best_model_state,
+            "epochs_without_improvement": epochs_without_improvement,
+        }
+        
+        checkpoint_path = os.path.join(train_dir, "checkpoint.pt")
+        torch.save(checkpoint, checkpoint_path)
+        
+        # Save metadata separately for quick access
+        metadata = {
+            "outer_idx": outer_idx,
+            "config_idx": config_idx,
+            "inner_idx": inner_idx,
+            "epoch": epoch,
+            "best_val_loss": best_val_loss,
+            "best_epoch": best_epoch,
+            "epochs_without_improvement": epochs_without_improvement,
+        }
+        save_obj(
+            obj=metadata,
+            output_path=os.path.join(train_dir, "metadata.json"),
+            file_type="json",
+            atomic=True,
+        )
+
+    def load_training_checkpoint(
+        self, outer_idx: int, config_idx: int, inner_idx: int
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Load training checkpoint if it exists.
+        
+        Returns:
+            dict with training state or None if no checkpoint exists
+        """
+        train_dir = self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx)
+        checkpoint_path = os.path.join(train_dir, "checkpoint.pt")
+        
+        if not os.path.exists(checkpoint_path):
+            return None
+        
+        try:
+            checkpoint = torch.load(checkpoint_path)
+            return checkpoint
+        except Exception as e:
+            logging.error(
+                "Error loading training checkpoint at %s: %s", checkpoint_path, e
+            )
+            return None
+
+    def clean_training_checkpoint(
+        self, outer_idx: int, config_idx: int, inner_idx: int
+    ) -> None:
+        """Remove training checkpoint after inner fold completes successfully."""
+        import shutil
+        
+        train_dir = self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx)
+        if os.path.exists(train_dir):
+            shutil.rmtree(train_dir)
 
     # -------------------------------------------------------------------------
     # Partial config (inner-CV) checkpointing
