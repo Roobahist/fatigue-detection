@@ -283,8 +283,12 @@ class VideoMILAdapter:
         train_ids: List[str],
         val_ids: List[str],
         hparams: Dict[str, Any],
+        checkpoint_mgr: Optional[CheckpointManager] = None,
+        outer_idx: Optional[int] = None,
+        config_idx: Optional[int] = None,
+        inner_idx: Optional[int] = None,
     ) -> Tuple[nn.Module, float, int]:
-        """Train model with early stopping."""
+        """Train model with early stopping and training-level checkpointing."""
         train_loader = self.create_dataloader(
             video_ids=train_ids,
             mode="train",
@@ -299,8 +303,17 @@ class VideoMILAdapter:
             self.base_train_cfg, hparams, params_prefix="train"
         )
 
+        # Pass checkpoint parameters to train_one_split
         model, best_val_loss = train_one_split(
-            model, train_loader, val_loader, train_cfg, self.data_cfg.dataset_name
+            model,
+            train_loader,
+            val_loader,
+            train_cfg,
+            self.data_cfg.dataset_name,
+            checkpoint_mgr=checkpoint_mgr,
+            outer_idx=outer_idx,
+            config_idx=config_idx,
+            inner_idx=inner_idx,
         )
 
         # Extract best epoch if stored, otherwise estimate from patience
