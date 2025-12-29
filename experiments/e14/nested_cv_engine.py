@@ -8,29 +8,34 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-# Import the checkpoint manager
 from Zh.experiments.e14.checkpoint_manager import CheckpointManager
 from Zh.experiments.e14.dataclasses import (
     CrossValidationConfig,
     InnerFoldResult,
     OuterFoldResult,
 )
-from Zh.experiments.e14.helpers import *  # if you need helpers like split functions etc.
+from Zh.experiments.e14.helpers import *
 from Zh.src.utils.common import NumpyEncoder, save_obj
 from Zh.src.utils.file_folder import create_folders
 from Zh.src.utils.serialized_parallel import process
 
 try:
     import optuna
-
     OPTUNA_AVAILABLE = True
 except ImportError:
     OPTUNA_AVAILABLE = False
 
 
-# ============================================================================
-# Hyperparameter Search
-# ============================================================================
+def _format_location(outer_idx=None, config_idx=None, inner_idx=None):
+    """Format location string for logging."""
+    parts = []
+    if outer_idx is not None:
+        parts.append(f"Outer={outer_idx}")
+    if config_idx is not None:
+        parts.append(f"Config={config_idx}")
+    if inner_idx is not None:
+        parts.append(f"Inner={inner_idx}")
+    return f"[{', '.join(parts)}]" if parts else ""
 
 
 def _default_save_model(model: nn.Module, path: str) -> None:
@@ -193,9 +198,15 @@ class NestedCVEngine:
         self.parallel_inner_cv = parallel_inner_cv
         self.max_workers = max_workers or 0
 
-        print(f"NestedCVEngine initialized on device: {self.device}")
-        if parallel_inner_cv:
-            print(f"Parallel inner CV enabled with max_workers={self.max_workers}")
+        print(
+            f"\n{'=' * 80}\n"
+            f"NESTED CV ENGINE INITIALIZED\n"
+            f"{'=' * 80}\n"
+            f"  Device: {self.device}\n"
+            f"  Parallel Inner CV: {parallel_inner_cv}\n"
+            f"  Max Workers: {self.max_workers if parallel_inner_cv else 'N/A'}\n"
+            f"{'=' * 80}\n"
+        )
 
     def run(
         self,
@@ -238,11 +249,15 @@ class NestedCVEngine:
                 start_fold = len(completed_folds)
 
                 if verbose:
-                    print(f"\n{'=' * 80}")
-                    print("RESUMING FROM CHECKPOINT")
-                    print(f"Completed folds: {completed_folds}")
-                    print(f"Starting from fold: {start_fold}")
-                    print(f"{'=' * 80}\n")
+                    print(
+                        f"\n{'=' * 80}\n"
+                        f"RESUMING NESTED CV FROM CHECKPOINT\n"
+                        f"{'=' * 80}\n"
+                        f"  Completed folds: {completed_folds}\n"
+                        f"  Starting from fold: {start_fold}\n"
+                        f"  Output directory: {output_dir}\n"
+                        f"{'=' * 80}\n"
+                    )
 
         outer_folds = cv_cfg.outer_folds
         inner_folds = cv_cfg.inner_folds
@@ -271,26 +286,27 @@ class NestedCVEngine:
 
                 if verbose:
                     print(
-                        f"Loaded completed fold {fold_idx}: "
+                        f"  [Outer={fold_idx}] Loaded completed fold: "
                         f"test_metric={outer_result.outer_test_metric:.4f}"
                     )
             else:
                 if verbose:
                     print(
-                        f"Skipping fold {fold_idx} (checkpoint incomplete or missing)"
+                        f"  [Outer={fold_idx}] Skipping (checkpoint incomplete/missing)"
                     )
 
         completed_folds = valid_completed
         start_fold = len(completed_folds)
 
-        # Outer loop - start from where we left off
+        # Outer loop
         for outer_idx in range(start_fold, outer_folds):
             if verbose:
-                print(f"\n{'=' * 80}")
-                print(f"OUTER FOLD {outer_idx + 1}/{outer_folds}")
-                print(f"{'=' * 80}")
+                print(
+                    f"\n{'#' * 80}\n"
+                    f"# OUTER FOLD {outer_idx + 1}/{outer_folds}\n"
+                    f"{'#' * 80}\n"
+                )
 
-            # Update main checkpoint to indicate current fold
             checkpoint_mgr.save_main_checkpoint(
                 completed_folds=completed_folds,
                 total_folds=outer_folds,
@@ -302,7 +318,13 @@ class NestedCVEngine:
                 data_ids, outer_folds, outer_idx
             )
 
-            # Check if we have a partial checkpoint for this fold
+            if verbose:
+                print(
+                    f"  Data Split:\n"
+                    f"    Training samples: {len(outer_train_ids)}\n"
+                    f"    Test samples: {len(outer_test_ids)}\n"
+                )
+
             fold_checkpoint = checkpoint_mgr.load_outer_fold_checkpoint(outer_idx)
 
             # Hyperparameter search (with resume support)
@@ -319,11 +341,15 @@ class NestedCVEngine:
 
             if verbose:
                 print(
-                    f"\nBest hyperparameters: {json.dumps(best_hparams, indent=2, cls=NumpyEncoder)}"
+                    f"\n{'-' * 80}\n"
+                    f"HYPERPARAMETER SEARCH COMPLETE [Outer={outer_idx}]\n"
+                    f"{'-' * 80}\n"
+                    f"  Best hyperparameters:\n"
+                    f"  {json.dumps(best_hparams, indent=4, cls=NumpyEncoder)}\n"
+                    f"  Chosen epochs: {chosen_epochs}\n"
+                    f"{'-' * 80}\n"
                 )
-                print(f"Chosen epochs: {chosen_epochs}")
 
-            # Save checkpoint after hyperparameter search
             checkpoint_mgr.save_outer_fold_checkpoint(
                 outer_idx=outer_idx,
                 best_hparams=best_hparams,
@@ -331,10 +357,14 @@ class NestedCVEngine:
                 inner_results=inner_results,
             )
 
-            # Retrain on full outer train
             if verbose:
                 print(
-                    f"\nRetraining on full outer training set for {chosen_epochs} epochs..."
+                    f"\n{'-' * 80}\n"
+                    f"RETRAINING ON FULL OUTER TRAIN [Outer={outer_idx}]\n"
+                    f"{'-' * 80}\n"
+                    f"  Training samples: {len(outer_train_ids)}\n"
+                    f"  Epochs: {chosen_epochs}\n"
+                    f"{'-' * 80}\n"
                 )
 
             final_model = self._retrain_on_full_outer_train(
@@ -356,11 +386,16 @@ class NestedCVEngine:
             self.save_model_fn(final_model, model_path)
 
             if verbose:
-                print(f"Final outer train metric: {outer_train_metric:.4f}")
-                print(f"Final outer test metric: {outer_test_metric:.4f}")
-                print(f"Model saved to: {model_path}")
+                print(
+                    f"\n{'-' * 80}\n"
+                    f"OUTER FOLD {outer_idx + 1}/{outer_folds} COMPLETE\n"
+                    f"{'-' * 80}\n"
+                    f"  Final train metric: {outer_train_metric:.4f}\n"
+                    f"  Final test metric: {outer_test_metric:.4f}\n"
+                    f"  Model saved: {model_path}\n"
+                    f"{'-' * 80}\n"
+                )
 
-            # Save complete checkpoint with final metrics
             checkpoint_mgr.save_outer_fold_checkpoint(
                 outer_idx=outer_idx,
                 best_hparams=best_hparams,
@@ -399,18 +434,16 @@ class NestedCVEngine:
         save_obj(final_results, results_path, file_type="json")
 
         if verbose:
-            print(f"\n{'=' * 80}")
-            print("NESTED CV COMPLETE")
-            print(f"{'=' * 80}")
             print(
-                f"Mean outer test metric: "
-                f"{final_results['mean_outer_test_metric']:.4f}"
+                f"\n{'#' * 80}\n"
+                f"# NESTED CV COMPLETE\n"
+                f"{'#' * 80}\n"
+                f"  Mean outer test metric: {final_results['mean_outer_test_metric']:.4f}\n"
+                f"  Std outer test metric: {final_results['std_outer_test_metric']:.4f}\n"
+                f"  All test metrics: {[f'{m:.4f}' for m in final_results['all_outer_test_metrics']]}\n"
+                f"  Results saved: {results_path}\n"
+                f"{'#' * 80}\n"
             )
-            print(
-                f"Std outer test metric: "
-                f"{final_results['std_outer_test_metric']:.4f}"
-            )
-            print(f"Results saved to: {results_path}")
 
         return final_results
 
@@ -501,18 +534,16 @@ class NestedCVEngine:
 
             if verbose:
                 print(
-                    "Resuming hyperparameter search: "
-                    f"{len(completed_configs)}/{len(configs)} configs completed"
+                    f"  [Outer={outer_idx}] Resuming hyperparameter search: "
+                    f"{len(completed_configs)}/{len(configs)} configs completed\n"
                 )
 
         if verbose:
-            print(f"\nEvaluating {len(configs)} hyperparameter configurations...")
-            if self.parallel_inner_cv:
-                print("Running inner CV in parallel mode...")
-            else:
-                print("Running inner CV in serial mode...")
+            mode = "parallel" if self.parallel_inner_cv else "serial"
+            print(
+                f"  [Outer={outer_idx}] Evaluating {len(configs)} configurations ({mode} mode)\n"
+            )
 
-        # Prepare worker parameters only for incomplete configs
         worker_params_list = [
             {
                 "outer_train_ids": outer_train_ids,
@@ -570,8 +601,8 @@ class NestedCVEngine:
 
         if verbose:
             print(
-                f"\nBest config: {configs.index(best_hparams) + 1}/{len(configs)} "
-                f"(mean val metric = {best_mean_val_metric:.4f})"
+                f"\n  [Outer={outer_idx}] Best config: {configs.index(best_hparams) + 1}/{len(configs)}\n"
+                f"  Mean val metric: {best_mean_val_metric:.4f}\n"
             )
 
         return best_hparams, best_mean_epoch, all_inner_results
@@ -586,12 +617,9 @@ class NestedCVEngine:
         checkpoint_mgr: Optional[CheckpointManager] = None,
         outer_idx: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """
-        Worker function to evaluate a single config WITH inner-fold checkpointing.
-
-        This is run in a separate process when using parallel mode.
-        """
-        # Check for partial progress for this config
+        """Worker function to evaluate a single config WITH inner-fold checkpointing."""
+        loc = _format_location(outer_idx, config_idx)
+        
         completed_inner_results: List[InnerFoldResult] = []
         start_inner_fold = 0
 
@@ -604,11 +632,13 @@ class NestedCVEngine:
                 ]
                 start_inner_fold = len(completed_inner_results)
                 print(
-                    f"  [Config {config_idx}] Resuming from inner fold "
-                    f"{start_inner_fold}/{inner_folds}"
+                    f"\n{'-' * 80}\n"
+                    f"CONFIG RESUME {loc}\n"
+                    f"{'-' * 80}\n"
+                    f"  Resuming from inner fold: {start_inner_fold}/{inner_folds}\n"
+                    f"{'-' * 80}\n"
                 )
 
-        # Run inner CV starting from where we left off
         inner_results = self._run_inner_cv_with_checkpointing(
             outer_train_ids=outer_train_ids,
             outer_test_ids=outer_test_ids,
@@ -621,9 +651,18 @@ class NestedCVEngine:
             config_idx=config_idx,
             verbose=True,
         )
-        # Calculate metrics
+        
         mean_val_metric = np.mean([r.inner_val_metric for r in inner_results])
         mean_epoch = int(np.round(np.mean([r.best_epoch for r in inner_results])))
+
+        print(
+            f"\n{'-' * 80}\n"
+            f"CONFIG COMPLETE {loc}\n"
+            f"{'-' * 80}\n"
+            f"  Mean val metric: {mean_val_metric:.4f}\n"
+            f"  Mean best epoch: {mean_epoch}\n"
+            f"{'-' * 80}\n"
+        )
 
         return {
             "config_idx": config_idx,
@@ -649,13 +688,16 @@ class NestedCVEngine:
         Resume is at the trial level (via Optuna + search_state), not at inner-fold level.
         """
         if self.parallel_inner_cv:
-            print("Warning: Parallel inner CV not supported for Bayesian search.")
+            print(
+                f"\n{'!' * 80}\n"
+                f"WARNING: Parallel inner CV not supported for Bayesian search\n"
+                f"{'!' * 80}\n"
+            )
 
         all_inner_results: List[InnerFoldResult] = []
         best_hparams_per_trial: Dict[int, Tuple[Dict[str, Any], int]] = {}
         completed_trials = 0
 
-        # Check if we can resume Bayesian search state
         if fold_checkpoint and "search_state" in fold_checkpoint:
             state = fold_checkpoint["search_state"]
             all_inner_results = state.get("inner_results", [])
@@ -664,12 +706,11 @@ class NestedCVEngine:
 
             if verbose:
                 print(
-                    "Resuming Bayesian search: "
-                    f"{completed_trials}/{searcher.n_trials} trials completed"
+                    f"  [Outer={outer_idx}] Resuming Bayesian search: "
+                    f"{completed_trials}/{searcher.n_trials} trials completed\n"
                 )
 
         def objective(trial):
-            # Generate hyperparameters
             if callable(searcher.search_space):
                 hparams = searcher.search_space(trial)
             else:
@@ -679,10 +720,15 @@ class NestedCVEngine:
                 }
 
             if verbose:
-                print(f"\n--- Trial {trial.number} ---")
-                print(json.dumps(hparams, indent=2, cls=NumpyEncoder))
+                print(
+                    f"\n{'-' * 80}\n"
+                    f"BAYESIAN TRIAL {trial.number} [Outer={outer_idx}]\n"
+                    f"{'-' * 80}\n"
+                    f"  Hyperparameters:\n"
+                    f"  {json.dumps(hparams, indent=4, cls=NumpyEncoder)}\n"
+                    f"{'-' * 80}\n"
+                )
 
-            # Run inner CV
             inner_results = self._run_inner_cv(
                 outer_train_ids,
                 outer_test_ids,
@@ -764,12 +810,15 @@ class NestedCVEngine:
         )
 
         for inner_idx in range(start_fold, inner_folds):
+            loc = _format_location(outer_idx, config_idx, inner_idx)
+            
             if verbose:
-                print(f"\n{'=-' * 40}")
-                print(f"Inner fold {inner_idx + 1}/{inner_folds}")
-                print(f"{'=-' * 40}")
+                print(
+                    f"\n{'=' * 80}\n"
+                    f"INNER FOLD {inner_idx + 1}/{inner_folds} {loc}\n"
+                    f"{'=' * 80}\n"
+                )
 
-            # Split outer_train into inner_train and inner_val
             inner_train_ids, inner_val_ids = self.split_fn(
                 outer_train_ids, inner_folds, inner_idx
             )
@@ -801,14 +850,6 @@ class NestedCVEngine:
                     model, inner_train_ids, inner_val_ids, hparams
                 )
 
-            if verbose:
-                print(
-                    f"| Best Val Metric: {best_val_metric:.4f} "
-                    f"at Epoch: {best_epoch}",
-                    end=" ",
-                )
-
-            # Evaluate on all sets
             train_metric = self.evaluate_fn(
                 model, inner_train_ids, hparams, inner_train_ids
             )
@@ -821,9 +862,14 @@ class NestedCVEngine:
 
             if verbose:
                 print(
-                    f"| Train: {train_metric:.4f}, "
-                    f"Val: {val_metric:.4f}, "
-                    f"Outer Test: {outer_test_metric:.4f}"
+                    f"{'-' * 80}\n"
+                    f"INNER FOLD RESULTS {loc}\n"
+                    f"{'-' * 80}\n"
+                    f"  Best epoch: {best_epoch}\n"
+                    f"  Train metric: {train_metric:.4f}\n"
+                    f"  Val metric: {val_metric:.4f}\n"
+                    f"  Outer test metric: {outer_test_metric:.4f}\n"
+                    f"{'-' * 80}\n"
                 )
 
             result = InnerFoldResult(
@@ -860,16 +906,16 @@ class NestedCVEngine:
 
         for inner_idx in range(inner_folds):
             if verbose:
-                print(f"\n{'=-' * 40}")
-                print(f"Inner fold {inner_idx + 1}/{inner_folds}")
-                print(f"{'=-' * 40}")
+                print(
+                    f"\n{'=' * 80}\n"
+                    f"INNER FOLD {inner_idx + 1}/{inner_folds}\n"
+                    f"{'=' * 80}\n"
+                )
 
-            # Split outer_train into inner_train and inner_val
             inner_train_ids, inner_val_ids = self.split_fn(
                 outer_train_ids, inner_folds, inner_idx
             )
 
-            # Create and train model
             model = self.model_builder(hparams)
             model = model.to(self.device)
 
@@ -877,14 +923,6 @@ class NestedCVEngine:
                 model, inner_train_ids, inner_val_ids, hparams
             )
 
-            if verbose:
-                print(
-                    f"| Best Val Metric: {best_val_metric:.4f} "
-                    f"at Epoch: {best_epoch}",
-                    end=" ",
-                )
-
-            # Evaluate on all sets
             train_metric = self.evaluate_fn(
                 model, inner_train_ids, hparams, inner_train_ids
             )
@@ -897,9 +935,14 @@ class NestedCVEngine:
 
             if verbose:
                 print(
-                    f"| Train: {train_metric:.4f}, "
-                    f"Val: {val_metric:.4f}, "
-                    f"Outer Test: {outer_test_metric:.4f}"
+                    f"{'-' * 80}\n"
+                    f"INNER FOLD RESULTS\n"
+                    f"{'-' * 80}\n"
+                    f"  Best epoch: {best_epoch}\n"
+                    f"  Train metric: {train_metric:.4f}\n"
+                    f"  Val metric: {val_metric:.4f}\n"
+                    f"  Outer test metric: {outer_test_metric:.4f}\n"
+                    f"{'-' * 80}\n"
                 )
 
             result = InnerFoldResult(

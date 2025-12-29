@@ -17,6 +17,18 @@ from Zh.experiments.e14.dataclasses import *
 from Zh.experiments.e14.datasets import *
 
 
+def _format_location(outer_idx=None, config_idx=None, inner_idx=None):
+    """Format location string for logging."""
+    parts = []
+    if outer_idx is not None:
+        parts.append(f"Outer={outer_idx}")
+    if config_idx is not None:
+        parts.append(f"Config={config_idx}")
+    if inner_idx is not None:
+        parts.append(f"Inner={inner_idx}")
+    return f"[{', '.join(parts)}]" if parts else ""
+
+
 def evaluate_on_loader(
     model: nn.Module,
     loader: DataLoader,
@@ -75,12 +87,13 @@ def evaluate_on_loader(
         )
 
         print(
-            "+" * 60 + "\n"
-            f"Mean Loss: {mean_loss}\n"
+            "\n" + "=" * 80 + "\n"
+            f"EVALUATION RESULTS\n"
+            f"Mean Loss: {mean_loss:.4f}\n" + "-" * 80 + "\n"
             "Confusion Matrix:\n"
-            f"{cm}\n"
+            f"{cm}\n" + "-" * 80 + "\n"
             "Classification Report:\n"
-            f"{json.dumps(cr, cls=NumpyEncoder, indent=4)}\n"
+            f"{json.dumps(cr, cls=NumpyEncoder, indent=4)}\n" + "=" * 80
         )
 
     return mean_loss, (predicted_values, true_classes, predicted_classes)
@@ -128,9 +141,11 @@ def train_one_split(
     - Early stopping
     - Training-level checkpointing
     - Time limit
-    
+
     Returns best model and best validation loss.
     """
+    loc = _format_location(outer_idx, config_idx, inner_idx)
+
     device_str = train_cfg.device
     if device_str == "cuda" and not torch.cuda.is_available():
         device_str = "cpu"
@@ -150,17 +165,22 @@ def train_one_split(
     best_state = deepcopy(model.state_dict())
     best_epoch = 0
     epochs_without_improvement = 0
-    
+
     # Track training start time for time limit
     training_start_time = time.time()
     time_limit_exceeded = False
 
     # Try to resume from checkpoint
-    if checkpoint_mgr and outer_idx is not None and config_idx is not None and inner_idx is not None:
+    if (
+        checkpoint_mgr
+        and outer_idx is not None
+        and config_idx is not None
+        and inner_idx is not None
+    ):
         checkpoint = checkpoint_mgr.load_training_checkpoint(
             outer_idx, config_idx, inner_idx
         )
-        
+
         if checkpoint:
             start_epoch = checkpoint["epoch"] + 1
             model.load_state_dict(checkpoint["model_state_dict"])
@@ -171,13 +191,17 @@ def train_one_split(
             best_epoch = checkpoint["best_epoch"]
             best_state = checkpoint["best_model_state_dict"]
             epochs_without_improvement = checkpoint["epochs_without_improvement"]
-            
+
             if verbose:
-                print(f"\n{'*' * 30} - {outer_idx, config_idx, inner_idx} - {'*' * 30}")
-                print(f"RESUMING from epoch {start_epoch}")
-                print(f"Best val loss so far: {best_val_loss:.4f} at epoch {best_epoch}")
-                print(f"Epochs without improvement: {epochs_without_improvement}")
-                print(f"{'*' * 60}\n")
+                print(
+                    f"\n{'=' * 80}\n"
+                    f"TRAINING RESUME {loc}\n"
+                    f"{'=' * 80}\n"
+                    f"  Resuming from epoch: {start_epoch}\n"
+                    f"  Best val loss so far: {best_val_loss:.4f} (epoch {best_epoch})\n"
+                    f"  Epochs without improvement: {epochs_without_improvement}\n"
+                    f"{'=' * 80}\n"
+                )
 
     # Training loop
     for epoch in range(start_epoch, train_cfg.num_epochs):
@@ -186,10 +210,14 @@ def train_one_split(
             elapsed_time = time.time() - training_start_time
             if elapsed_time >= train_cfg.training_time_limit:
                 if verbose:
-                    print(f"\n{'!' * 30} - {outer_idx, config_idx, inner_idx} -{'!' * 30}")
-                    print(f"TIME LIMIT EXCEEDED: {elapsed_time:.1f}s >= {train_cfg.training_time_limit:.1f}s")
-                    print(f"Stopping training and returning best model so far")
-                    print(f"{'!' * 60}\n")
+                    print(
+                        f"\n{'!' * 80}\n"
+                        f"TIME LIMIT EXCEEDED {loc}\n"
+                        f"{'!' * 80}\n"
+                        f"  Elapsed: {elapsed_time:.1f}s >= Limit: {train_cfg.training_time_limit:.1f}s\n"
+                        f"  Stopping training and returning best model\n"
+                        f"{'!' * 80}\n"
+                    )
                 time_limit_exceeded = True
                 break
 
@@ -200,7 +228,14 @@ def train_one_split(
         train_loss_sum = 0.0
         train_samples = 0
 
-        for batch in tqdm(train_loader, desc=f"[{outer_idx, config_idx, inner_idx}] Batch", disable=not verbose):
+        progress_bar = tqdm(
+            train_loader,
+            desc=f"{loc} Epoch {epoch+1}/{train_cfg.num_epochs}",
+            disable=not verbose,
+            leave=False,
+        )
+
+        for batch in progress_bar:
             batch_on_device = move_batch_to_device(batch, device)
             targets = torch.tensor(
                 [video["target"] for video in batch_on_device],
@@ -216,6 +251,8 @@ def train_one_split(
             batch_size = len(batch_on_device)
             train_loss_sum += loss.item() * batch_size
             train_samples += batch_size
+
+            progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
 
         train_loss = (
             train_loss_sum / train_samples if train_samples > 0 else float("inf")
@@ -268,31 +305,32 @@ def train_one_split(
             )
 
             print(
-                "=" * 30 + f" {outer_idx, config_idx, inner_idx} " + "=" * 30 + "\n"
-                f"Epoch {epoch + 1}/{train_cfg.num_epochs} | "
-                f"Elapsed: {elapsed:.1f}s | Remaining: {time_remaining}\n"
-                f"train loss: {train_loss:.4f}\n"
-                f"val loss: {val_loss:.4f}\n"
-                f"best val loss: {best_val_loss:.4f} (epoch {best_epoch})\n"
-                f"epochs w/o improvement: {epochs_without_improvement}\n"
-                + "-" * 60 + "\n"
-                "Confusion Matrix:\n"
-                f"{cm}\n" + "-" * 60 + "\n"
-                "Classification Report:\n"
-                f"{json.dumps(cr, cls=NumpyEncoder, indent=4)}\n" + "-" * 60 + "\n"
-                f"{[(p, c, t) for p, c, t in zip(predicted_values, predicted_classes, true_classes)]}\n"
-                + "=" * 60
+                f"\n{'=' * 80}\n"
+                f"EPOCH {epoch + 1}/{train_cfg.num_epochs} {loc}\n"
+                f"{'=' * 80}\n"
+                f"  Time - Elapsed: {elapsed:.1f}s | Remaining: {time_remaining}\n"
+                f"  Loss - Train: {train_loss:.4f} | Val: {val_loss:.4f}\n"
+                f"  Best - Val Loss: {best_val_loss:.4f} (epoch {best_epoch})\n"
+                f"  Early Stop - Epochs w/o improvement: {epochs_without_improvement}/{train_cfg.early_stopping_patience}\n"
+                + "-" * 80
+                + "\n"
+                "  Confusion Matrix:\n"
+                f"  {cm}\n" + "-" * 80 + "\n"
+                "  Classification Report:\n"
+                f"  {json.dumps(cr, cls=NumpyEncoder, indent=4)}\n" + "-" * 80 + "\n"
+                f"  Predictions: {[(p, c, t) for p, c, t in zip(predicted_values, predicted_classes, true_classes)]}\n"
+                f"{'=' * 80}\n"
             )
 
         # Save checkpoint periodically (every 5 epochs or on improvement)
         should_checkpoint = (
-            checkpoint_mgr 
-            and outer_idx is not None 
-            and config_idx is not None 
+            checkpoint_mgr
+            and outer_idx is not None
+            and config_idx is not None
             and inner_idx is not None
             and (epoch % 5 == 0 or epochs_without_improvement == 0)
         )
-        
+
         if should_checkpoint:
             checkpoint_mgr.save_training_checkpoint(
                 outer_idx=outer_idx,
@@ -311,9 +349,14 @@ def train_one_split(
         # Early stopping check
         if epochs_without_improvement >= train_cfg.early_stopping_patience:
             if verbose:
-                print(f"\n{'!' * 30} - {outer_idx, config_idx, inner_idx} -{'!' * 30}")
-                print("EARLY STOPPING triggered")
-                print(f"{'!' * 60}\n")
+                print(
+                    f"\n{'!' * 80}\n"
+                    f"EARLY STOPPING TRIGGERED {loc}\n"
+                    f"{'!' * 80}\n"
+                    f"  Patience exhausted: {epochs_without_improvement}/{train_cfg.early_stopping_patience}\n"
+                    f"  Best epoch: {best_epoch} with val loss: {best_val_loss:.4f}\n"
+                    f"{'!' * 80}\n"
+                )
             break
 
     # Load best model
@@ -331,8 +374,16 @@ def train_one_split(
     ):
         checkpoint_mgr.clean_training_checkpoint(outer_idx, config_idx, inner_idx)
 
-    if verbose and time_limit_exceeded:
-        print(f"\nReturning best model from epoch {best_epoch} with val loss {best_val_loss:.4f}")
+    if verbose:
+        status = "TIME LIMITED" if time_limit_exceeded else "COMPLETED"
+        print(
+            f"\n{'=' * 80}\n"
+            f"TRAINING {status} {loc}\n"
+            f"{'=' * 80}\n"
+            f"  Best epoch: {best_epoch}\n"
+            f"  Best val loss: {best_val_loss:.4f}\n"
+            f"{'=' * 80}\n"
+        )
 
     return model, best_val_loss
 

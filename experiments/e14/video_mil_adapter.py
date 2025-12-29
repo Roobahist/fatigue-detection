@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from Zh.experiments.e14.dataclasses import *
 from Zh.experiments.e14.datasets import RealVideoDataset
@@ -77,12 +78,31 @@ def train_for_fixed_epochs(
     """Train model for fixed number of epochs without validation."""
     model.train()
 
-    for epoch in tqdm(range(num_epochs)):
+    if verbose:
+        print(
+            f"\n{'-' * 80}\n"
+            f"FIXED EPOCHS TRAINING\n"
+            f"{'-' * 80}\n"
+            f"  Total epochs: {num_epochs}\n"
+            f"  Training samples: {len(train_loader.dataset)}\n"
+            f"{'-' * 80}\n"
+        )
+
+    for epoch in range(num_epochs):
         if hasattr(train_loader.dataset, "set_training_epoch"):
             train_loader.dataset.set_training_epoch(epoch, num_epochs)
 
-        for batch in tqdm(train_loader):
+        model.train()
+        epoch_loss = 0.0
+        num_batches = 0
 
+        # Show epoch progress with batch-level detail
+        for batch_idx, batch in enumerate(tqdm(
+            train_loader,
+            desc=f"Batches (Epoch {epoch+1}/{num_epochs})",
+            disable=not verbose,
+            leave=False
+        ), 1):
             batch_on_device = move_batch_to_device(batch, device)
             preds = model(batch_on_device)
             targets = torch.tensor(
@@ -92,12 +112,27 @@ def train_for_fixed_epochs(
             )
             loss = loss_fn(preds, targets)
 
-            if verbose:
-                logging.info(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}")
-
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            epoch_loss += loss.item()
+            num_batches += 1
+
+        avg_epoch_loss = epoch_loss / num_batches if num_batches > 0 else 0.0
+
+        if verbose :
+            print(
+                f"  Epoch {epoch+1:3d}/{num_epochs}: "
+                f"Avg Loss = {avg_epoch_loss:.4f} ({num_batches} batches)"
+            )
+
+    if verbose:
+        print(
+            f"{'-' * 80}\n"
+            f"FIXED EPOCHS TRAINING COMPLETE\n"
+            f"{'-' * 80}\n"
+        )
 
     return model
 
@@ -232,6 +267,18 @@ class VideoMILAdapter:
         self.data_cfg = data_cfg
         self.device = device
         self.loss_fn = get_loss_fn(self.base_train_cfg.loss)
+
+        print(
+            f"\n{'=' * 80}\n"
+            f"VIDEO MIL ADAPTER INITIALIZED\n"
+            f"{'=' * 80}\n"
+            f"  Dataset: {data_cfg.dataset_name}\n"
+            f"  Device: {device}\n"
+            f"  Loss function: {self.base_train_cfg.loss}\n"
+            f"  Base learning rate: {self.base_train_cfg.lr}\n"
+            f"  Base batch size: {self.base_train_cfg.batch_size}\n"
+            f"{'=' * 80}\n"
+        )
 
     def create_dataloader(
         self,
@@ -435,14 +482,33 @@ def nested_cv_video_mil(
     """
     # Default search space
     if search_space is None:
-        print("Using default search space.")
+        print(
+            f"\n{'!' * 80}\n"
+            f"WARNING: Using default search space\n"
+            f"{'!' * 80}\n"
+        )
         search_space = {
             "learning_rate": ("log_uniform", 1e-5, 1e-2),
             "weight_decay": ("log_uniform", 1e-6, 1e-3),
         }
+    
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Create adapter
+    print(
+        f"\n{'#' * 80}\n"
+        f"# NESTED CV VIDEO MIL REGRESSION\n"
+        f"{'#' * 80}\n"
+        f"  Total videos: {len(video_ids)}\n"
+        f"  Outer folds: {cv_cfg.outer_folds}\n"
+        f"  Inner folds: {cv_cfg.inner_folds}\n"
+        f"  Search strategy: {cv_cfg.search_strategy}\n"
+        f"  N trials: {cv_cfg.n_trials}\n"
+        f"  Output directory: {output_dir}\n"
+        f"  Random seed: {random_seed}\n"
+        f"  Resume: {resume}\n"
+        f"{'#' * 80}\n"
+    )
+
     adapter = VideoMILAdapter(
         base_model_cfg=model_cfg,
         base_train_cfg=train_cfg,
