@@ -547,24 +547,56 @@ def build_optimizer(model: nn.Module, cfg: TrainingConfig):
     return optimizer, scheduler
 
 
-def get_loss_fn(name: str):
+def get_loss_fn(name: str, data_cfg: DataConfig):
+    """
+    Get loss function based on name and task configuration from DataConfig.
+
+    Args:
+        name: Loss function name
+        data_cfg: DataConfig containing task_type and num_classes
+
+    Returns:
+        Loss function module
+    """
     name = name.lower()
-    if name == "mse":
-        return nn.MSELoss()
-    elif name == "smooth_l1":
-        return nn.SmoothL1Loss()
-    elif name in ["l1", "mae"]:
-        return nn.L1Loss()
-    elif name == "huber":
-        return nn.HuberLoss()
-    elif name == "cross_entropy":
-        return nn.CrossEntropyLoss()
-    elif name == "bce":
-        return nn.BCELoss()
-    elif name == "bce_logit":
-        return nn.BCEWithLogitsLoss()
-    else:
-        raise ValueError(f"Unsupported loss: {name}")
+    task_type = data_cfg.task_type
+    num_classes = data_cfg.num_classes
+
+    if task_type == "regression":
+        if name == "mse":
+            return nn.MSELoss()
+        elif name == "smooth_l1":
+            return nn.SmoothL1Loss()
+        elif name in ["l1", "mae"]:
+            return nn.L1Loss()
+        elif name == "huber":
+            return nn.HuberLoss()
+        else:
+            raise ValueError(f"Unsupported regression loss: {name}")
+
+    else:  # classification
+        if num_classes is None:
+            raise ValueError(
+                "num_classes must be specified in DataConfig for classification"
+            )
+
+        if name == "cross_entropy":
+            return nn.CrossEntropyLoss()
+        elif name == "emd":
+            return EarthMoversDistanceLoss(num_classes=num_classes)
+        elif name == "combined_emd_ce":
+            # Combined EMD + CrossEntropy (50/50 by default)
+            return CombinedEMDCrossEntropyLoss(num_classes=num_classes, alpha=0.5)
+        elif name == "weighted_emd":
+            # You can compute class weights from your dataset
+            return WeightedEMDLoss(num_classes=num_classes)
+        elif name == "bce":
+            if num_classes == 2:
+                return nn.BCEWithLogitsLoss()
+            else:
+                raise ValueError("BCE loss only for binary classification")
+        else:
+            raise ValueError(f"Unsupported classification loss: {name}")
 
 
 def get_subject_id_from_video_id(video_id: str, dataset_name: str) -> int:
