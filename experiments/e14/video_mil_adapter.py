@@ -72,15 +72,16 @@ def train_for_fixed_epochs(
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
     device: torch.device,
+    verbose: bool = True,
 ) -> nn.Module:
     """Train model for fixed number of epochs without validation."""
     model.train()
 
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs)):
         if hasattr(train_loader.dataset, "set_training_epoch"):
             train_loader.dataset.set_training_epoch(epoch, num_epochs)
 
-        for batch in train_loader:
+        for batch in tqdm(train_loader):
 
             batch_on_device = move_batch_to_device(batch, device)
             preds = model(batch_on_device)
@@ -90,6 +91,9 @@ def train_for_fixed_epochs(
                 device=device,
             )
             loss = loss_fn(preds, targets)
+
+            if verbose:
+                logging.info(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}")
 
             optimizer.zero_grad()
             loss.backward()
@@ -323,10 +327,12 @@ class VideoMILAdapter:
         )
 
         # Create optimizer
+        # todo : instead of updating the basecfg, store the complete config of the model so that
+        #        if the initial config has different parameters, it stays consistent.
         train_cfg = update_config_with_hparams(
             self.base_train_cfg, hparams, params_prefix="train"
         )
-        optimizer = build_optimizer(model, train_cfg)
+        optimizer, scheduler = build_optimizer(model, train_cfg)
 
         return train_for_fixed_epochs(
             model, train_loader, num_epochs, optimizer, self.loss_fn, self.device
