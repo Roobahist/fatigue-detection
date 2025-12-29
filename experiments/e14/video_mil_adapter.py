@@ -265,7 +265,11 @@ class VideoMILAdapter:
         self.base_selection_cfg = base_selection_cfg
         self.data_cfg = data_cfg
         self.device = device
-        self.loss_fn = get_loss_fn(self.base_train_cfg.loss)
+        self.loss_fn = get_loss_fn(
+            name=self.base_train_cfg.loss,
+            data_cfg=self.data_cfg,
+            num_classes=data_cfg.num_classes,
+        )
 
         print(
             f"\n{'=' * 80}\n"
@@ -355,8 +359,7 @@ class VideoMILAdapter:
             train_loader=train_loader,
             val_loader=val_loader,
             train_cfg=train_cfg,
-            dataset_name=self.data_cfg.dataset_name,
-            task_type=self.data_cfg.task_type,
+            data_cfg=self.data_cfg,
             checkpoint_mgr=checkpoint_mgr,
             outer_idx=outer_idx,
             config_idx=config_idx,
@@ -409,17 +412,18 @@ class VideoMILAdapter:
         loader = self.create_dataloader(
             video_ids=data_ids, mode="test", hparams=hparams, train_video_ids=train_ids
         )
-        thresholds, unique_classes = get_thresholds_unique_value_from_dataset_name(
-            self.data_cfg.dataset_name
+        thresholds, unique_classes = get_task_info_from_dataset_name(
+            self.data_cfg.dataset_name, self.data_cfg.task_type
         )
         return evaluate_on_loader(
-            model,
-            loader,
-            self.loss_fn,
-            self.device,
-            thresholds,
-            unique_classes,
-            verbose=True,
+            model=model,
+            loader=loader,
+            loss_fn=self.loss_fn,
+            device=self.device,
+            data_cfg=self.data_cfg,
+            thresholds=thresholds,
+            unique_classes=unique_classes,
+            verbose=False,
         )[0]
 
     def split_fn(

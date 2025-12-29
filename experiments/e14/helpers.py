@@ -3,7 +3,7 @@ import json
 import os
 import time
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -15,6 +15,7 @@ from tqdm import tqdm
 from Zh.experiments.e14.checkpoint_manager import CheckpointManager
 from Zh.experiments.e14.dataclasses import *
 from Zh.experiments.e14.datasets import *
+from Zh.src.utils.losses import *
 
 
 def _format_location(outer_idx=None, config_idx=None, inner_idx=None):
@@ -34,61 +35,104 @@ def evaluate_on_loader(
     loader: DataLoader,
     loss_fn: nn.Module,
     device: torch.device,
-    thresholds: List[float],
-    unique_classes: List[float],
+    data_cfg: DataConfig,
+    thresholds: Optional[List[float]] = None,
+    unique_classes: Optional[List[float]] = None,
     verbose: bool = True,
 ) -> Tuple[float, Tuple[List[float], List[float], List[float]]]:
-    """Evaluate model on a dataloader."""
+    """
+    Evaluate model on a dataloader.
 
+    Updated to handle both regression and classification tasks via data_cfg.
+    """
     model.eval()
     total_loss = 0.0
     num_samples = 0
 
-    predicted_values = []
+    predicted_values = []  # Raw predictions or class probabilities
     true_classes = []
     predicted_classes = []
+
+    task_type = data_cfg.task_type  # Get from single source of truth
 
     with torch.no_grad():
         for batch in loader:
             batch_on_device = move_batch_to_device(batch, device)
-            preds = model(batch_on_device)
-            targets = torch.tensor(
-                [video["target"] for video in batch_on_device],
-                dtype=torch.float32,
-                device=device,
-            )
-            loss = loss_fn(preds, targets)
+            outputs = model(batch_on_device)
+
+            if task_type == "regression":
+                # For regression: outputs are [B] scalars
+                preds = outputs
+                targets = torch.tensor(
+                    [video["target"] for video in batch_on_device],
+                    dtype=torch.float32,
+                    device=device,
+                )
+                loss = loss_fn(preds, targets)
+
+                # Store predictions and convert to classes for metrics
+                predicted_values.extend(preds.tolist())
+                true_classes.extend(targets.tolist())
+                if thresholds and unique_classes:
+                    predicted_classes.extend(
+                        [
+                            assign_class(p, thresholds, unique_classes)
+                            for p in preds.tolist()
+                        ]
+                    )
+                else:
+                    predicted_classes.extend(targets.tolist())
+
+            else:  # classification
+                # For classification: outputs are [B, num_classes] logits
+                logits = outputs
+                targets = torch.tensor(
+                    [video["target"] for video in batch_on_device],
+                    dtype=torch.long,
+                    device=device,
+                )
+                loss = loss_fn(logits, targets)
+
+                # Get predictions
+                probs = torch.softmax(logits, dim=1)
+                preds = torch.argmax(probs, dim=1)
+
+                # Store for metrics
+                predicted_values.extend(probs.max(dim=1)[0].tolist())  # Max probability
+                true_classes.extend(targets.tolist())
+                predicted_classes.extend(preds.tolist())
+
             total_loss += loss.item() * len(batch)
             num_samples += len(batch)
 
-            predicted_values.extend(preds.tolist())
-            true_classes.extend(targets.tolist())
-            predicted_classes.extend(
-                [
-                    assign_class(
-                        value=p, thresholds=thresholds, unique_classes=unique_classes
-                    )
-                    for p in preds.tolist()
-                ]
-            )
     mean_loss = total_loss / num_samples if num_samples > 0 else float("inf")
 
     if verbose:
+        # For classification, map indices back to class labels
+        if task_type == "classification" and unique_classes:
+            true_labels = [unique_classes[int(c)] for c in true_classes]
+            pred_labels = [unique_classes[int(c)] for c in predicted_classes]
+        else:
+            true_labels = true_classes
+            pred_labels = predicted_classes
+
         cr = classification_report(
-            y_true=true_classes,
-            y_pred=predicted_classes,
-            labels=unique_classes,
+            y_true=true_labels,
+            y_pred=pred_labels,
+            labels=unique_classes if unique_classes else None,
             output_dict=True,
             zero_division=False,
         )
 
         cm = safe_confusion_matrix(
-            y_true=true_classes, y_pred=predicted_classes, all_labels=unique_classes
+            y_true=true_labels,
+            y_pred=pred_labels,
+            all_labels=unique_classes if unique_classes else sorted(set(true_labels)),
         )
 
         print(
             "\n" + "=" * 80 + "\n"
-            f"EVALUATION RESULTS\n"
+            f"EVALUATION RESULTS ({task_type.upper()})\n"
             f"Mean Loss: {mean_loss:.4f}\n" + "-" * 80 + "\n"
             "Confusion Matrix:\n"
             f"{cm}\n" + "-" * 80 + "\n"
@@ -129,7 +173,7 @@ def train_one_split(
     train_loader: DataLoader,
     val_loader: DataLoader,
     train_cfg: TrainingConfig,
-    dataset_name: str = "UTA",
+    data_cfg: DataConfig,  # NEW: Pass entire data_cfg instead of just dataset_name
     verbose: bool = True,
     checkpoint_mgr: Optional[CheckpointManager] = None,
     outer_idx: Optional[int] = None,
@@ -137,12 +181,8 @@ def train_one_split(
     inner_idx: Optional[int] = None,
 ) -> Tuple[nn.Module, float]:
     """
-    Train on a single train/val split with:
-    - Early stopping
-    - Training-level checkpointing
-    - Time limit
-
-    Returns best model and best validation loss.
+    Train on a single train/val split.
+    Now supports both regression and classification via data_cfg.
     """
     loc = _format_location(outer_idx, config_idx, inner_idx)
 
@@ -151,13 +191,14 @@ def train_one_split(
         device_str = "cpu"
     device = torch.device(device_str)
 
-    thresholds, unique_classes = get_thresholds_unique_value_from_dataset_name(
-        dataset_name
+    # Get task info from data_cfg (single source of truth)
+    thresholds, unique_classes = get_task_info_from_dataset_name(
+        data_cfg.dataset_name, data_cfg.task_type
     )
 
     model.to(device)
     optimizer, scheduler = build_optimizer(model, train_cfg)
-    loss_fn = get_loss_fn(train_cfg.loss)
+    loss_fn = get_loss_fn(train_cfg.loss, data_cfg, data_cfg.num_classes)
 
     # Initialize training state
     start_epoch = 0
@@ -237,13 +278,22 @@ def train_one_split(
 
         for batch in progress_bar:
             batch_on_device = move_batch_to_device(batch, device)
-            targets = torch.tensor(
-                [video["target"] for video in batch_on_device],
-                dtype=torch.float32,
-                device=device,
-            )
+            
+            if data_cfg.task_type == "regression":
+                targets = torch.tensor(
+                    [video["target"] for video in batch_on_device],
+                    dtype=torch.float32,
+                    device=device,
+                )
+            else:  # classification
+                targets = torch.tensor(
+                    [video["target"] for video in batch_on_device],
+                    dtype=torch.long,
+                    device=device,
+                )
+            
             optimizer.zero_grad()
-            preds = model(batch_on_device)  # [B]
+            preds = model(batch_on_device)
             loss = loss_fn(preds, targets)
             loss.backward()
             optimizer.step()
@@ -265,6 +315,7 @@ def train_one_split(
                 loader=val_loader,
                 loss_fn=loss_fn,
                 device=device,
+                data_cfg=data_cfg,
                 thresholds=thresholds,
                 unique_classes=unique_classes,
                 verbose=False,
@@ -547,20 +598,18 @@ def build_optimizer(model: nn.Module, cfg: TrainingConfig):
     return optimizer, scheduler
 
 
-def get_loss_fn(name: str, data_cfg: DataConfig):
+def get_loss_fn(
+    name: str, task_type: str = "regression", num_classes: Optional[int] = None
+):
     """
-    Get loss function based on name and task configuration from DataConfig.
+    Get loss function based on task type.
 
     Args:
         name: Loss function name
-        data_cfg: DataConfig containing task_type and num_classes
-
-    Returns:
-        Loss function module
+        task_type: "regression" or "classification"
+        num_classes: Number of classes (for classification)
     """
     name = name.lower()
-    task_type = data_cfg.task_type
-    num_classes = data_cfg.num_classes
 
     if task_type == "regression":
         if name == "mse":
@@ -590,6 +639,8 @@ def get_loss_fn(name: str, data_cfg: DataConfig):
         elif name == "weighted_emd":
             # You can compute class weights from your dataset
             return WeightedEMDLoss(num_classes=num_classes)
+        elif name == "focal_loss":
+            raise NotImplementedError("Focal loss not implemented yet")
         elif name == "bce":
             if num_classes == 2:
                 return nn.BCEWithLogitsLoss()
@@ -622,20 +673,6 @@ def get_target_from_video_id(video_id: str, dataset_name: str) -> float:
         return float(kss_scores[subject_id - 1][session_id - 1])
     else:
         raise ValueError(f"Unknown dataset for target extraction: {dataset_name}")
-
-
-def get_thresholds_unique_value_from_dataset_name(dataset_name: str):
-    if dataset_name == "UTA":
-        thresholds = [2.5, 7.5]
-        unique_classes = [0.0, 5.0, 10]
-
-    elif dataset_name == "DROZY":
-        thresholds = [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
-        unique_classes = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
-    else:
-        raise ValueError(f"Unknown dataset: {dataset_name}")
-
-    return thresholds, unique_classes
 
 
 def kfold_split_indices(
@@ -775,3 +812,39 @@ def update_config_with_hparams(
             )
 
     return cfg
+
+
+def get_task_info_from_dataset_name(dataset_name: str, task_type: str = "regression"):
+    """
+    Get task-specific information for a dataset.
+
+    Returns:
+        For regression: (thresholds, unique_classes) for binning
+        For classification: (None, class_labels)
+    """
+    if dataset_name == "UTA":
+        if task_type == "classification":
+            # Direct classification into 3 classes
+            return None, [0.0, 5.0, 10.0]
+        else:  # regression with binning for metrics
+            return [2.5, 7.5], [0.0, 5.0, 10.0]
+
+    elif dataset_name == "DROZY":
+        if task_type == "classification":
+            # Direct classification into 9 classes
+            return None, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+        else:  # regression with binning for metrics
+            return [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5], [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+            ]
+
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
