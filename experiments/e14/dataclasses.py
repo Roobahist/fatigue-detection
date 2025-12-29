@@ -51,13 +51,15 @@ class TrainingConfig:
     weight_decay: float = 1e-4
     betas: Tuple[float, float] = (0.9, 0.999)  # for Adam/AdamW
     momentum: float = 0.9  # for SGD
-    loss: str = "smooth_l1"  # "mse" or "smooth_l1"
+    loss: str = (
+        "smooth_l1"  # "mse", "smooth_l1", "mae", "huber", "cross_entropy", "emd"
+    )
     early_stopping_patience: int = 10
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     use_scheduler: bool = False
     step_lr_step_size: int = 20
     step_lr_gamma: float = 0.1
-    training_time_limit: Optional[float] = 43200 # in seconds, e.g. 12 hours
+    training_time_limit: Optional[float] = 43200  # in seconds, e.g. 12 hours
 
 
 @dataclass
@@ -94,23 +96,34 @@ class DataConfig:
     normalization_info_path: str
     field_normalization: Optional[Dict[str, Dict]] = field(default_factory=dict)
 
+    # TASK CONFIGURATION
+    task_type: str = "regression"  # "regression" or "classification"
+    num_classes: Optional[int] = None  # Number of classes for classification
+    class_labels: Optional[List[float]] = (
+        None  # Explicit class labels (e.g., [0.0, 5.0, 10.0])
+    )
+
+    # For regression with binning for evaluation metrics
+    thresholds: Optional[List[float]] = None  # e.g., [2.5, 7.5] for UTA
+
 
 @dataclass
 class InnerFoldResult:
     """Result from one inner fold."""
+
     inner_fold: int
     hparams: Dict[str, Any]
     inner_train_metric: float
     inner_val_metric: float
     outer_test_metric: float
     best_epoch: int
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'InnerFoldResult':
+    def from_dict(cls, data: Dict[str, Any]) -> "InnerFoldResult":
         """Create from dictionary."""
         return cls(**data)
 
@@ -118,29 +131,32 @@ class InnerFoldResult:
 @dataclass
 class OuterFoldResult:
     """Result from one outer fold."""
+
     outer_fold: int
     best_hparams: Dict[str, Any]
     chosen_num_epochs: int
-    inner_results: List['InnerFoldResult']
+    inner_results: List["InnerFoldResult"]
     outer_train_metric: Optional[float] = None
     outer_test_metric: Optional[float] = None
     model_path: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "outer_fold": self.outer_fold,
             "best_hparams": self.best_hparams,
             "chosen_num_epochs": self.chosen_num_epochs,
-            "inner_results": [ir.to_dict() if hasattr(ir, 'to_dict') else asdict(ir) 
-                            for ir in self.inner_results],
+            "inner_results": [
+                ir.to_dict() if hasattr(ir, "to_dict") else asdict(ir)
+                for ir in self.inner_results
+            ],
             "outer_train_metric": self.outer_train_metric,
             "outer_test_metric": self.outer_test_metric,
             "model_path": self.model_path,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'OuterFoldResult':
+    def from_dict(cls, data: Dict[str, Any]) -> "OuterFoldResult":
         """Create from dictionary."""
         # Convert inner results back
         inner_results = []
@@ -149,7 +165,7 @@ class OuterFoldResult:
                 inner_results.append(InnerFoldResult.from_dict(ir_data))
             else:
                 inner_results.append(ir_data)
-        
+
         return cls(
             outer_fold=data["outer_fold"],
             best_hparams=data["best_hparams"],
