@@ -25,11 +25,12 @@ SEED="${SEED:-42}"
 OUTER_FOLDS="${OUTER_FOLDS:-5}"
 INNER_FOLDS="${INNER_FOLDS:-3}"
 N_TRIALS="${N_TRIALS:-20}"
+RESUME_FLAG="${RESUME_FLAG:-}"
 
 # Configuration
 MAX_RESUBMISSIONS=50           # Maximum number of training submissions (including the first)
 CHECK_INTERVAL=60              # Check every 60 seconds
-TRAINING_JOB_SCRIPT="./training_job.sh"
+TRAINING_JOB_SCRIPT="./training_job copy.sh"
 
 # Create monitor log (I’d keep this with the experiment outputs)
 MONITOR_LOG="$OUTPUT_DIR/monitor_detailed.log"
@@ -69,7 +70,7 @@ log "=========================================="
 log "Submitting initial training job (attempt 1/$MAX_RESUBMISSIONS)..."
 
 if ! TRAINING_JOB_ID=$(sbatch \
-    --export=ALL,OUTPUT_DIR="$OUTPUT_DIR",LOG_DIR="$LOG_DIR",RESUME_FLAG="",DATASET_NAME="$DATASET_NAME",SEED="$SEED",OUTER_FOLDS="$OUTER_FOLDS",INNER_FOLDS="$INNER_FOLDS",N_TRIALS="$N_TRIALS" \
+    --export=ALL,OUTPUT_DIR="$OUTPUT_DIR",LOG_DIR="$LOG_DIR",RESUME_FLAG="$RESUME_FLAG",DATASET_NAME="$DATASET_NAME",SEED="$SEED",OUTER_FOLDS="$OUTER_FOLDS",INNER_FOLDS="$INNER_FOLDS",N_TRIALS="$N_TRIALS" \
     --output="$LOG_DIR/train_%j.out" \
     --error="$LOG_DIR/train_%j.err" \
     --parsable \

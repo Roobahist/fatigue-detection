@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=nested_cv_train
-#SBATCH --time=00:10:00
+#SBATCH --time=24:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=15
 #SBATCH --nodes=1
@@ -50,12 +50,12 @@ python -m Zh.experiments.e14.main \
     --output_dir "$OUTPUT_DIR" \
     $RESUME_FLAG \
     --parallel_inner_cv \
-    --max_workers 5 \
+    --max_workers 6 \
     --cv.outer_folds "$OUTER_FOLDS" \
     --cv.inner_folds "$INNER_FOLDS" \
     --cv.search_strategy random \
     --cv.n_trials "$N_TRIALS" \
-    --train.num_epochs 1 \
+    --train.num_epochs 200 \
     --train.batch_size 32 \
     --train.device cuda
 

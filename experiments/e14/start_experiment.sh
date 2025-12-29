@@ -7,6 +7,7 @@ set -euo pipefail
 
 # Unique run ID for this experiment
 RUN_ID="$(date +%Y%m%d_%H%M%S)_E14"
+# RUN_ID="20251207_125202_E14"
 
 # Output and log directories for this run
 OUTPUT_ROOT="/home/mojtaba.kananisarche/Zh/outputs"
@@ -19,15 +20,16 @@ LOG_DIR="${LOG_ROOT}/${RUN_ID}"
 DATASET_NAME="DROZY"
 
 # Random seed
-SEED=42
+SEED=24
 
 # CV configuration
 OUTER_FOLDS=5
 INNER_FOLDS=4
-N_TRIALS=10
+N_TRIALS=12
 
 # How long should the monitor run? (days)
-MONITOR_DAYS=1
+MONITOR_DAYS=7
+RESUME_FLAG=""
 
 # ============================================================================
 # Setup
@@ -69,7 +71,7 @@ MONITOR_TIME="${MONITOR_DAYS}-00:00:00"
 echo "Time limit: $MONITOR_TIME"
 
 MONITOR_JOB_ID=$(sbatch \
-    --export=ALL,OUTPUT_DIR="$OUTPUT_DIR",LOG_DIR="$LOG_DIR",DATASET_NAME="$DATASET_NAME",SEED="$SEED",OUTER_FOLDS="$OUTER_FOLDS",INNER_FOLDS="$INNER_FOLDS",N_TRIALS="$N_TRIALS" \
+    --export=ALL,OUTPUT_DIR="$OUTPUT_DIR",LOG_DIR="$LOG_DIR",DATASET_NAME="$DATASET_NAME",SEED="$SEED",OUTER_FOLDS="$OUTER_FOLDS",INNER_FOLDS="$INNER_FOLDS",N_TRIALS="$N_TRIALS",RESUME_FLAG="$RESUME_FLAG" \
     --time="$MONITOR_TIME" \
     --output="$LOG_DIR/monitor_%j.out" \
     --error="$LOG_DIR/monitor_%j.err" \
