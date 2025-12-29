@@ -97,12 +97,15 @@ def train_for_fixed_epochs(
         num_batches = 0
 
         # Show epoch progress with batch-level detail
-        for batch_idx, batch in enumerate(tqdm(
-            train_loader,
-            desc=f"Batches (Epoch {epoch+1}/{num_epochs})",
-            disable=not verbose,
-            leave=False
-        ), 1):
+        for batch_idx, batch in enumerate(
+            tqdm(
+                train_loader,
+                desc=f"Batches (Epoch {epoch+1}/{num_epochs})",
+                disable=not verbose,
+                leave=False,
+            ),
+            1,
+        ):
             batch_on_device = move_batch_to_device(batch, device)
             preds = model(batch_on_device)
             targets = torch.tensor(
@@ -121,18 +124,14 @@ def train_for_fixed_epochs(
 
         avg_epoch_loss = epoch_loss / num_batches if num_batches > 0 else 0.0
 
-        if verbose :
+        if verbose:
             print(
                 f"  Epoch {epoch+1:3d}/{num_epochs}: "
                 f"Avg Loss = {avg_epoch_loss:.4f} ({num_batches} batches)"
             )
 
     if verbose:
-        print(
-            f"{'-' * 80}\n"
-            f"FIXED EPOCHS TRAINING COMPLETE\n"
-            f"{'-' * 80}\n"
-        )
+        print(f"{'-' * 80}\n" f"FIXED EPOCHS TRAINING COMPLETE\n" f"{'-' * 80}\n")
 
     return model
 
@@ -483,15 +482,13 @@ def nested_cv_video_mil(
     # Default search space
     if search_space is None:
         print(
-            f"\n{'!' * 80}\n"
-            f"WARNING: Using default search space\n"
-            f"{'!' * 80}\n"
+            f"\n{'!' * 80}\n" f"WARNING: Using default search space\n" f"{'!' * 80}\n"
         )
         search_space = {
             "learning_rate": ("log_uniform", 1e-5, 1e-2),
             "weight_decay": ("log_uniform", 1e-6, 1e-3),
         }
-    
+
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(

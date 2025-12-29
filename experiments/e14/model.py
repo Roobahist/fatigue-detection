@@ -213,7 +213,11 @@ class MultiPathWindowEncoder(nn.Module):
             int(cfg.d_other), int(cfg.d_temporal_other), cfg.temporal
         )
 
-        concat_dim = int(cfg.d_temporal_embed) + int(cfg.d_temporal_blend) + int(cfg.d_temporal_other)
+        concat_dim = (
+            int(cfg.d_temporal_embed)
+            + int(cfg.d_temporal_blend)
+            + int(cfg.d_temporal_other)
+        )
         self.mlp = MLP(concat_dim, int(cfg.d_window), cfg.window_mlp)
 
     def forward(

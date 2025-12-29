@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 from Zh.experiments.e14.dataclasses import *
-from Zh.experiments.e14.helpers import get_target_from_video_id, compute_training_picks
+from Zh.experiments.e14.helpers import compute_training_picks, get_target_from_video_id
 from Zh.src.utils.eventfulness import pick_eventful_segments
 from Zh.src.utils.memmap_handler import MemmapHandler
 

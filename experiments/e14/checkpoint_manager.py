@@ -109,11 +109,11 @@ class CheckpointManager:
     ) -> None:
         """
         Save training state during train_one_split.
-        
+
         This allows resuming training from a specific epoch if interrupted.
         """
         train_dir = self.get_training_checkpoint_dir(outer_idx, config_idx, inner_idx)
-        
+
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": model_state,
@@ -124,10 +124,10 @@ class CheckpointManager:
             "best_model_state_dict": best_model_state,
             "epochs_without_improvement": epochs_without_improvement,
         }
-        
+
         checkpoint_path = os.path.join(train_dir, "checkpoint.pt")
         torch.save(checkpoint, checkpoint_path)
-        
+
         # Save metadata separately for quick access
         metadata = {
             "outer_idx": outer_idx,
@@ -150,16 +150,16 @@ class CheckpointManager:
     ) -> Optional[Dict[str, Any]]:
         """
         Load training checkpoint if it exists.
-        
+
         Returns:
             dict with training state or None if no checkpoint exists
         """
         train_dir = self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx)
         checkpoint_path = os.path.join(train_dir, "checkpoint.pt")
-        
+
         if not os.path.exists(checkpoint_path):
             return None
-        
+
         try:
             checkpoint = torch.load(checkpoint_path)
             return checkpoint
@@ -174,7 +174,7 @@ class CheckpointManager:
     ) -> None:
         """Remove training checkpoint after inner fold completes successfully."""
         import shutil
-        
+
         train_dir = self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx)
         if os.path.exists(train_dir):
             shutil.rmtree(train_dir)
@@ -540,7 +540,7 @@ class CheckpointManager:
         fold_dir = self._outer_fold_dir_path(outer_idx)
         checkpoint_path = os.path.join(fold_dir, "checkpoint.json")
         return os.path.exists(model_path) and os.path.exists(checkpoint_path)
-    
+
     def can_resume(self) -> bool:
         """
         Return True if there is a main checkpoint that we can attempt to resume from.
