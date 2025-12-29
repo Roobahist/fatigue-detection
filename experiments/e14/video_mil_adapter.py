@@ -351,11 +351,12 @@ class VideoMILAdapter:
 
         # Pass checkpoint parameters to train_one_split
         model, best_val_loss = train_one_split(
-            model,
-            train_loader,
-            val_loader,
-            train_cfg,
-            self.data_cfg.dataset_name,
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            train_cfg=train_cfg,
+            dataset_name=self.data_cfg.dataset_name,
+            task_type=self.data_cfg.task_type,
             checkpoint_mgr=checkpoint_mgr,
             outer_idx=outer_idx,
             config_idx=config_idx,
