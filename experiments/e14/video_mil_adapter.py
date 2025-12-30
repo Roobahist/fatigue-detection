@@ -268,7 +268,6 @@ class VideoMILAdapter:
         self.loss_fn = get_loss_fn(
             name=self.base_train_cfg.loss,
             data_cfg=self.data_cfg,
-            num_classes=data_cfg.num_classes,
         )
 
         print(

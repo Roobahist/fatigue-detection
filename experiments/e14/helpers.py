@@ -198,7 +198,7 @@ def train_one_split(
 
     model.to(device)
     optimizer, scheduler = build_optimizer(model, train_cfg)
-    loss_fn = get_loss_fn(train_cfg.loss, data_cfg, data_cfg.num_classes)
+    loss_fn = get_loss_fn(train_cfg.loss, data_cfg)
 
     # Initialize training state
     start_epoch = 0
@@ -599,7 +599,7 @@ def build_optimizer(model: nn.Module, cfg: TrainingConfig):
 
 
 def get_loss_fn(
-    name: str, task_type: str = "regression", num_classes: Optional[int] = None
+    name: str, data_cfg: DataConfig
 ):
     """
     Get loss function based on task type.
@@ -610,6 +610,9 @@ def get_loss_fn(
         num_classes: Number of classes (for classification)
     """
     name = name.lower()
+    
+    task_type = data_cfg.task_type
+    num_classes = data_cfg.num_classes
 
     if task_type == "regression":
         if name == "mse":

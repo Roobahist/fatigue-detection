@@ -90,6 +90,7 @@ class RealVideoDataset(Dataset):
         super().__init__()
         assert mode in ("train", "val", "test")
         self.video_ids = video_ids
+        self.data_cfg = data_cfg
         self.embeddings_dir = data_cfg.embeddings_dir
         self.features_dir = data_cfg.features_dir
         self.eventfulness_scores_dir = data_cfg.eventfulness_scores_dir
