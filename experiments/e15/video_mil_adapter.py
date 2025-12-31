@@ -412,7 +412,9 @@ class VideoMILAdapter:
             video_ids=data_ids, mode="test", hparams=hparams, train_video_ids=train_ids
         )
         thresholds, unique_classes = get_task_info_from_dataset_name(
-            self.data_cfg.dataset_name, self.data_cfg.task_type
+            self.data_cfg.dataset_name,
+            self.data_cfg.task_type,
+            self.data_cfg.label_mapping,
         )
         return evaluate_on_loader(
             model=model,

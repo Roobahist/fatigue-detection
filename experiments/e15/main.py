@@ -25,6 +25,12 @@ def main():
             help="Task type: regression for continuous values, classification for discrete classes",
         )
         parser.add_argument(
+            "--label_mapping",
+            type=str,
+            default=None,
+            help='Label mapping as JSON string, e.g., \'{"1.0":1.0,"2.0":1.0,"3.0":1.0,"4.0":2.0,"5.0":2.0,"6.0":2.0,"7.0":3.0,"8.0":3.0,"9.0":3.0}\'',
+        )
+        parser.add_argument(
             "--num_classes",
             type=int,
             default=None,
@@ -300,32 +306,61 @@ def main():
             inner_folds=vars(args)["cv.inner_folds"],
         )
 
-        # ---------- DataConfig (SINGLE SOURCE OF TRUTH for task) ----------
+        # Parse label mapping if provided
+        label_mapping = None
+        if vars(args).get("label_mapping"):
+            import json
+
+            mapping_str = vars(args)["label_mapping"]
+            # Parse JSON and convert keys/values to float
+            mapping_dict = json.loads(mapping_str)
+            label_mapping = {float(k): float(v) for k, v in mapping_dict.items()}
+
+        # ---------- DataConfig ----------
         dataset_name = vars(args)["dataset_name"]
         task_type = vars(args)["task_type"]
         num_classes = vars(args)["num_classes"]
 
-        # Auto-configure based on dataset if num_classes not provided
-        if task_type == "classification" and num_classes is None:
-            if dataset_name == "UTA":
-                num_classes = 3
-                class_labels = [0.0, 5.0, 10.0]
+        # Generic configuration based on label_mapping or dataset defaults
+        if label_mapping is not None:
+            # Derive everything from the label_mapping
+            unique_mapped = sorted(set(label_mapping.values()))
+
+            if task_type == "classification":
+                num_classes = len(unique_mapped) if num_classes is None else num_classes
+                class_labels = unique_mapped
                 thresholds = None
-            elif dataset_name == "DROZY":
-                num_classes = 9
-                class_labels = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
-                thresholds = None
-        elif task_type == "regression":
-            if dataset_name == "UTA":
-                class_labels = [0.0, 5.0, 10.0]
-                thresholds = [2.5, 7.5]  # For binning metrics
-            elif dataset_name == "DROZY":
-                class_labels = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
-                thresholds = [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+            else:  # regression
+                class_labels = unique_mapped
+                # Generate thresholds between consecutive unique labels
+                if len(unique_mapped) > 1:
+                    thresholds = [
+                        (unique_mapped[i] + unique_mapped[i + 1]) / 2
+                        for i in range(len(unique_mapped) - 1)
+                    ]
+                else:
+                    thresholds = []
         else:
-            # Classification with custom num_classes
-            class_labels = None
-            thresholds = None
+            # Use dataset defaults
+            if task_type == "classification" and num_classes is None:
+                if dataset_name == "UTA":
+                    num_classes = 3
+                    class_labels = [0.0, 5.0, 10.0]
+                    thresholds = None
+                elif dataset_name == "DROZY":
+                    num_classes = 9
+                    class_labels = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                    thresholds = None
+            elif task_type == "regression":
+                if dataset_name == "UTA":
+                    class_labels = [0.0, 5.0, 10.0]
+                    thresholds = [2.5, 7.5]
+                elif dataset_name == "DROZY":
+                    class_labels = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                    thresholds = [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+            else:
+                class_labels = None
+                thresholds = None
 
         if dataset_name == "UTA":
             data_cfg = DataConfig(
@@ -337,6 +372,7 @@ def main():
                 task_type=task_type,
                 num_classes=num_classes,
                 class_labels=class_labels,
+                label_mapping=label_mapping,
                 thresholds=thresholds,
             )
         elif dataset_name == "DROZY":
@@ -349,6 +385,7 @@ def main():
                 task_type=task_type,
                 num_classes=num_classes,
                 class_labels=class_labels,
+                label_mapping=label_mapping,
                 thresholds=thresholds,
             )
 

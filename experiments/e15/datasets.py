@@ -200,11 +200,16 @@ class RealVideoDataset(Dataset):
         # target = load_fatigue_label(video_id)
         raw_target = get_target_from_video_id(video_id, self.dataset_name)
 
+        if self.data_cfg.label_mapping is not None:
+            mapped_target = self.data_cfg.label_mapping[raw_target]
+        else:
+            mapped_target = raw_target
+
         if self.data_cfg.task_type == "classification":
-            # Convert to class index (0, 1, 2, ...)
-            target = self.data_cfg.class_labels.index(raw_target)
+            # Convert mapped label to class index
+            target = self.data_cfg.class_labels.index(mapped_target)
         else:  # regression
-            target = float(raw_target)
+            target = float(mapped_target)
 
         return {
             "embeddings": embeddings_list,

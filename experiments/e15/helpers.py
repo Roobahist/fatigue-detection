@@ -140,6 +140,8 @@ def evaluate_on_loader(
             f"{json.dumps(cr, cls=NumpyEncoder, indent=4)}\n" + "=" * 80
         )
 
+    assert len(predicted_values) == len(true_classes) == len(predicted_classes)
+
     return mean_loss, (predicted_values, true_classes, predicted_classes)
 
 
@@ -193,7 +195,7 @@ def train_one_split(
 
     # Get task info from data_cfg (single source of truth)
     thresholds, unique_classes = get_task_info_from_dataset_name(
-        data_cfg.dataset_name, data_cfg.task_type
+        data_cfg.dataset_name, data_cfg.task_type, data_cfg.label_mapping
     )
 
     model.to(device)
@@ -336,16 +338,28 @@ def train_one_split(
 
         # Verbose logging
         if verbose:
+
+            if data_cfg.task_type == "classification" and unique_classes:
+                true_labels = [unique_classes[int(c)] for c in true_classes]
+                pred_labels = [unique_classes[int(c)] for c in predicted_classes]
+            else:
+                true_labels = true_classes
+                pred_labels = predicted_classes
+
             cr = classification_report(
-                y_true=true_classes,
-                y_pred=predicted_classes,
-                labels=unique_classes,
+                y_true=true_labels,
+                y_pred=pred_labels,
+                labels=unique_classes if unique_classes else None,
                 output_dict=True,
                 zero_division=False,
             )
 
             cm = safe_confusion_matrix(
-                y_true=true_classes, y_pred=predicted_classes, all_labels=unique_classes
+                y_true=true_labels,
+                y_pred=pred_labels,
+                all_labels=(
+                    unique_classes if unique_classes else sorted(set(true_labels))
+                ),
             )
 
             elapsed = time.time() - training_start_time
@@ -369,7 +383,7 @@ def train_one_split(
                 f"  {cm}\n" + "-" * 80 + "\n"
                 "  Classification Report:\n"
                 f"  {json.dumps(cr, cls=NumpyEncoder, indent=4)}\n" + "-" * 80 + "\n"
-                f"  Predictions: {[(p, c, t) for p, c, t in zip(predicted_values, predicted_classes, true_classes)]}\n"
+                f"  Predictions: {[(p, c, t) for p, c, t in zip(predicted_values, pred_labels, true_labels)]}\n"
                 f"{'=' * 80}\n"
             )
 
@@ -598,9 +612,7 @@ def build_optimizer(model: nn.Module, cfg: TrainingConfig):
     return optimizer, scheduler
 
 
-def get_loss_fn(
-    name: str, data_cfg: DataConfig
-):
+def get_loss_fn(name: str, data_cfg: DataConfig):
     """
     Get loss function based on task type.
 
@@ -817,14 +829,41 @@ def update_config_with_hparams(
     return cfg
 
 
-def get_task_info_from_dataset_name(dataset_name: str, task_type: str = "regression"):
+def get_task_info_from_dataset_name(
+    dataset_name: str,
+    task_type: str = "regression",
+    label_mapping: Optional[Dict[float, float]] = None,
+):
     """
     Get task-specific information for a dataset.
+
+    Args:
+        dataset_name: Name of the dataset
+        task_type: "regression" or "classification"
+        label_mapping: Optional mapping of original labels to new labels
 
     Returns:
         For regression: (thresholds, unique_classes) for binning
         For classification: (None, class_labels)
     """
+    # If label_mapping is provided, derive everything from it
+    if label_mapping is not None:
+        unique_mapped_labels = sorted(set(label_mapping.values()))
+
+        if task_type == "classification":
+            return None, unique_mapped_labels
+        else:  # regression with binning for metrics
+            # Generate thresholds between consecutive unique labels
+            if len(unique_mapped_labels) > 1:
+                thresholds = [
+                    (unique_mapped_labels[i] + unique_mapped_labels[i + 1]) / 2
+                    for i in range(len(unique_mapped_labels) - 1)
+                ]
+            else:
+                thresholds = []
+            return thresholds, unique_mapped_labels
+
+    # Default behavior when no mapping is provided
     if dataset_name == "UTA":
         if task_type == "classification":
             # Direct classification into 3 classes

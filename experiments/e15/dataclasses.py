@@ -103,6 +103,10 @@ class DataConfig:
         None  # Explicit class labels (e.g., [0.0, 5.0, 10.0])
     )
 
+    # Label mapping - maps original labels to new labels
+    # e.g., {1.0: 1.0, 2.0: 1.0, 3.0: 1.0, 4.0: 2.0, ...} for both tasks
+    label_mapping: Optional[Dict[float, float]] = None
+
     # For regression with binning for evaluation metrics
     thresholds: Optional[List[float]] = None  # e.g., [2.5, 7.5] for UTA
 
