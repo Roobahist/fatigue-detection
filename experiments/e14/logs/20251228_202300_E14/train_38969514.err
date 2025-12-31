@@ -1,0 +1,54 @@
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:05<00:57,  5.21s/it]ERROR:root:Error in task 3: Error(s) in loading state_dict for MultiPathMILRegressor:
+	Missing key(s) in state_dict: "head.net.0.weight", "head.net.0.bias", "head.net.3.weight", "head.net.3.bias". 
+	Unexpected key(s) in state_dict: "reg_head.net.0.weight", "reg_head.net.0.bias", "reg_head.net.3.weight", "reg_head.net.3.bias". 
+ 58%|█████▊    | 7/12 [00:09<00:06,  1.36s/it]
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+  File "/home/mojtaba.kananisarche/Zh/src/utils/serialized_parallel.py", line 14, in wrapped_worker_function
+    return worker_function(**params)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 642, in _evaluate_single_config_worker
+    inner_results = self._run_inner_cv_with_checkpointing(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 837, in _run_inner_cv_with_checkpointing
+    model, best_val_metric, best_epoch = self.train_fn(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 356, in train_fn
+    model, best_val_loss = train_one_split(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/helpers.py", line 227, in train_one_split
+    model.load_state_dict(checkpoint["model_state_dict"])
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 2593, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for MultiPathMILRegressor:
+	Missing key(s) in state_dict: "head.net.0.weight", "head.net.0.bias", "head.net.3.weight", "head.net.3.bias". 
+	Unexpected key(s) in state_dict: "reg_head.net.0.weight", "reg_head.net.0.bias", "reg_head.net.3.weight", "reg_head.net.3.bias". 
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 524, in <module>
+    main()
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/main.py", line 425, in main
+    results = nested_cv_video_mil(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/video_mil_adapter.py", line 534, in nested_cv_video_mil
+    results = engine.run(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 331, in run
+    best_hparams, chosen_epochs, inner_results = self._hyperparameter_search(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 497, in _hyperparameter_search
+    return self._grid_or_random_search(
+  File "/home/mojtaba.kananisarche/Zh/experiments/e14/nested_cv_engine.py", line 563, in _grid_or_random_search
+    new_results = process(
+  File "/home/mojtaba.kananisarche/Zh/src/utils/serialized_parallel.py", line 121, in process
+    for result in tqdm(
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/site-packages/tqdm/std.py", line 1181, in __iter__
+    for obj in iterable:
+  File "/home/mojtaba.kananisarche/.conda/envs/.cvenv/lib/python3.9/multiprocessing/pool.py", line 870, in next
+    raise value
+RuntimeError: Error(s) in loading state_dict for MultiPathMILRegressor:
+	Missing key(s) in state_dict: "head.net.0.weight", "head.net.0.bias", "head.net.3.weight", "head.net.3.bias". 
+	Unexpected key(s) in state_dict: "reg_head.net.0.weight", "reg_head.net.0.bias", "reg_head.net.3.weight", "reg_head.net.3.bias". 

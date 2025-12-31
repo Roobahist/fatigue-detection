@@ -1,0 +1,80 @@
+========================================
+Training Job Started
+========================================
+Job ID: 38969530
+Node: fg1
+GPU: 0
+Start time: Tue Dec 30 10:09:31 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14
+Resume flag: --resume
+========================================
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14
+
+================================================================================
+CONFIGURATION SUMMARY
+================================================================================
+  Dataset: DROZY
+  Task Type: regression
+  Num Classes: None
+  Class Labels: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+  Loss Function: mse
+  Output Dir: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14
+================================================================================
+
+PyTorch: Using GPU: Tesla V100-PCIE-16GB
+
+################################################################################
+# NESTED CV VIDEO MIL REGRESSION
+################################################################################
+  Total videos: 324
+  Outer folds: 5
+  Inner folds: 4
+  Search strategy: random
+  N trials: 12
+  Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14
+  Random seed: 24
+  Resume: True
+################################################################################
+
+
+================================================================================
+VIDEO MIL ADAPTER INITIALIZED
+================================================================================
+  Dataset: DROZY
+  Device: cuda
+  Loss function: mse
+  Base learning rate: 0.001
+  Base batch size: 32
+================================================================================
+
+
+================================================================================
+NESTED CV ENGINE INITIALIZED
+================================================================================
+  Device: cuda
+  Parallel Inner CV: True
+  Max Workers: 6
+================================================================================
+
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14
+Folder already exists: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14/checkpoints
+
+================================================================================
+RESUMING NESTED CV FROM CHECKPOINT
+================================================================================
+  Completed folds: []
+  Starting from fold: 0
+  Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251228_202300_E14
+================================================================================
+
+
+################################################################################
+# OUTER FOLD 1/5
+################################################################################
+
+  Data Split:
+    Training samples: 243
+    Test samples: 81
+
+  [Outer=0] Evaluating 12 configurations (parallel mode)
+

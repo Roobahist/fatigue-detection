@@ -1,0 +1,23 @@
+========================================
+Monitor Job Started
+========================================
+Job ID: 38967014
+Node: th22
+Start time: Mon Dec 29 18:54:00 MST 2025
+Output dir: /home/mojtaba.kananisarche/Zh/outputs/20251229_185351_E14_emd
+Log dir: /home/mojtaba.kananisarche/Zh/logs/20251229_185351_E14_emd
+========================================
+[2025-12-29 18:54:00] ==========================================
+[2025-12-29 18:54:00] Monitor starting on th22
+[2025-12-29 18:54:00] Output directory: /home/mojtaba.kananisarche/Zh/outputs/20251229_185351_E14_emd
+[2025-12-29 18:54:00] Log directory: /home/mojtaba.kananisarche/Zh/logs/20251229_185351_E14_emd
+[2025-12-29 18:54:00] Experiment: E14_emd
+[2025-12-29 18:54:00] Max submissions: 50
+[2025-12-29 18:54:00] Check interval: 60 seconds
+[2025-12-29 18:54:00] ==========================================
+[2025-12-29 18:54:00] Submitting initial GPU job (attempt 1/50)...
+[2025-12-29 18:54:00] Initial GPU job submitted: 38967015
+[2025-12-30 18:54:57] GPU job 38967015 has finished
+[2025-12-30 18:54:57] Previous job state: TIMEOUT
+[2025-12-30 18:54:57] Resubmitting GPU job (attempt 2/50)...
+[2025-12-30 18:54:57] GPU job resubmitted: 38978202 (submission #2)

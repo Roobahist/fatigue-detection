@@ -18,3 +18,206 @@ Log dir: logs/20251228_202300_E14
 [2025-12-28 20:27:13] ==========================================
 [2025-12-28 20:27:13] Submitting initial training job (attempt 1/50)...
 [2025-12-28 20:27:13] Initial training job submitted: 38959909
+[2025-12-29 20:27:57] Training job 38959909 has finished
+[2025-12-29 20:27:58] Previous job state: TIMEOUT
+[2025-12-29 20:27:58] Training not complete. Resubmitting with --resume (attempt 2/50)...
+[2025-12-29 20:27:58] Training job resubmitted: 38967366 (submission #2)
+[2025-12-29 20:30:58] Training job 38967366 has finished
+[2025-12-29 20:30:58] Previous job state: FAILED
+[2025-12-29 20:30:58] Training not complete. Resubmitting with --resume (attempt 3/50)...
+[2025-12-29 20:30:58] Training job resubmitted: 38967414 (submission #3)
+[2025-12-29 20:31:58] Training job 38967414 has finished
+[2025-12-29 20:31:58] Previous job state: FAILED
+[2025-12-29 20:31:58] Training not complete. Resubmitting with --resume (attempt 4/50)...
+[2025-12-29 20:31:58] Training job resubmitted: 38967416 (submission #4)
+[2025-12-29 21:21:01] Training job 38967416 has finished
+[2025-12-29 21:21:01] Previous job state: FAILED
+[2025-12-29 21:21:01] Training not complete. Resubmitting with --resume (attempt 5/50)...
+[2025-12-29 21:21:01] Training job resubmitted: 38968243 (submission #5)
+[2025-12-29 21:23:01] Training job 38968243 has finished
+[2025-12-29 21:23:01] Previous job state: FAILED
+[2025-12-29 21:23:01] Training not complete. Resubmitting with --resume (attempt 6/50)...
+[2025-12-29 21:23:01] Training job resubmitted: 38968250 (submission #6)
+[2025-12-29 21:44:02] Training job 38968250 has finished
+[2025-12-29 21:44:03] Previous job state: FAILED
+[2025-12-29 21:44:03] Training not complete. Resubmitting with --resume (attempt 7/50)...
+[2025-12-29 21:44:03] Training job resubmitted: 38968315 (submission #7)
+[2025-12-29 22:09:06] Training job 38968315 has finished
+[2025-12-29 22:09:06] Previous job state: FAILED
+[2025-12-29 22:09:06] Training not complete. Resubmitting with --resume (attempt 8/50)...
+[2025-12-29 22:09:06] Training job resubmitted: 38968350 (submission #8)
+[2025-12-30 01:25:11] Training job 38968350 has finished
+[2025-12-30 01:25:11] Previous job state: FAILED
+[2025-12-30 01:25:11] Training not complete. Resubmitting with --resume (attempt 9/50)...
+[2025-12-30 01:25:11] Training job resubmitted: 38968678 (submission #9)
+[2025-12-30 01:26:11] Training job 38968678 has finished
+[2025-12-30 01:26:11] Previous job state: FAILED
+[2025-12-30 01:26:11] Training not complete. Resubmitting with --resume (attempt 10/50)...
+[2025-12-30 01:26:11] Training job resubmitted: 38968683 (submission #10)
+[2025-12-30 01:47:12] Training job 38968683 has finished
+[2025-12-30 01:47:12] Previous job state: FAILED
+[2025-12-30 01:47:12] Training not complete. Resubmitting with --resume (attempt 11/50)...
+[2025-12-30 01:47:12] Training job resubmitted: 38968752 (submission #11)
+[2025-12-30 01:48:12] Training job 38968752 has finished
+[2025-12-30 01:48:12] Previous job state: FAILED
+[2025-12-30 01:48:12] Training not complete. Resubmitting with --resume (attempt 12/50)...
+[2025-12-30 01:48:12] Training job resubmitted: 38968760 (submission #12)
+[2025-12-30 01:59:12] Training job 38968760 has finished
+[2025-12-30 01:59:12] Previous job state: FAILED
+[2025-12-30 01:59:12] Training not complete. Resubmitting with --resume (attempt 13/50)...
+[2025-12-30 01:59:12] Training job resubmitted: 38968802 (submission #13)
+[2025-12-30 02:00:12] Training job 38968802 has finished
+[2025-12-30 02:00:13] Previous job state: FAILED
+[2025-12-30 02:00:13] Training not complete. Resubmitting with --resume (attempt 14/50)...
+[2025-12-30 02:00:13] Training job resubmitted: 38968808 (submission #14)
+[2025-12-30 02:20:13] Training job 38968808 has finished
+[2025-12-30 02:20:13] Previous job state: FAILED
+[2025-12-30 02:20:13] Training not complete. Resubmitting with --resume (attempt 15/50)...
+[2025-12-30 02:20:13] Training job resubmitted: 38968831 (submission #15)
+[2025-12-30 03:34:14] Training job 38968831 has finished
+[2025-12-30 03:34:14] Previous job state: FAILED
+[2025-12-30 03:34:14] Training not complete. Resubmitting with --resume (attempt 16/50)...
+[2025-12-30 03:34:14] Training job resubmitted: 38968885 (submission #16)
+[2025-12-30 03:35:14] Training job 38968885 has finished
+[2025-12-30 03:35:14] Previous job state: FAILED
+[2025-12-30 03:35:14] Training not complete. Resubmitting with --resume (attempt 17/50)...
+[2025-12-30 03:35:14] Training job resubmitted: 38968886 (submission #17)
+[2025-12-30 09:56:22] Training job 38968886 has finished
+[2025-12-30 09:56:22] Previous job state: FAILED
+[2025-12-30 09:56:22] Training not complete. Resubmitting with --resume (attempt 18/50)...
+[2025-12-30 09:56:22] Training job resubmitted: 38969511 (submission #18)
+[2025-12-30 09:57:22] Training job 38969511 has finished
+[2025-12-30 09:57:22] Previous job state: FAILED
+[2025-12-30 09:57:22] Training not complete. Resubmitting with --resume (attempt 19/50)...
+[2025-12-30 09:57:22] Training job resubmitted: 38969512 (submission #19)
+[2025-12-30 09:58:22] Training job 38969512 has finished
+[2025-12-30 09:58:22] Previous job state: FAILED
+[2025-12-30 09:58:22] Training not complete. Resubmitting with --resume (attempt 20/50)...
+[2025-12-30 09:58:22] Training job resubmitted: 38969514 (submission #20)
+[2025-12-30 09:59:22] Training job 38969514 has finished
+[2025-12-30 09:59:22] Previous job state: FAILED
+[2025-12-30 09:59:22] Training not complete. Resubmitting with --resume (attempt 21/50)...
+[2025-12-30 09:59:22] Training job resubmitted: 38969515 (submission #21)
+[2025-12-30 10:00:22] Training job 38969515 has finished
+[2025-12-30 10:00:22] Previous job state: FAILED
+[2025-12-30 10:00:22] Training not complete. Resubmitting with --resume (attempt 22/50)...
+[2025-12-30 10:00:23] Training job resubmitted: 38969516 (submission #22)
+[2025-12-30 10:01:23] Training job 38969516 has finished
+[2025-12-30 10:01:23] Previous job state: FAILED
+[2025-12-30 10:01:23] Training not complete. Resubmitting with --resume (attempt 23/50)...
+[2025-12-30 10:01:23] Training job resubmitted: 38969517 (submission #23)
+[2025-12-30 10:02:23] Training job 38969517 has finished
+[2025-12-30 10:02:23] Previous job state: FAILED
+[2025-12-30 10:02:23] Training not complete. Resubmitting with --resume (attempt 24/50)...
+[2025-12-30 10:02:23] Training job resubmitted: 38969518 (submission #24)
+[2025-12-30 10:03:23] Training job 38969518 has finished
+[2025-12-30 10:03:23] Previous job state: FAILED
+[2025-12-30 10:03:23] Training not complete. Resubmitting with --resume (attempt 25/50)...
+[2025-12-30 10:03:23] Training job resubmitted: 38969520 (submission #25)
+[2025-12-30 10:04:23] Training job 38969520 has finished
+[2025-12-30 10:04:23] Previous job state: FAILED
+[2025-12-30 10:04:23] Training not complete. Resubmitting with --resume (attempt 26/50)...
+[2025-12-30 10:04:23] Training job resubmitted: 38969521 (submission #26)
+[2025-12-30 10:05:23] Training job 38969521 has finished
+[2025-12-30 10:05:23] Previous job state: FAILED
+[2025-12-30 10:05:23] Training not complete. Resubmitting with --resume (attempt 27/50)...
+[2025-12-30 10:05:23] Training job resubmitted: 38969523 (submission #27)
+[2025-12-30 10:06:23] Training job 38969523 has finished
+[2025-12-30 10:06:23] Previous job state: FAILED
+[2025-12-30 10:06:23] Training not complete. Resubmitting with --resume (attempt 28/50)...
+[2025-12-30 10:06:23] Training job resubmitted: 38969525 (submission #28)
+[2025-12-30 10:07:23] Training job 38969525 has finished
+[2025-12-30 10:07:23] Previous job state: FAILED
+[2025-12-30 10:07:23] Training not complete. Resubmitting with --resume (attempt 29/50)...
+[2025-12-30 10:07:23] Training job resubmitted: 38969526 (submission #29)
+[2025-12-30 10:08:23] Training job 38969526 has finished
+[2025-12-30 10:08:24] Previous job state: FAILED
+[2025-12-30 10:08:24] Training not complete. Resubmitting with --resume (attempt 30/50)...
+[2025-12-30 10:08:24] Training job resubmitted: 38969527 (submission #30)
+[2025-12-30 10:09:24] Training job 38969527 has finished
+[2025-12-30 10:09:24] Previous job state: FAILED
+[2025-12-30 10:09:24] Training not complete. Resubmitting with --resume (attempt 31/50)...
+[2025-12-30 10:09:24] Training job resubmitted: 38969530 (submission #31)
+[2025-12-30 10:10:24] Training job 38969530 has finished
+[2025-12-30 10:10:24] Previous job state: FAILED
+[2025-12-30 10:10:24] Training not complete. Resubmitting with --resume (attempt 32/50)...
+[2025-12-30 10:10:24] Training job resubmitted: 38969535 (submission #32)
+[2025-12-30 10:11:24] Training job 38969535 has finished
+[2025-12-30 10:11:24] Previous job state: FAILED
+[2025-12-30 10:11:24] Training not complete. Resubmitting with --resume (attempt 33/50)...
+[2025-12-30 10:11:24] Training job resubmitted: 38969539 (submission #33)
+[2025-12-30 10:12:24] Training job 38969539 has finished
+[2025-12-30 10:12:24] Previous job state: FAILED
+[2025-12-30 10:12:24] Training not complete. Resubmitting with --resume (attempt 34/50)...
+[2025-12-30 10:12:24] Training job resubmitted: 38969540 (submission #34)
+[2025-12-30 10:13:24] Training job 38969540 has finished
+[2025-12-30 10:13:24] Previous job state: FAILED
+[2025-12-30 10:13:24] Training not complete. Resubmitting with --resume (attempt 35/50)...
+[2025-12-30 10:13:24] Training job resubmitted: 38969541 (submission #35)
+[2025-12-30 10:14:24] Training job 38969541 has finished
+[2025-12-30 10:14:24] Previous job state: FAILED
+[2025-12-30 10:14:24] Training not complete. Resubmitting with --resume (attempt 36/50)...
+[2025-12-30 10:14:24] Training job resubmitted: 38969542 (submission #36)
+[2025-12-30 10:15:24] Training job 38969542 has finished
+[2025-12-30 10:15:24] Previous job state: FAILED
+[2025-12-30 10:15:24] Training not complete. Resubmitting with --resume (attempt 37/50)...
+[2025-12-30 10:15:24] Training job resubmitted: 38969545 (submission #37)
+[2025-12-30 10:16:24] Training job 38969545 has finished
+[2025-12-30 10:16:25] Previous job state: FAILED
+[2025-12-30 10:16:25] Training not complete. Resubmitting with --resume (attempt 38/50)...
+[2025-12-30 10:16:25] Training job resubmitted: 38969546 (submission #38)
+[2025-12-30 10:17:25] Training job 38969546 has finished
+[2025-12-30 10:17:25] Previous job state: FAILED
+[2025-12-30 10:17:25] Training not complete. Resubmitting with --resume (attempt 39/50)...
+[2025-12-30 10:17:25] Training job resubmitted: 38969547 (submission #39)
+[2025-12-30 10:18:25] Training job 38969547 has finished
+[2025-12-30 10:18:25] Previous job state: FAILED
+[2025-12-30 10:18:25] Training not complete. Resubmitting with --resume (attempt 40/50)...
+[2025-12-30 10:18:25] Training job resubmitted: 38969548 (submission #40)
+[2025-12-30 10:19:25] Training job 38969548 has finished
+[2025-12-30 10:19:25] Previous job state: FAILED
+[2025-12-30 10:19:25] Training not complete. Resubmitting with --resume (attempt 41/50)...
+[2025-12-30 10:19:25] Training job resubmitted: 38969549 (submission #41)
+[2025-12-30 10:20:25] Training job 38969549 has finished
+[2025-12-30 10:20:25] Previous job state: FAILED
+[2025-12-30 10:20:25] Training not complete. Resubmitting with --resume (attempt 42/50)...
+[2025-12-30 10:20:25] Training job resubmitted: 38969550 (submission #42)
+[2025-12-30 10:21:25] Training job 38969550 has finished
+[2025-12-30 10:21:25] Previous job state: FAILED
+[2025-12-30 10:21:25] Training not complete. Resubmitting with --resume (attempt 43/50)...
+[2025-12-30 10:21:25] Training job resubmitted: 38969552 (submission #43)
+[2025-12-30 10:22:25] Training job 38969552 has finished
+[2025-12-30 10:22:25] Previous job state: FAILED
+[2025-12-30 10:22:25] Training not complete. Resubmitting with --resume (attempt 44/50)...
+[2025-12-30 10:22:25] Training job resubmitted: 38969554 (submission #44)
+[2025-12-30 10:23:25] Training job 38969554 has finished
+[2025-12-30 10:23:25] Previous job state: FAILED
+[2025-12-30 10:23:25] Training not complete. Resubmitting with --resume (attempt 45/50)...
+[2025-12-30 10:23:25] Training job resubmitted: 38969556 (submission #45)
+[2025-12-30 10:24:26] Training job 38969556 has finished
+[2025-12-30 10:24:26] Previous job state: FAILED
+[2025-12-30 10:24:26] Training not complete. Resubmitting with --resume (attempt 46/50)...
+[2025-12-30 10:24:26] Training job resubmitted: 38969558 (submission #46)
+[2025-12-30 10:25:26] Training job 38969558 has finished
+[2025-12-30 10:25:26] Previous job state: FAILED
+[2025-12-30 10:25:26] Training not complete. Resubmitting with --resume (attempt 47/50)...
+[2025-12-30 10:25:26] Training job resubmitted: 38969561 (submission #47)
+[2025-12-30 10:26:26] Training job 38969561 has finished
+[2025-12-30 10:26:26] Previous job state: FAILED
+[2025-12-30 10:26:26] Training not complete. Resubmitting with --resume (attempt 48/50)...
+[2025-12-30 10:26:26] Training job resubmitted: 38969562 (submission #48)
+[2025-12-30 10:27:26] Training job 38969562 has finished
+[2025-12-30 10:27:26] Previous job state: FAILED
+[2025-12-30 10:27:26] Training not complete. Resubmitting with --resume (attempt 49/50)...
+[2025-12-30 10:27:26] Training job resubmitted: 38969564 (submission #49)
+[2025-12-30 10:28:26] Training job 38969564 has finished
+[2025-12-30 10:28:26] Previous job state: FAILED
+[2025-12-30 10:28:26] Training not complete. Resubmitting with --resume (attempt 50/50)...
+[2025-12-30 10:28:26] Training job resubmitted: 38969565 (submission #50)
+[2025-12-30 10:29:26] Training job 38969565 has finished
+[2025-12-30 10:29:26] Previous job state: FAILED
+[2025-12-30 10:29:26] ==========================================
+[2025-12-30 10:29:26] ERROR: Reached maximum submissions (50).
+[2025-12-30 10:29:26] Training may have failed repeatedly. Check logs.
+[2025-12-30 10:29:26] Last training job: 38969565
+[2025-12-30 10:29:26] ==========================================
