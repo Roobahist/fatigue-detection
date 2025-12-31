@@ -87,8 +87,8 @@ def main():
             choices=["gru", "lstm", "tcn", "transformer"],
         )
         parser.add_argument("--model.temporal.hidden_size", type=int, default=128)
-        parser.add_argument("--model.temporal.num_layers", type=int, default=1)
-        parser.add_argument("--model.temporal.dropout", type=float, default=0.1)
+        parser.add_argument("--model.temporal.num_layers", type=int, default=2)
+        parser.add_argument("--model.temporal.dropout", type=float, default=0.15)
         parser.add_argument(
             "--model.temporal.activation",
             type=str,
@@ -101,7 +101,7 @@ def main():
         # ---------------------------
         parser.add_argument("--model.window_mlp.hidden_size", type=int, default=128)
         parser.add_argument("--model.window_mlp.num_layers", type=int, default=2)
-        parser.add_argument("--model.window_mlp.dropout", type=float, default=0.1)
+        parser.add_argument("--model.window_mlp.dropout", type=float, default=0.2)
         parser.add_argument(
             "--model.window_mlp.activation",
             type=str,
@@ -114,7 +114,7 @@ def main():
         # ---------------------------
         parser.add_argument("--model.reg_head_mlp.hidden_size", type=int, default=64)
         parser.add_argument("--model.reg_head_mlp.num_layers", type=int, default=2)
-        parser.add_argument("--model.reg_head_mlp.dropout", type=float, default=0.1)
+        parser.add_argument("--model.reg_head_mlp.dropout", type=float, default=0.25)
         parser.add_argument(
             "--model.reg_head_mlp.activation",
             type=str,
@@ -144,7 +144,7 @@ def main():
         # ---------------------------
         # TrainingConfig
         # ---------------------------
-        parser.add_argument("--train.num_epochs", type=int, default=100)
+        parser.add_argument("--train.num_epochs", type=int, default=120)
         parser.add_argument("--train.batch_size", type=int, default=32)
         parser.add_argument(
             "--train.optimizer",
@@ -416,14 +416,11 @@ def main():
     )
 
     search_space = {
-        "train.lr": ("log_uniform", 1e-5, 1e-2),
-        # "train.weight_decay": ("log_uniform", 1e-6, 1e-3),
-        "train.batch_size": [32, 64],
-        "model.temporal.hidden_size": [64, 128],
-        "model.temporal.num_layers": [1, 2, 3],
-        "model.temporal.dropout": ("uniform", 0.1, 0.5),
-        "sel.window_size": [32, 64],
-        # "model.temporal.backbone": ["gru", "lstm", "transformer"],
+        "train.lr": ("log_uniform", 1e-5, 1e-3),  # Still critical
+        "model.temporal.dropout": ("uniform", 0.2, 0.5),  # MORE important now
+        "model.window_mlp.dropout": ("uniform", 0.1, 0.4),  # Regularization crucial
+        "sel.converge_ratio": ("uniform", 0.1, 0.3),  # CRITICAL for curriculum
+        "train.batch_size": [32, 64],  # Affects curriculum stability
     }
 
     # Determine output directory
