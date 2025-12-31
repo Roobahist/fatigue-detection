@@ -6,58 +6,170 @@
 set -euo pipefail
 
 OUTPUT_ROOT="${OUTPUT_ROOT:-/home/mojtaba.kananisarche/Zh/outputs}"
-LOG_ROOT="${LOG_ROOT:-logs}"
 
 # ============================================================================
-# Functions
+# Helper Functions
+# ============================================================================
+
+get_job_status() {
+    local job_id="$1"
+    
+    # First check if job is in queue
+    if squeue -j "$job_id" &>/dev/null; then
+        local state=$(squeue -j "$job_id" -h -o "%T" 2>/dev/null | head -1)
+        if [ -n "$state" ]; then
+            echo "$state"
+            return 0
+        fi
+    fi
+    
+    # If not in queue, check accounting (recent history)
+    local state=$(sacct -j "$job_id" --format=State --noheader 2>/dev/null | head -1 | tr -d ' ')
+    if [ -n "$state" ]; then
+        echo "$state"
+        return 0
+    fi
+    
+    echo "NOT_FOUND"
+    return 1
+}
+
+is_job_running() {
+    local job_id="$1"
+    local status=$(get_job_status "$job_id")
+    
+    case "$status" in
+        RUNNING|PENDING|CONFIGURING|COMPLETING|RESIZING|SUSPENDED)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+get_current_gpu_job() {
+    local monitor_dir="$1"
+    
+    if [ ! -f "$monitor_dir/gpu_job_ids.txt" ]; then
+        echo ""
+        return 1
+    fi
+    
+    # Get the most recent GPU job ID
+    local latest_job=$(tail -1 "$monitor_dir/gpu_job_ids.txt" | awk '{print $NF}')
+    
+    if [ -n "$latest_job" ] && [[ "$latest_job" =~ ^[0-9]+$ ]]; then
+        echo "$latest_job"
+        return 0
+    fi
+    
+    echo ""
+    return 1
+}
+
+# ============================================================================
+# Main Functions
 # ============================================================================
 
 list_experiments() {
     echo "========================================"
-    echo "Active Experiments"
+    echo "Experiments"
     echo "========================================"
     echo ""
     
     if [ ! -d "$OUTPUT_ROOT" ]; then
-        echo "No experiments found (output directory does not exist)"
+        echo "No experiments found (output directory does not exist: $OUTPUT_ROOT)"
         return
     fi
+    
+    local found_any=false
     
     for exp_dir in "$OUTPUT_ROOT"/*/; do
         if [ ! -d "$exp_dir" ]; then
             continue
         fi
         
-        run_id=$(basename "$exp_dir")
+        local run_id=$(basename "$exp_dir")
+        local monitor_dir="$exp_dir/monitor"
         
-        if [ -f "$exp_dir/job_ids.txt" ]; then
-            monitor_id=$(grep "Monitor job ID:" "$exp_dir/job_ids.txt" | cut -d' ' -f4)
-            
-            echo "Run ID: $run_id"
-            echo "  Monitor Job: $monitor_id"
-            
-            # Check if job is still running
-            if squeue -j "$monitor_id" 2>/dev/null | grep -q "$monitor_id"; then
-                echo "  Status: RUNNING"
-            else
-                if [ -f "$exp_dir/EXPERIMENT_COMPLETE" ] || [ -f "$exp_dir/nested_cv_results.json" ]; then
-                    echo "  Status: COMPLETE"
-                elif [ -f "$exp_dir/EXPERIMENT_FAILED" ]; then
-                    echo "  Status: FAILED"
-                else
-                    echo "  Status: UNKNOWN/FINISHED"
-                fi
-            fi
-            
-            if [ -f "$exp_dir/experiment_config.txt" ]; then
-                exp_name=$(grep "Experiment name:" "$exp_dir/experiment_config.txt" | cut -d' ' -f3-)
-                echo "  Experiment: $exp_name"
-            fi
-            
-            echo "  Output: $exp_dir"
-            echo ""
+        # Skip if monitor directory doesn't exist
+        if [ ! -d "$monitor_dir" ]; then
+            continue
         fi
+        
+        found_any=true
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Run ID: $run_id"
+        
+        # Get experiment name
+        if [ -f "$monitor_dir/experiment_config.txt" ]; then
+            local exp_name=$(grep "Experiment name:" "$monitor_dir/experiment_config.txt" | cut -d':' -f2- | sed 's/^ *//')
+            if [ -n "$exp_name" ]; then
+                echo "  Name: $exp_name"
+            fi
+        fi
+        
+        # Check monitor job status
+        local monitor_status="UNKNOWN"
+        local monitor_id=""
+        
+        if [ -f "$monitor_dir/job_ids.txt" ]; then
+            monitor_id=$(grep "Monitor job ID:" "$monitor_dir/job_ids.txt" | awk '{print $NF}' || true)
+            
+            if [ -n "$monitor_id" ]; then
+                monitor_status=$(get_job_status "$monitor_id")
+                echo "  Monitor Job: $monitor_id"
+                echo "    Status: $monitor_status"
+            fi
+        fi
+        
+        # Check GPU job status
+        local gpu_job_id=$(get_current_gpu_job "$monitor_dir")
+        if [ -n "$gpu_job_id" ]; then
+            local gpu_status=$(get_job_status "$gpu_job_id")
+            echo "  Current GPU Job: $gpu_job_id"
+            echo "    Status: $gpu_status"
+        fi
+        
+        # Count total GPU submissions
+        if [ -f "$monitor_dir/gpu_job_ids.txt" ]; then
+            local submission_count=$(wc -l < "$monitor_dir/gpu_job_ids.txt")
+            echo "  GPU Submissions: $submission_count"
+        fi
+        
+        # Overall experiment status
+        local overall_status=""
+        
+        if is_job_running "$monitor_id" 2>/dev/null; then
+            overall_status="🟢 RUNNING"
+        elif [ -f "$monitor_dir/EXPERIMENT_COMPLETE" ] || [ -f "$exp_dir/EXPERIMENT_COMPLETE" ]; then
+            overall_status="✅ COMPLETE"
+        elif [ -f "$monitor_dir/EXPERIMENT_FAILED" ]; then
+            overall_status="❌ FAILED"
+        else
+            # Monitor finished but no complete/failed marker
+            overall_status="⚠️  STOPPED"
+        fi
+        
+        echo "  Overall Status: $overall_status"
+        
+        # Show start time
+        if [ -f "$monitor_dir/job_ids.txt" ]; then
+            local start_time=$(grep "Started:" "$monitor_dir/job_ids.txt" | cut -d':' -f2- | sed 's/^ *//')
+            if [ -n "$start_time" ]; then
+                echo "  Started: $start_time"
+            fi
+        fi
+        
+        echo "  Path: $exp_dir"
+        echo ""
     done
+    
+    if [ "$found_any" = false ]; then
+        echo "No experiments found in $OUTPUT_ROOT"
+    fi
 }
 
 show_experiment() {
@@ -66,11 +178,18 @@ show_experiment() {
         return 1
     fi
     
-    run_id="$1"
-    exp_dir="$OUTPUT_ROOT/$run_id"
+    local run_id="$1"
+    local exp_dir="$OUTPUT_ROOT/$run_id"
+    local monitor_dir="$exp_dir/monitor"
     
     if [ ! -d "$exp_dir" ]; then
         echo "ERROR: Experiment not found: $run_id"
+        return 1
+    fi
+    
+    if [ ! -d "$monitor_dir" ]; then
+        echo "ERROR: Monitor directory not found: $monitor_dir"
+        echo "This may be an old experiment with different structure."
         return 1
     fi
     
@@ -79,34 +198,91 @@ show_experiment() {
     echo "========================================"
     echo ""
     
-    if [ -f "$exp_dir/experiment_config.txt" ]; then
-        cat "$exp_dir/experiment_config.txt"
+    # Configuration
+    if [ -f "$monitor_dir/experiment_config.txt" ]; then
+        echo "━━━ Configuration ━━━"
+        cat "$monitor_dir/experiment_config.txt"
         echo ""
     fi
     
-    if [ -f "$exp_dir/job_ids.txt" ]; then
-        echo "========================================"
-        echo "Job Information"
-        echo "========================================"
-        cat "$exp_dir/job_ids.txt"
+    # Job Information
+    echo "━━━ Job Status ━━━"
+    
+    if [ -f "$monitor_dir/job_ids.txt" ]; then
+        local monitor_id=$(grep "Monitor job ID:" "$monitor_dir/job_ids.txt" | awk '{print $NF}' || true)
+        
+        if [ -n "$monitor_id" ]; then
+            local monitor_status=$(get_job_status "$monitor_id")
+            echo "Monitor Job: $monitor_id"
+            echo "  Status: $monitor_status"
+            
+            # Show detailed squeue info if running
+            if is_job_running "$monitor_id"; then
+                echo "  Details:"
+                squeue -j "$monitor_id" -o "    Time: %M | Node: %N | State: %T" 2>/dev/null || true
+            fi
+        fi
+    fi
+    
+    # Current GPU job
+    local gpu_job_id=$(get_current_gpu_job "$monitor_dir")
+    if [ -n "$gpu_job_id" ]; then
+        local gpu_status=$(get_job_status "$gpu_job_id")
+        echo ""
+        echo "Current GPU Job: $gpu_job_id"
+        echo "  Status: $gpu_status"
+        
+        if is_job_running "$gpu_job_id"; then
+            echo "  Details:"
+            squeue -j "$gpu_job_id" -o "    Time: %M | Node: %N | State: %T | GPU: %b" 2>/dev/null || true
+        fi
+    fi
+    
+    echo ""
+    
+    # GPU Job History
+    if [ -f "$monitor_dir/gpu_job_ids.txt" ]; then
+        echo "━━━ GPU Job History ━━━"
+        local total=$(wc -l < "$monitor_dir/gpu_job_ids.txt")
+        echo "Total submissions: $total"
+        echo ""
+        echo "Last 5 submissions:"
+        tail -n 5 "$monitor_dir/gpu_job_ids.txt" | while read -r line; do
+            local job_id=$(echo "$line" | awk '{print $NF}')
+            local submission_num=$(echo "$line" | awk '{print $3}' | tr -d ':')
+            if [ -n "$job_id" ]; then
+                local status=$(get_job_status "$job_id")
+                echo "  #$submission_num: $job_id - $status"
+            fi
+        done
         echo ""
     fi
     
-    if [ -f "$exp_dir/gpu_job_ids.txt" ]; then
-        echo "========================================"
-        echo "GPU Job Submissions"
-        echo "========================================"
-        cat "$exp_dir/gpu_job_ids.txt"
+    # Recent Monitor Log
+    if [ -f "$monitor_dir/monitor_detailed.log" ]; then
+        echo "━━━ Recent Monitor Log (last 15 lines) ━━━"
+        tail -n 15 "$monitor_dir/monitor_detailed.log"
         echo ""
     fi
     
-    if [ -f "$exp_dir/monitor_detailed.log" ]; then
-        echo "========================================"
-        echo "Recent Monitor Log (last 20 lines)"
-        echo "========================================"
-        tail -n 20 "$exp_dir/monitor_detailed.log"
-        echo ""
+    # Overall Status
+    echo "━━━ Overall Status ━━━"
+    if [ -f "$monitor_dir/EXPERIMENT_COMPLETE" ] || [ -f "$exp_dir/EXPERIMENT_COMPLETE" ]; then
+        echo "✅ EXPERIMENT COMPLETE"
+    elif [ -f "$monitor_dir/EXPERIMENT_FAILED" ]; then
+        echo "❌ EXPERIMENT FAILED"
+    elif [ -n "$monitor_id" ] && is_job_running "$monitor_id"; then
+        echo "🟢 EXPERIMENT RUNNING"
+    else
+        echo "⚠️  EXPERIMENT STOPPED"
     fi
+    
+    echo ""
+    echo "Directories:"
+    echo "  Output: $exp_dir"
+    echo "  Monitor: $monitor_dir"
+    echo "  Logs: $exp_dir/logs"
+    echo "  Code Snapshot: $monitor_dir/code_snapshot"
 }
 
 cancel_experiment() {
@@ -115,34 +291,59 @@ cancel_experiment() {
         return 1
     fi
     
-    run_id="$1"
-    exp_dir="$OUTPUT_ROOT/$run_id"
+    local run_id="$1"
+    local exp_dir="$OUTPUT_ROOT/$run_id"
+    local monitor_dir="$exp_dir/monitor"
     
     if [ ! -d "$exp_dir" ]; then
         echo "ERROR: Experiment not found: $run_id"
         return 1
     fi
     
-    if [ -f "$exp_dir/job_ids.txt" ]; then
-        monitor_id=$(grep "Monitor job ID:" "$exp_dir/job_ids.txt" | cut -d' ' -f4 || true)
+    if [ ! -d "$monitor_dir" ]; then
+        echo "ERROR: Monitor directory not found: $monitor_dir"
+        return 1
+    fi
+    
+    echo "Cancelling experiment: $run_id"
+    echo ""
+    
+    local cancelled_any=false
+    
+    # Cancel monitor job
+    if [ -f "$monitor_dir/job_ids.txt" ]; then
+        local monitor_id=$(grep "Monitor job ID:" "$monitor_dir/job_ids.txt" | awk '{print $NF}' || true)
         
         if [ -n "$monitor_id" ]; then
-            echo "Cancelling monitor job: $monitor_id"
-            scancel "$monitor_id" 2>/dev/null || echo "  (already finished)"
+            echo "Checking monitor job $monitor_id..."
+            if is_job_running "$monitor_id"; then
+                echo "  Cancelling monitor job: $monitor_id"
+                scancel "$monitor_id" 2>/dev/null && cancelled_any=true
+            else
+                echo "  Monitor job already finished"
+            fi
         fi
     fi
     
-    if [ -f "$exp_dir/gpu_job_ids.txt" ]; then
-        echo "Cancelling GPU jobs..."
-        while read -r line; do
-            job_id=$(echo "$line" | awk '{print $NF}')
-            if [ -n "$job_id" ] && [[ "$job_id" =~ ^[0-9]+$ ]]; then
-                scancel "$job_id" 2>/dev/null || true
-            fi
-        done < "$exp_dir/gpu_job_ids.txt"
+    # Cancel current GPU job
+    local gpu_job_id=$(get_current_gpu_job "$monitor_dir")
+    if [ -n "$gpu_job_id" ]; then
+        echo "Checking GPU job $gpu_job_id..."
+        if is_job_running "$gpu_job_id"; then
+            echo "  Cancelling GPU job: $gpu_job_id"
+            scancel "$gpu_job_id" 2>/dev/null && cancelled_any=true
+        else
+            echo "  GPU job already finished"
+        fi
     fi
     
-    echo "Experiment cancelled: $run_id"
+    if [ "$cancelled_any" = true ]; then
+        echo ""
+        echo "✓ Jobs cancelled successfully"
+    else
+        echo ""
+        echo "No running jobs found for this experiment"
+    fi
 }
 
 tail_log() {
@@ -151,9 +352,11 @@ tail_log() {
         return 1
     fi
     
-    run_id="$1"
-    log_type="${2:-monitor}"
-    exp_dir="$OUTPUT_ROOT/$run_id"
+    local run_id="$1"
+    local log_type="${2:-monitor}"
+    local exp_dir="$OUTPUT_ROOT/$run_id"
+    local monitor_dir="$exp_dir/monitor"
+    local log_dir="$exp_dir/logs"
     
     if [ ! -d "$exp_dir" ]; then
         echo "ERROR: Experiment not found: $run_id"
@@ -161,30 +364,31 @@ tail_log() {
     fi
     
     if [ "$log_type" = "monitor" ]; then
-        if [ -f "$exp_dir/monitor_detailed.log" ]; then
+        if [ -f "$monitor_dir/monitor_detailed.log" ]; then
             echo "Tailing monitor log (Ctrl+C to exit)..."
-            tail -f "$exp_dir/monitor_detailed.log"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            tail -f "$monitor_dir/monitor_detailed.log"
         else
-            echo "ERROR: Monitor log not found"
+            echo "ERROR: Monitor log not found at $monitor_dir/monitor_detailed.log"
             return 1
         fi
     elif [ "$log_type" = "gpu" ]; then
-        log_dir="$LOG_ROOT/$run_id"
         if [ -d "$log_dir" ]; then
-            latest_gpu_log=$(ls -t "$log_dir"/gpu_*.out 2>/dev/null | head -1)
+            local latest_gpu_log=$(ls -t "$log_dir"/gpu_*.out 2>/dev/null | head -1)
             if [ -n "$latest_gpu_log" ]; then
-                echo "Tailing latest GPU log (Ctrl+C to exit)..."
+                echo "Tailing latest GPU log: $(basename "$latest_gpu_log")"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                 tail -f "$latest_gpu_log"
             else
-                echo "ERROR: No GPU logs found"
+                echo "ERROR: No GPU logs found in $log_dir"
                 return 1
             fi
         else
-            echo "ERROR: Log directory not found"
+            echo "ERROR: Log directory not found: $log_dir"
             return 1
         fi
     else
-        echo "ERROR: Invalid log type. Use 'monitor' or 'gpu'"
+        echo "ERROR: Invalid log type '$log_type'. Use 'monitor' or 'gpu'"
         return 1
     fi
 }
@@ -198,21 +402,27 @@ resume_experiment() {
         return 1
     fi
     
-    run_id="$1"
-    exp_dir="$OUTPUT_ROOT/$run_id"
+    local run_id="$1"
+    local exp_dir="$OUTPUT_ROOT/$run_id"
+    local monitor_dir="$exp_dir/monitor"
     
     if [ ! -d "$exp_dir" ]; then
         echo "ERROR: Experiment not found: $run_id"
         return 1
     fi
     
-    if [ ! -f "$exp_dir/original_config.conf" ]; then
+    if [ ! -d "$monitor_dir" ]; then
+        echo "ERROR: Monitor directory not found: $monitor_dir"
+        return 1
+    fi
+    
+    if [ ! -f "$monitor_dir/original_config.conf" ]; then
         echo "ERROR: Original config not found. Cannot resume."
         echo "The experiment may have been created with an older version of the system."
         return 1
     fi
     
-    if [ ! -d "$exp_dir/code_snapshot" ]; then
+    if [ ! -d "$monitor_dir/code_snapshot" ]; then
         echo "ERROR: Code snapshot not found. Cannot resume."
         return 1
     fi
@@ -225,20 +435,31 @@ resume_experiment() {
     echo ""
     
     # Show current status
-    if [ -f "$exp_dir/EXPERIMENT_COMPLETE" ] || [ -f "$exp_dir/$SUCCESS_FILE" ]; then
+    if [ -f "$monitor_dir/EXPERIMENT_COMPLETE" ] || [ -f "$exp_dir/EXPERIMENT_COMPLETE" ]; then
         echo "⚠️  WARNING: This experiment appears to be complete."
         echo ""
     fi
     
-    if [ -f "$exp_dir/gpu_job_ids.txt" ]; then
-        submission_count=$(wc -l < "$exp_dir/gpu_job_ids.txt")
+    if [ -f "$monitor_dir/gpu_job_ids.txt" ]; then
+        local submission_count=$(wc -l < "$monitor_dir/gpu_job_ids.txt")
         echo "Previous GPU job submissions: $submission_count"
     fi
     
-    if [ -f "$exp_dir/monitor_detailed.log" ]; then
+    # Check if monitor is still running
+    if [ -f "$monitor_dir/job_ids.txt" ]; then
+        local monitor_id=$(grep "Monitor job ID:" "$monitor_dir/job_ids.txt" | awk '{print $NF}' || true)
+        if [ -n "$monitor_id" ] && is_job_running "$monitor_id"; then
+            echo ""
+            echo "⚠️  WARNING: Monitor job $monitor_id is still running!"
+            echo "You should cancel it first: ./manage_experiments.sh cancel $run_id"
+            return 1
+        fi
+    fi
+    
+    if [ -f "$monitor_dir/monitor_detailed.log" ]; then
         echo ""
         echo "Last few monitor log entries:"
-        tail -n 5 "$exp_dir/monitor_detailed.log"
+        tail -n 5 "$monitor_dir/monitor_detailed.log"
     fi
     
     echo ""
@@ -259,7 +480,7 @@ resume_experiment() {
     fi
     
     # Find the submit_job.sh script
-    SUBMIT_SCRIPT="./submit_job.sh"
+    local SUBMIT_SCRIPT="./submit_job.sh"
     if [ ! -f "$SUBMIT_SCRIPT" ]; then
         SUBMIT_SCRIPT="$(dirname "$0")/submit_job.sh"
     fi
@@ -273,7 +494,7 @@ resume_experiment() {
     # Resume using the submit script
     echo ""
     echo "Resuming experiment..."
-    "$SUBMIT_SCRIPT" "$exp_dir/original_config.conf" --resume "$run_id"
+    "$SUBMIT_SCRIPT" "$monitor_dir/original_config.conf" --resume "$run_id"
 }
 
 # ============================================================================
@@ -304,17 +525,21 @@ case "${1:-}" in
         echo "Usage: $0 {list|show|cancel|tail|resume} [args]"
         echo ""
         echo "Commands:"
-        echo "  list                    - List all experiments"
-        echo "  show <run_id>          - Show details of an experiment"
-        echo "  cancel <run_id>        - Cancel an experiment"
-        echo "  tail <run_id> [type]   - Tail logs (type: monitor or gpu)"
-        echo "  resume <run_id>        - Resume a failed experiment"
+        echo "  list                    - List all experiments with their status"
+        echo "  show <run_id>          - Show detailed information about an experiment"
+        echo "  cancel <run_id>        - Cancel all jobs for an experiment"
+        echo "  tail <run_id> [type]   - Follow logs (type: monitor or gpu, default: monitor)"
+        echo "  resume <run_id>        - Resume a stopped/failed experiment"
         echo ""
         echo "Examples:"
         echo "  $0 list"
         echo "  $0 show 20241229_120000_E14"
         echo "  $0 tail 20241229_120000_E14 monitor"
         echo "  $0 cancel 20241229_120000_E14"
+        echo "  $0 resume 20241229_120000_E14"
+        echo ""
+        echo "Environment variables:"
+        echo "  OUTPUT_ROOT - Root directory for experiments (default: /home/mojtaba.kananisarche/Zh/outputs)"
         exit 1
         ;;
 esac

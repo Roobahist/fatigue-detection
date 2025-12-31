@@ -61,14 +61,12 @@ MEM="${MEM:-40G}"
 GPUS="${GPUS:-1}"
 CHECK_INTERVAL="${CHECK_INTERVAL:-60}"
 MAX_RESUBMISSIONS="${MAX_RESUBMISSIONS:-50}"
-LOG_ROOT="${LOG_ROOT:-logs}"
 SUCCESS_FILE="${SUCCESS_FILE:-EXPERIMENT_COMPLETE}"
 ENVIRONMENT_SETUP="${ENVIRONMENT_SETUP:-}"
 WORKING_DIR="${WORKING_DIR:-$(pwd)}"
 
 # Convert paths to absolute
 OUTPUT_ROOT=$(readlink -f "$OUTPUT_ROOT")
-LOG_ROOT=$(readlink -f "$LOG_ROOT")
 WORKING_DIR=$(readlink -f "$WORKING_DIR")
 
 # Handle resume mode
@@ -76,8 +74,9 @@ if [ "$RESUME_MODE" = true ]; then
     # Resuming existing experiment
     RUN_ID="$RESUME_RUN_ID"
     OUTPUT_DIR="${OUTPUT_ROOT}/${RUN_ID}"
-    LOG_DIR="${LOG_ROOT}/${RUN_ID}"
-    SNAPSHOT_DIR="${OUTPUT_DIR}/code_snapshot"
+    MONITOR_DIR="${OUTPUT_DIR}/monitor"
+    LOG_DIR="${OUTPUT_DIR}/logs"
+    SNAPSHOT_DIR="${MONITOR_DIR}/code_snapshot"
     
     if [ ! -d "$OUTPUT_DIR" ]; then
         echo "ERROR: Cannot resume - experiment directory not found: $OUTPUT_DIR"
@@ -94,6 +93,7 @@ if [ "$RESUME_MODE" = true ]; then
     echo "========================================"
     echo "Run ID: $RUN_ID"
     echo "Output directory: $OUTPUT_DIR"
+    echo "Monitor directory: $MONITOR_DIR"
     echo "Log directory: $LOG_DIR"
     echo "Code snapshot: $SNAPSHOT_DIR"
     echo "========================================"
@@ -101,30 +101,30 @@ if [ "$RESUME_MODE" = true ]; then
     echo "Cleaning up any existing jobs..."
     
     # Cancel any existing jobs for this experiment
-    if [ -f "$OUTPUT_DIR/job_ids.txt" ]; then
-        old_monitor_id=$(grep "Monitor job ID:" "$OUTPUT_DIR/job_ids.txt" | cut -d' ' -f4 || true)
+    if [ -f "$MONITOR_DIR/job_ids.txt" ]; then
+        old_monitor_id=$(grep "Monitor job ID:" "$MONITOR_DIR/job_ids.txt" | cut -d' ' -f4 || true)
         if [ -n "$old_monitor_id" ]; then
             scancel "$old_monitor_id" 2>/dev/null || echo "  Previous monitor job already finished"
         fi
     fi
     
-    if [ -f "$OUTPUT_DIR/gpu_job_ids.txt" ]; then
+    if [ -f "$MONITOR_DIR/gpu_job_ids.txt" ]; then
         while read -r line; do
             job_id=$(echo "$line" | awk '{print $NF}')
             if [ -n "$job_id" ] && [[ "$job_id" =~ ^[0-9]+$ ]]; then
                 scancel "$job_id" 2>/dev/null || true
             fi
-        done < "$OUTPUT_DIR/gpu_job_ids.txt"
+        done < "$MONITOR_DIR/gpu_job_ids.txt"
     fi
     
     # Remove failure marker if present
-    rm -f "$OUTPUT_DIR/EXPERIMENT_FAILED"
+    rm -f "$MONITOR_DIR/EXPERIMENT_FAILED"
     
     # Add resume entry to config
-    echo "" >> "$OUTPUT_DIR/experiment_config.txt"
-    echo "=== RESUMED ===" >> "$OUTPUT_DIR/experiment_config.txt"
-    echo "Resume time: $(date)" >> "$OUTPUT_DIR/experiment_config.txt"
-    echo "Resumed by: $USER" >> "$OUTPUT_DIR/experiment_config.txt"
+    echo "" >> "$MONITOR_DIR/experiment_config.txt"
+    echo "=== RESUMED ===" >> "$MONITOR_DIR/experiment_config.txt"
+    echo "Resume time: $(date)" >> "$MONITOR_DIR/experiment_config.txt"
+    echo "Resumed by: $USER" >> "$MONITOR_DIR/experiment_config.txt"
     
 else
     # Generate unique run ID for new experiment
@@ -132,10 +132,12 @@ else
     
     # Create directory structure
     OUTPUT_DIR="${OUTPUT_ROOT}/${RUN_ID}"
-    LOG_DIR="${LOG_ROOT}/${RUN_ID}"
-    SNAPSHOT_DIR="${OUTPUT_DIR}/code_snapshot"
+    MONITOR_DIR="${OUTPUT_DIR}/monitor"
+    LOG_DIR="${OUTPUT_DIR}/logs"
+    SNAPSHOT_DIR="${MONITOR_DIR}/code_snapshot"
     
     mkdir -p "$OUTPUT_DIR"
+    mkdir -p "$MONITOR_DIR"
     mkdir -p "$LOG_DIR"
     mkdir -p "$SNAPSHOT_DIR"
     
@@ -176,11 +178,12 @@ else
     # Save Configuration
     # ============================================================================
     
-    cat > "$OUTPUT_DIR/experiment_config.txt" << EOF
+    cat > "$MONITOR_DIR/experiment_config.txt" << EOF
 Experiment started: $(date)
 Run ID: $RUN_ID
 Experiment name: $EXPERIMENT_NAME
 Output directory: $OUTPUT_DIR
+Monitor directory: $MONITOR_DIR
 Log directory: $LOG_DIR
 Code snapshot: $SNAPSHOT_DIR
 Working directory: $WORKING_DIR
@@ -203,16 +206,17 @@ ${ENVIRONMENT_SETUP:-None}
 === Config File ===
 EOF
     
-    cat "$CONFIG_FILE" >> "$OUTPUT_DIR/experiment_config.txt"
+    cat "$CONFIG_FILE" >> "$MONITOR_DIR/experiment_config.txt"
     
     # Copy the config file for reference
-    cp "$CONFIG_FILE" "$OUTPUT_DIR/original_config.conf"
+    cp "$CONFIG_FILE" "$MONITOR_DIR/original_config.conf"
     
     echo "========================================"
     echo "Starting Experiment: $EXPERIMENT_NAME"
     echo "========================================"
     echo "Run ID: $RUN_ID"
     echo "Output directory: $OUTPUT_DIR"
+    echo "Monitor directory: $MONITOR_DIR"
     echo "Log directory: $LOG_DIR"
     echo "Code snapshot: $SNAPSHOT_DIR"
     echo "Monitor duration: $MONITOR_DAYS days"
@@ -238,7 +242,7 @@ cat > "$MONITOR_SCRIPT" << 'MONITOR_EOF'
 
 set -euo pipefail
 
-MONITOR_LOG="$OUTPUT_DIR/monitor_detailed.log"
+MONITOR_LOG="$MONITOR_DIR/monitor_detailed.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$MONITOR_LOG"
@@ -251,12 +255,15 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $SLURM_NODELIST"
 echo "Start time: $(date)"
 echo "Output dir: $OUTPUT_DIR"
+echo "Monitor dir: $MONITOR_DIR"
 echo "Log dir: $LOG_DIR"
 echo "========================================"
 
 log "=========================================="
 log "Monitor starting on $(hostname)"
+log "Monitor job ID: $SLURM_JOB_ID"
 log "Output directory: $OUTPUT_DIR"
+log "Monitor directory: $MONITOR_DIR"
 log "Log directory: $LOG_DIR"
 log "Experiment: $EXPERIMENT_NAME"
 log "Max submissions: $MAX_RESUBMISSIONS"
@@ -264,7 +271,7 @@ log "Check interval: $CHECK_INTERVAL seconds"
 log "=========================================="
 
 # Create GPU job script
-GPU_JOB_SCRIPT="$OUTPUT_DIR/gpu_job.sh"
+GPU_JOB_SCRIPT="$MONITOR_DIR/gpu_job.sh"
 cat > "$GPU_JOB_SCRIPT" << 'GPU_EOF'
 #!/bin/bash
 #SBATCH --job-name=gpu_task
@@ -339,14 +346,14 @@ if ! GPU_JOB_ID=$(sbatch \
     --parsable \
     "$GPU_JOB_SCRIPT"); then
     log "ERROR: Failed to submit initial GPU job"
-    touch "$OUTPUT_DIR/EXPERIMENT_FAILED"
+    touch "$MONITOR_DIR/EXPERIMENT_FAILED"
     exit 1
 fi
 
 log "Initial GPU job submitted: $GPU_JOB_ID"
 
 submission_count=1
-echo "GPU job $submission_count: $GPU_JOB_ID" >> "$OUTPUT_DIR/gpu_job_ids.txt"
+echo "GPU job $submission_count: $GPU_JOB_ID" >> "$MONITOR_DIR/gpu_job_ids.txt"
 
 # Main monitoring loop
 while true; do
@@ -359,8 +366,8 @@ while true; do
 
     log "GPU job $GPU_JOB_ID has finished"
 
-    # Check for success
-    if [ -f "$OUTPUT_DIR/$SUCCESS_FILE" ]; then
+    # Check for success (look in both OUTPUT_DIR and MONITOR_DIR)
+    if [ -f "$OUTPUT_DIR/$SUCCESS_FILE" ] || [ -f "$MONITOR_DIR/$SUCCESS_FILE" ]; then
         log "=========================================="
         log "EXPERIMENT COMPLETE!"
         log "=========================================="
@@ -368,6 +375,9 @@ while true; do
         log "Total GPU jobs submitted: $submission_count"
         log "Monitor job completed at: $(date)"
         log "=========================================="
+        
+        # Mark as complete in monitor dir
+        touch "$MONITOR_DIR/EXPERIMENT_COMPLETE"
         exit 0
     fi
 
@@ -384,7 +394,7 @@ while true; do
         log "ERROR: Reached maximum submissions ($MAX_RESUBMISSIONS)."
         log "Last GPU job: $GPU_JOB_ID"
         log "=========================================="
-        touch "$OUTPUT_DIR/EXPERIMENT_FAILED"
+        touch "$MONITOR_DIR/EXPERIMENT_FAILED"
         exit 1
     fi
 
@@ -401,7 +411,7 @@ while true; do
         log "ERROR: Failed to resubmit GPU job on attempt $next_attempt"
         
         if [ "$next_attempt" -ge "$MAX_RESUBMISSIONS" ]; then
-            touch "$OUTPUT_DIR/EXPERIMENT_FAILED"
+            touch "$MONITOR_DIR/EXPERIMENT_FAILED"
             exit 1
         fi
         
@@ -414,7 +424,7 @@ while true; do
     submission_count=$next_attempt
 
     log "GPU job resubmitted: $GPU_JOB_ID (submission #$submission_count)"
-    echo "GPU job $submission_count: $GPU_JOB_ID" >> "$OUTPUT_DIR/gpu_job_ids.txt"
+    echo "GPU job $submission_count: $GPU_JOB_ID" >> "$MONITOR_DIR/gpu_job_ids.txt"
 done
 MONITOR_EOF
 
@@ -422,7 +432,7 @@ chmod +x "$MONITOR_SCRIPT"
 
 # Submit monitor job
 MONITOR_JOB_ID=$(sbatch \
-    --export=ALL,OUTPUT_DIR="$OUTPUT_DIR",LOG_DIR="$LOG_DIR",SNAPSHOT_DIR="$SNAPSHOT_DIR",EXPERIMENT_NAME="$EXPERIMENT_NAME",MAX_RESUBMISSIONS="$MAX_RESUBMISSIONS",CHECK_INTERVAL="$CHECK_INTERVAL",GPU_TIME_LIMIT="$GPU_TIME_LIMIT",CPUS_PER_TASK="$CPUS_PER_TASK",MEM="$MEM",GPUS="$GPUS",SUCCESS_FILE="$SUCCESS_FILE",ENVIRONMENT_SETUP="$ENVIRONMENT_SETUP",COMMAND="$COMMAND" \
+    --export=ALL,OUTPUT_DIR="$OUTPUT_DIR",MONITOR_DIR="$MONITOR_DIR",LOG_DIR="$LOG_DIR",SNAPSHOT_DIR="$SNAPSHOT_DIR",EXPERIMENT_NAME="$EXPERIMENT_NAME",MAX_RESUBMISSIONS="$MAX_RESUBMISSIONS",CHECK_INTERVAL="$CHECK_INTERVAL",GPU_TIME_LIMIT="$GPU_TIME_LIMIT",CPUS_PER_TASK="$CPUS_PER_TASK",MEM="$MEM",GPUS="$GPUS",SUCCESS_FILE="$SUCCESS_FILE",ENVIRONMENT_SETUP="$ENVIRONMENT_SETUP",COMMAND="$COMMAND" \
     --time="$MONITOR_TIME" \
     --output="$LOG_DIR/monitor_%j.out" \
     --error="$LOG_DIR/monitor_%j.err" \
@@ -445,6 +455,7 @@ echo "========================================"
 echo ""
 echo "Monitor job ID: $MONITOR_JOB_ID"
 echo "Output directory: $OUTPUT_DIR"
+echo "Monitor directory: $MONITOR_DIR"
 echo "Log directory: $LOG_DIR"
 echo "Code snapshot: $SNAPSHOT_DIR"
 echo ""
@@ -453,7 +464,7 @@ echo "  squeue -j $MONITOR_JOB_ID"
 echo ""
 echo "To view monitor log:"
 echo "  tail -f $LOG_DIR/monitor_${MONITOR_JOB_ID}.out"
-echo "  tail -f $OUTPUT_DIR/monitor_detailed.log"
+echo "  tail -f $MONITOR_DIR/monitor_detailed.log"
 echo ""
 echo "To cancel:"
 echo "  scancel $MONITOR_JOB_ID"
@@ -462,5 +473,5 @@ echo "Results will be in:"
 echo "  $OUTPUT_DIR/"
 echo "========================================"
 
-echo "Monitor job ID: $MONITOR_JOB_ID" > "$OUTPUT_DIR/job_ids.txt"
-echo "Started: $(date)" >> "$OUTPUT_DIR/job_ids.txt"
+echo "Monitor job ID: $MONITOR_JOB_ID" > "$MONITOR_DIR/job_ids.txt"
+echo "Started: $(date)" >> "$MONITOR_DIR/job_ids.txt"
