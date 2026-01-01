@@ -50,7 +50,9 @@ class EarthMoversDistanceLoss(nn.Module):
         
         # EMD is the L1 distance between CDFs
         emd = torch.abs(pred_cdf - target_cdf).sum(dim=1)  # [B]
-        
+
+        emd = emd / (self.num_classes - 1) if self.num_classes > 1 else emd
+
         if self.reduction == 'mean':
             return emd.mean()
         elif self.reduction == 'sum':
