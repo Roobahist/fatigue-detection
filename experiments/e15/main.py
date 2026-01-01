@@ -158,8 +158,9 @@ def main():
             "--train.loss",
             type=str,
             default="mse",
-            help="Loss function. Regression: mse, smooth_l1, mae, huber. "
-            "Classification: cross_entropy, emd, combined_emd_ce, weighted_emd",
+            help="Loss function. "
+                "Regression: mse, smooth_l1, mae, huber. "
+                "Classification: cross_entropy, emd, combined_emd_ce, weighted_emd, coral, corn",
         )
         parser.add_argument("--train.early_stopping_patience", type=int, default=40)
         parser.add_argument(

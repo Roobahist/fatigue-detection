@@ -266,10 +266,6 @@ class VideoMILAdapter:
         self.base_selection_cfg = base_selection_cfg
         self.data_cfg = data_cfg
         self.device = device
-        self.loss_fn = get_loss_fn(
-            name=self.base_train_cfg.loss,
-            data_cfg=self.data_cfg,
-        )
 
         print(
             f"\n{'=' * 80}\n"
@@ -325,7 +321,10 @@ class VideoMILAdapter:
         model_cfg = update_config_with_hparams(
             self.base_model_cfg, hparams, params_prefix="model"
         )
-        return MultiPathMILRegressor(model_cfg, self.data_cfg)
+        train_cfg = update_config_with_hparams(
+            self.base_train_cfg, hparams, params_prefix="train"
+        )
+        return MultiPathMILRegressor(model_cfg, self.data_cfg, train_cfg)
 
     def train_fn(
         self,
@@ -396,6 +395,12 @@ class VideoMILAdapter:
         train_cfg = update_config_with_hparams(
             self.base_train_cfg, hparams, params_prefix="train"
         )
+
+        loss_fn = get_loss_fn(
+            name=train_cfg.loss,
+            data_cfg=self.data_cfg,
+        )
+
         optimizer, scheduler = build_optimizer(model, train_cfg)
 
         return train_for_fixed_epochs(
@@ -403,7 +408,7 @@ class VideoMILAdapter:
             train_loader=train_loader,
             num_epochs=num_epochs,
             optimizer=optimizer,
-            loss_fn=self.loss_fn,
+            loss_fn=loss_fn,
             task_type=task_type,
             device=self.device,
             verbose=True,
@@ -420,6 +425,13 @@ class VideoMILAdapter:
         loader = self.create_dataloader(
             video_ids=data_ids, mode="test", hparams=hparams, train_video_ids=train_ids
         )
+        train_cfg = update_config_with_hparams(
+            self.base_train_cfg, hparams, params_prefix="train"
+        )
+        loss_fn = get_loss_fn(
+            name=train_cfg.loss,
+            data_cfg=self.data_cfg,
+        )
         thresholds, unique_classes = get_task_info_from_dataset_name(
             self.data_cfg.dataset_name,
             self.data_cfg.task_type,
@@ -428,9 +440,10 @@ class VideoMILAdapter:
         return evaluate_on_loader(
             model=model,
             loader=loader,
-            loss_fn=self.loss_fn,
+            loss_fn=loss_fn,
             device=self.device,
             data_cfg=self.data_cfg,
+            train_cfg=train_cfg,
             thresholds=thresholds,
             unique_classes=unique_classes,
             verbose=False,

@@ -36,6 +36,7 @@ def evaluate_on_loader(
     loss_fn: nn.Module,
     device: torch.device,
     data_cfg: DataConfig,
+    train_cfg: TrainingConfig,
     thresholds: Optional[List[float]] = None,
     unique_classes: Optional[List[float]] = None,
     verbose: bool = True,
@@ -54,6 +55,7 @@ def evaluate_on_loader(
     predicted_classes = []
 
     task_type = data_cfg.task_type  # Get from single source of truth
+    loss_name = train_cfg.loss.lower()
 
     with torch.no_grad():
         for batch in loader:
@@ -94,11 +96,21 @@ def evaluate_on_loader(
                 loss = loss_fn(logits, targets)
 
                 # Get predictions
-                probs = torch.softmax(logits, dim=1)
-                preds = torch.argmax(probs, dim=1)
+                preds = get_predictions_from_logits(logits, task_type, loss_name)
 
-                # Store for metrics
-                predicted_values.extend(probs.max(dim=1)[0].tolist())  # Max probability
+                # Get probabilities for reporting
+                if loss_name == "coral":
+                    probs = torch.sigmoid(logits)
+                    predicted_values.extend(probs.mean(dim=1).tolist())
+                elif loss_name == "corn":
+                    probs = torch.sigmoid(logits)
+                    probs = torch.cumprod(probs, dim=1)
+                    predicted_values.extend(probs.mean(dim=1).tolist())
+                else:
+                    # Standard classification
+                    probs = torch.softmax(logits, dim=1)
+                    predicted_values.extend(probs.max(dim=1)[0].tolist())
+
                 true_classes.extend(targets.tolist())
                 predicted_classes.extend(preds.tolist())
 
@@ -130,9 +142,12 @@ def evaluate_on_loader(
             all_labels=unique_classes if unique_classes else sorted(set(true_labels)),
         )
 
+        loss_display = (
+            loss_name.upper() if loss_name in ["coral", "corn"] else task_type.upper()
+        )
         print(
             "\n" + "=" * 80 + "\n"
-            f"EVALUATION RESULTS ({task_type.upper()})\n"
+            f"EVALUATION RESULTS ({loss_display})\n"
             f"Mean Loss: {mean_loss:.4f}\n" + "-" * 80 + "\n"
             "Confusion Matrix:\n"
             f"{cm}\n" + "-" * 80 + "\n"
@@ -175,7 +190,7 @@ def train_one_split(
     train_loader: DataLoader,
     val_loader: DataLoader,
     train_cfg: TrainingConfig,
-    data_cfg: DataConfig,  # NEW: Pass entire data_cfg instead of just dataset_name
+    data_cfg: DataConfig,
     verbose: bool = True,
     checkpoint_mgr: Optional[CheckpointManager] = None,
     outer_idx: Optional[int] = None,
@@ -280,13 +295,15 @@ def train_one_split(
 
         for batch in progress_bar:
             batch_on_device = move_batch_to_device(batch, device)
-            
+
             targets = torch.tensor(
                 [video["target"] for video in batch_on_device],
-                dtype=torch.float32 if data_cfg.task_type == "regression" else torch.long,
+                dtype=(
+                    torch.float32 if data_cfg.task_type == "regression" else torch.long
+                ),
                 device=device,
             )
-            
+
             optimizer.zero_grad()
             preds = model(batch_on_device)
             loss = loss_fn(preds, targets)
@@ -311,6 +328,7 @@ def train_one_split(
                 loss_fn=loss_fn,
                 device=device,
                 data_cfg=data_cfg,
+                train_cfg=train_cfg,
                 thresholds=thresholds,
                 unique_classes=unique_classes,
                 verbose=False,
@@ -615,7 +633,7 @@ def get_loss_fn(name: str, data_cfg: DataConfig):
         num_classes: Number of classes (for classification)
     """
     name = name.lower()
-    
+
     task_type = data_cfg.task_type
     num_classes = data_cfg.num_classes
 
@@ -636,8 +654,11 @@ def get_loss_fn(name: str, data_cfg: DataConfig):
             raise ValueError(
                 "num_classes must be specified in DataConfig for classification"
             )
-
-        if name == "cross_entropy":
+        if name == "coral":
+            return CoralLoss(num_classes=num_classes)
+        elif name == "corn":
+            return CornLoss(num_classes=num_classes)
+        elif name == "cross_entropy":
             return nn.CrossEntropyLoss()
         elif name == "emd":
             return EarthMoversDistanceLoss(num_classes=num_classes)
@@ -883,3 +904,22 @@ def get_task_info_from_dataset_name(
 
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
+
+
+def get_predictions_from_logits(logits, task_type, loss_name):
+    """Convert logits to predictions based on loss type"""
+    if task_type == "regression":
+        return logits
+
+    loss_name = loss_name.lower()
+    if loss_name == "coral":
+        from Zh.src.utils.losses import proba_to_label
+
+        probas = torch.sigmoid(logits)
+        return proba_to_label(probas)
+    elif loss_name == "corn":
+        from Zh.src.utils.losses import corn_label_from_logits
+
+        return corn_label_from_logits(logits)
+    else:
+        return torch.argmax(logits, dim=1)

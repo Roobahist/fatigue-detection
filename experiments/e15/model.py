@@ -270,11 +270,14 @@ class MultiPathMILRegressor(nn.Module):
         - Regression head -> scalar fatigue score
     """
 
-    def __init__(self, cfg: ModelConfig, data_cfg: DataConfig):
+    def __init__(
+        self, cfg: ModelConfig, data_cfg: DataConfig, train_cfg: TrainingConfig
+    ):
         super().__init__()
         self.cfg = cfg
         self.task_type = data_cfg.task_type  # Get from single source of truth
         self.num_classes = data_cfg.num_classes
+        self.loss_name = train_cfg.loss.lower()
 
         self.window_encoder = MultiPathWindowEncoder(cfg)
         self.mil_pool = AttentionMILPooling(
@@ -287,8 +290,21 @@ class MultiPathMILRegressor(nn.Module):
                 raise ValueError(
                     "num_classes must be specified in DataConfig for classification task"
                 )
-            # Output logits for each class
-            self.head = MLP(cfg.d_window, self.num_classes, cfg.reg_head_mlp)
+            if self.loss_name == "coral":
+                # Use special CORAL layer with bias initialization
+                from Zh.src.utils.losses import CoralLayer
+
+                self.head = CoralLayer(
+                    size_in=cfg.d_window,
+                    num_classes=self.num_classes,
+                    preinit_bias=True,
+                )
+            elif self.loss_name == "corn":
+                # Use regular MLP for CORN
+                self.head = MLP(cfg.d_window, self.num_classes - 1, cfg.reg_head_mlp)
+            else:
+                # Standard classification
+                self.head = MLP(cfg.d_window, self.num_classes, cfg.reg_head_mlp)
         else:  # regression
             # Output single value
             self.head = MLP(cfg.d_window, 1, cfg.reg_head_mlp)
