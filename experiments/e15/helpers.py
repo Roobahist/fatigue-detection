@@ -281,18 +281,11 @@ def train_one_split(
         for batch in progress_bar:
             batch_on_device = move_batch_to_device(batch, device)
             
-            if data_cfg.task_type == "regression":
-                targets = torch.tensor(
-                    [video["target"] for video in batch_on_device],
-                    dtype=torch.float32,
-                    device=device,
-                )
-            else:  # classification
-                targets = torch.tensor(
-                    [video["target"] for video in batch_on_device],
-                    dtype=torch.long,
-                    device=device,
-                )
+            targets = torch.tensor(
+                [video["target"] for video in batch_on_device],
+                dtype=torch.float32 if data_cfg.task_type == "regression" else torch.long,
+                device=device,
+            )
             
             optimizer.zero_grad()
             preds = model(batch_on_device)

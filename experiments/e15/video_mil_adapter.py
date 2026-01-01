@@ -110,7 +110,7 @@ def train_for_fixed_epochs(
             preds = model(batch_on_device)
             targets = torch.tensor(
                 [video["target"] for video in batch_on_device],
-                dtype=torch.float32,
+                dtype=torch.float32 if task_type == "regression" else torch.long,
                 device=device,
             )
             loss = loss_fn(preds, targets)
