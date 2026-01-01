@@ -21,6 +21,7 @@ from Zh.src.utils.serialized_parallel import process
 
 try:
     import optuna
+
     OPTUNA_AVAILABLE = True
 except ImportError:
     OPTUNA_AVAILABLE = False
@@ -621,7 +622,7 @@ class NestedCVEngine:
     ) -> Dict[str, Any]:
         """Worker function to evaluate a single config WITH inner-fold checkpointing."""
         loc = _format_location(outer_idx, config_idx)
-        
+
         completed_inner_results: List[InnerFoldResult] = []
         start_inner_fold = 0
 
@@ -653,7 +654,7 @@ class NestedCVEngine:
             config_idx=config_idx,
             verbose=True,
         )
-        
+
         mean_val_metric = np.mean([r.inner_val_metric for r in inner_results])
         mean_epoch = int(np.round(np.mean([r.best_epoch for r in inner_results])))
 
@@ -803,8 +804,17 @@ class NestedCVEngine:
                 show_progress_bar=verbose,
             )
 
-        best_trial_number = study.best_trial.number
-        best_hparams, best_mean_epoch = best_hparams_per_trial[best_trial_number]
+        best_trial_number = int(study.best_trial.number)
+
+        if best_trial_number in best_hparams_per_trial:
+            best_hparams, best_mean_epoch = best_hparams_per_trial[best_trial_number]
+        else:
+            best_hparams = study.best_trial.params
+            best_mean_epoch = (
+                int(np.round(np.mean([r.best_epoch for r in all_inner_results])))
+                if all_inner_results
+                else 1
+            )
 
         return best_hparams, best_mean_epoch, all_inner_results
 
@@ -823,7 +833,7 @@ class NestedCVEngine:
     ) -> List[InnerFoldResult]:
         """
         Run inner CV with checkpointing after each inner fold.
-        
+
         NOW ALSO PASSES checkpoint info to train_fn for training-level checkpointing.
         """
         inner_results: List[InnerFoldResult] = (
@@ -832,7 +842,7 @@ class NestedCVEngine:
 
         for inner_idx in range(start_fold, inner_folds):
             loc = _format_location(outer_idx, config_idx, inner_idx)
-            
+
             if verbose:
                 print(
                     f"\n{'=' * 80}\n"
@@ -851,14 +861,15 @@ class NestedCVEngine:
             # Train with checkpoint support - pass indices for training checkpointing
             # Check if train_fn accepts checkpoint parameters
             import inspect
+
             sig = inspect.signature(self.train_fn)
-            
-            if 'checkpoint_mgr' in sig.parameters:
+
+            if "checkpoint_mgr" in sig.parameters:
                 # New signature with checkpoint support
                 model, best_val_metric, best_epoch = self.train_fn(
-                    model, 
-                    inner_train_ids, 
-                    inner_val_ids, 
+                    model,
+                    inner_train_ids,
+                    inner_val_ids,
                     hparams,
                     checkpoint_mgr=checkpoint_mgr,
                     outer_idx=outer_idx,
