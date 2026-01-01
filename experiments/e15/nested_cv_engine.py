@@ -731,12 +731,14 @@ class NestedCVEngine:
                     f"{'-' * 80}\n"
                 )
 
-            inner_results = self._run_inner_cv(
-                outer_train_ids,
-                outer_test_ids,
-                hparams,
-                inner_folds,
-                verbose,
+            inner_results = self._run_inner_cv_optuna_prunable(
+                outer_train_ids=outer_train_ids,
+                outer_test_ids=outer_test_ids,
+                hparams=hparams,
+                inner_folds=inner_folds,
+                trial=trial,
+                verbose=verbose,
+                outer_idx=outer_idx,
             )
 
             all_inner_results.extend(inner_results)
@@ -767,10 +769,17 @@ class NestedCVEngine:
         if checkpoint_mgr:
             storage = f"sqlite:///{checkpoint_mgr.output_dir}/optuna_study.db"
 
+        pruner = optuna.pruners.MedianPruner(
+            n_startup_trials=3,  # don’t prune the first few trials
+            n_warmup_steps=0,  # allow pruning after the first inner fold
+            interval_steps=1,
+        )
+
         study = optuna.create_study(
             study_name=study_name,
             direction="minimize",
             sampler=sampler,
+            pruner=pruner,
             storage=storage,
             load_if_exists=True,  # Resume if study exists
         )
@@ -956,6 +965,72 @@ class NestedCVEngine:
                 best_epoch=best_epoch,
             )
             inner_results.append(result)
+
+        return inner_results
+
+    def _run_inner_cv_optuna_prunable(
+        self,
+        outer_train_ids: List[Any],
+        outer_test_ids: List[Any],
+        hparams: Dict[str, Any],
+        inner_folds: int,
+        trial,
+        verbose: bool = True,
+        outer_idx: Optional[int] = None,
+    ) -> List[InnerFoldResult]:
+        """
+        Same as _run_inner_cv, but reports intermediate scores to Optuna so it can prune.
+        Pruning happens at inner-fold granularity (after each inner fold finishes).
+        """
+        inner_results: List[InnerFoldResult] = []
+
+        for inner_idx in range(inner_folds):
+            if verbose:
+                print(
+                    f"\n{'=' * 80}\n"
+                    f"INNER FOLD {inner_idx + 1}/{inner_folds} [Outer={outer_idx}, Trial={trial.number}]\n"
+                    f"{'=' * 80}\n"
+                )
+
+            inner_train_ids, inner_val_ids = self.split_fn(
+                outer_train_ids, inner_folds, inner_idx
+            )
+
+            model = self.model_builder(hparams).to(self.device)
+
+            model, best_val_metric, best_epoch = self.train_fn(
+                model, inner_train_ids, inner_val_ids, hparams
+            )
+
+            train_metric = self.evaluate_fn(
+                model, inner_train_ids, hparams, inner_train_ids
+            )
+            val_metric = self.evaluate_fn(
+                model, inner_val_ids, hparams, inner_train_ids
+            )
+            outer_test_metric = self.evaluate_fn(
+                model, outer_test_ids, hparams, inner_train_ids
+            )
+
+            inner_results.append(
+                InnerFoldResult(
+                    inner_fold=inner_idx,
+                    hparams=copy.deepcopy(hparams),
+                    inner_train_metric=train_metric,
+                    inner_val_metric=val_metric,
+                    outer_test_metric=outer_test_metric,
+                    best_epoch=best_epoch,
+                )
+            )
+
+            # Report running mean val loss to Optuna and prune if needed
+            running_mean = float(np.mean([r.inner_val_metric for r in inner_results]))
+            trial.report(running_mean, step=inner_idx)
+
+            if trial.should_prune():
+                raise optuna.TrialPruned(
+                    f"Pruned at inner fold {inner_idx} (running mean={running_mean:.4f})"
+                )
 
         return inner_results
 
