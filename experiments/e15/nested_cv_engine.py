@@ -702,9 +702,17 @@ class NestedCVEngine:
 
         if fold_checkpoint and "search_state" in fold_checkpoint:
             state = fold_checkpoint["search_state"]
-            all_inner_results = state.get("inner_results", [])
-            best_hparams_per_trial = state.get("best_hparams_per_trial", {})
-            completed_trials = state.get("completed_trials", 0)
+
+            restored_inner = state.get("inner_results", [])
+            all_inner_results = [
+                r if isinstance(r, InnerFoldResult) else InnerFoldResult.from_dict(r)
+                for r in restored_inner
+            ]
+
+            raw_best = state.get("best_hparams_per_trial", {})
+            best_hparams_per_trial = {int(k): v for k, v in raw_best.items()}
+
+            completed_trials = int(state.get("completed_trials", 0))
 
             if verbose:
                 print(
@@ -750,9 +758,11 @@ class NestedCVEngine:
             # Save checkpoint after each trial
             if checkpoint_mgr and outer_idx is not None:
                 search_state = {
-                    "inner_results": all_inner_results,
-                    "best_hparams_per_trial": best_hparams_per_trial,
-                    "completed_trials": trial.number + 1,
+                    "inner_results": [r.to_dict() for r in all_inner_results],
+                    "best_hparams_per_trial": {
+                        str(k): v for k, v in best_hparams_per_trial.items()
+                    },
+                    "completed_trials": int(trial.number) + 1,
                 }
                 checkpoint_mgr.save_outer_fold_checkpoint(
                     outer_idx=outer_idx,
