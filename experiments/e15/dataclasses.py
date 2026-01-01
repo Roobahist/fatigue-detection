@@ -87,7 +87,7 @@ class CrossValidationConfig:
     inner_folds: int = 4
 
 
-@dataclass
+@dataclass(frozen=True)
 class DataConfig:
     dataset_name: str  # e.g. "UTA"
     embeddings_dir: str
