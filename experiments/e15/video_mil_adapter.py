@@ -72,6 +72,7 @@ def train_for_fixed_epochs(
     num_epochs: int,
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module,
+    task_type: str,
     device: torch.device,
     verbose: bool = True,
 ) -> nn.Module:
@@ -379,6 +380,7 @@ class VideoMILAdapter:
         train_ids: List[str],
         num_epochs: int,
         hparams: Dict[str, Any],
+        task_type: str,
     ) -> nn.Module:
         """Train model for fixed epochs without validation."""
         train_loader = self.create_dataloader(
@@ -397,7 +399,14 @@ class VideoMILAdapter:
         optimizer, scheduler = build_optimizer(model, train_cfg)
 
         return train_for_fixed_epochs(
-            model, train_loader, num_epochs, optimizer, self.loss_fn, self.device
+            model=model,
+            train_loader=train_loader,
+            num_epochs=num_epochs,
+            optimizer=optimizer,
+            loss_fn=self.loss_fn,
+            task_type=task_type,
+            device=self.device,
+            verbose=True,
         )
 
     def evaluate_fn(
@@ -527,6 +536,7 @@ def nested_cv_video_mil(
         train_fixed_epochs_fn=adapter.train_fixed_epochs_fn,
         evaluate_fn=adapter.evaluate_fn,
         split_fn=adapter.split_fn,
+        task_type=adapter.data_cfg.task_type,
         device=adapter.device,
         parallel_inner_cv=parallel_inner_cv,
         max_workers=max_workers,

@@ -174,6 +174,7 @@ class NestedCVEngine:
         evaluate_fn: Callable[[nn.Module, Any, Dict[str, Any], Any], float],
         split_fn: Callable[[List[Any], int, int], Tuple[List[Any], List[Any]]],
         device: torch.device,
+        task_type: str,
         save_model_fn: Callable[[nn.Module, str], None] = None,
         parallel_inner_cv: bool = False,
         max_workers: Optional[int] = None,
@@ -194,6 +195,7 @@ class NestedCVEngine:
         self.evaluate_fn = evaluate_fn
         self.split_fn = split_fn
         self.save_model_fn = save_model_fn or _default_save_model
+        self.task_type = task_type
         self.device = device
         self.parallel_inner_cv = parallel_inner_cv
         self.max_workers = max_workers or 0
@@ -967,7 +969,9 @@ class NestedCVEngine:
         model = self.model_builder(hparams)
         model = model.to(self.device)
 
-        model = self.train_fixed_epochs_fn(model, outer_train_ids, num_epochs, hparams)
+        model = self.train_fixed_epochs_fn(
+            model, outer_train_ids, num_epochs, hparams, self.task_type
+        )
 
         return model
 
