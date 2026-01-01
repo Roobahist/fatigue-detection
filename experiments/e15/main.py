@@ -184,6 +184,10 @@ def main():
         parser.add_argument("--sel.stride", type=int, default=32)
         parser.add_argument("--sel.n_windows", type=int, default=16)
 
+        parser.add_argument(
+            "--sel.no_curriculum", action="store_false", dest="sel.use_curriculum"
+        )
+
         parser.add_argument("--sel.pick_mean_top_begin", type=int, default=4)
         parser.add_argument("--sel.pick_max_top_begin", type=int, default=2)
         parser.add_argument("--sel.pick_random_begin", type=int, default=10)
@@ -285,16 +289,32 @@ def main():
         )
 
         # ---------- SelectionConfig ----------
+        use_curriculum = (vars(args)["sel.use_curriculum"],)
+
         selection_cfg = SelectionConfig(
             window_size=vars(args)["sel.window_size"],
             stride=vars(args)["sel.stride"],
             n_windows=vars(args)["sel.n_windows"],
-            pick_mean_top_begin=vars(args)["sel.pick_mean_top_begin"],
-            pick_max_top_begin=vars(args)["sel.pick_max_top_begin"],
-            pick_random_begin=vars(args)["sel.pick_random_begin"],
-            pick_mean_top_end=vars(args)["sel.pick_mean_top_end"],
-            pick_max_top_end=vars(args)["sel.pick_max_top_end"],
-            pick_random_end=vars(args)["sel.pick_random_end"],
+            pick_mean_top_begin=(
+                vars(args)["sel.pick_mean_top_begin"]
+                if use_curriculum
+                else vars(args)["sel.n_windows"]
+            ),
+            pick_max_top_begin=(
+                vars(args)["sel.pick_max_top_begin"] if use_curriculum else 0
+            ),
+            pick_random_begin=(
+                vars(args)["sel.pick_random_begin"] if use_curriculum else 0
+            ),
+            pick_mean_top_end=(
+                vars(args)["sel.pick_mean_top_end"]
+                if use_curriculum
+                else vars(args)["sel.n_windows"]
+            ),
+            pick_max_top_end=(
+                vars(args)["sel.pick_max_top_end"] if use_curriculum else 0
+            ),
+            pick_random_end=vars(args)["sel.pick_random_end"] if use_curriculum else 0,
             converge_ratio=vars(args)["sel.converge_ratio"],
         )
 
