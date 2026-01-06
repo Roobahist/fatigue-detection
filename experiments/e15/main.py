@@ -273,6 +273,7 @@ def main():
 
         # ---------- TrainingConfig ----------
         train_cfg = TrainingConfig(
+            seed=vars(args)["seed"],
             num_epochs=vars(args)["train.num_epochs"],
             batch_size=vars(args)["train.batch_size"],
             optimizer=vars(args)["train.optimizer"],
@@ -486,7 +487,6 @@ def main():
         cv_cfg=cv_cfg,
         search_space=search_space,
         output_dir=output_dir,
-        random_seed=vars(args)["seed"],
         device=setup_torch(vars(args)["train.device"]),
         parallel_inner_cv=vars(args)["parallel_inner_cv"],
         max_workers=vars(args)["max_workers"] if vars(args)["parallel_inner_cv"] else 1,

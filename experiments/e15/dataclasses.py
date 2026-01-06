@@ -44,6 +44,7 @@ class ModelConfig:
 
 @dataclass
 class TrainingConfig:
+    seed: int = 42
     num_epochs: int = 50
     batch_size: int = 4
     optimizer: str = "adamw"  # "adam", "adamw", "sgd"

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import os
 import time
@@ -16,6 +17,11 @@ from Zh.experiments.e15.checkpoint_manager import CheckpointManager
 from Zh.experiments.e15.dataclasses import *
 from Zh.experiments.e15.datasets import *
 from Zh.src.utils.losses import *
+
+
+def _stable_int_hash(s: str) -> int:
+    h = hashlib.blake2b(s.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(h, byteorder="little", signed=False)
 
 
 def _format_location(outer_idx=None, config_idx=None, inner_idx=None):

@@ -1,12 +1,17 @@
 import os
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
 from Zh.experiments.e15.dataclasses import *
-from Zh.experiments.e15.helpers import compute_training_picks, get_target_from_video_id
+from Zh.experiments.e15.helpers import (
+    _stable_int_hash,
+    compute_training_picks,
+    get_target_from_video_id,
+)
 from Zh.src.utils.eventfulness import pick_eventful_segments
 from Zh.src.utils.memmap_handler import MemmapHandler
 
@@ -85,6 +90,10 @@ class RealVideoDataset(Dataset):
         data_cfg: DataConfig,
         selection_cfg: SelectionConfig,
         mode: str = "train",
+        base_seed: int = 0,
+        outer_idx: int = 0,
+        config_idx: int = 0,
+        inner_idx: int = 0,
     ):
         super().__init__()
         assert mode in ("train", "val", "test")
@@ -97,6 +106,11 @@ class RealVideoDataset(Dataset):
         self.selection_cfg = selection_cfg
         self.converge_ratio = selection_cfg.converge_ratio
         self.mode = mode
+        self.base_seed = int(base_seed)
+        self.outer_idx = int(outer_idx)
+        self.config_idx = int(config_idx)
+        self.inner_idx = int(inner_idx)
+        self._epoch = 0
 
         # These will be updated per epoch for training
         self._current_pick_mean = selection_cfg.pick_mean_top_begin
@@ -110,6 +124,9 @@ class RealVideoDataset(Dataset):
         """
         if self.mode != "train":
             return  # no-op for val/test
+
+        self._epoch = int(epoch)
+
         m, x, r = compute_training_picks(
             self.selection_cfg, epoch, num_epochs, self.converge_ratio
         )
@@ -118,6 +135,18 @@ class RealVideoDataset(Dataset):
         self._current_pick_max = x
         self._current_pick_random = r
         assert m + x + r == self.selection_cfg.n_windows
+
+    def _make_rng_for_video(self, video_id: str) -> np.random.Generator:
+        vid_h = _stable_int_hash(video_id)
+        seed = (
+            self.base_seed
+            + 1000003 * self._epoch
+            + 1009 * self.outer_idx
+            + 9176 * self.inner_idx
+            + 313 * self.config_idx
+            + (vid_h % 2_000_000_000)
+        ) % 2_000_000_000
+        return np.random.default_rng(seed)
 
     def __len__(self) -> int:
         return len(self.video_ids)
@@ -153,7 +182,15 @@ class RealVideoDataset(Dataset):
             pick_mean_top=pick_mean,
             pick_max_top=pick_max,
             pick_random=pick_random,
+            rng=self._make_rng_for_video(video_id),
         )
+
+        # print("---- Debug Info: RealVideoDataset __getitem__ ----")
+        # print(pick_mean, pick_max, pick_random)
+        # print(f"Video ID: {video_id}")
+        # print(f"Picked window indices: {picked_indices}")
+        # print(f"Eventfulness DF:\n{eventfulness_df}")
+        # print("--------------------------------------------------")
 
         # Each picked index corresponds to one window: we have start_frame/end_frame
         # for that window in eventfulness_df.

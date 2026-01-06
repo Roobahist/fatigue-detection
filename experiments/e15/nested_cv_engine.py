@@ -374,6 +374,7 @@ class NestedCVEngine:
                 outer_train_ids=outer_train_ids,
                 hparams=best_hparams,
                 num_epochs=chosen_epochs,
+                outer_idx=outer_idx,
             )
 
             # Evaluate final model
@@ -883,13 +884,31 @@ class NestedCVEngine:
                 )
 
             train_metric = self.evaluate_fn(
-                model, inner_train_ids, hparams, inner_train_ids
+                model,
+                inner_train_ids,
+                hparams,
+                inner_train_ids,
+                outer_idx,
+                config_idx,
+                inner_idx,
             )
             val_metric = self.evaluate_fn(
-                model, inner_val_ids, hparams, inner_train_ids
+                model,
+                inner_val_ids,
+                hparams,
+                inner_train_ids,
+                outer_idx,
+                config_idx,
+                inner_idx,
             )
             outer_test_metric = self.evaluate_fn(
-                model, outer_test_ids, hparams, inner_train_ids
+                model,
+                outer_test_ids,
+                hparams,
+                inner_train_ids,
+                outer_idx,
+                config_idx,
+                inner_idx,
             )
 
             if verbose:
@@ -1024,13 +1043,31 @@ class NestedCVEngine:
             )
 
             train_metric = self.evaluate_fn(
-                model, inner_train_ids, hparams, inner_train_ids
+                model,
+                inner_train_ids,
+                hparams,
+                inner_train_ids,
+                outer_idx,
+                trial.number,
+                inner_idx,
             )
             val_metric = self.evaluate_fn(
-                model, inner_val_ids, hparams, inner_train_ids
+                model,
+                inner_val_ids,
+                hparams,
+                inner_train_ids,
+                outer_idx,
+                trial.number,
+                inner_idx,
             )
             outer_test_metric = self.evaluate_fn(
-                model, outer_test_ids, hparams, inner_train_ids
+                model,
+                outer_test_ids,
+                hparams,
+                inner_train_ids,
+                outer_idx,
+                trial.number,
+                inner_idx,
             )
 
             inner_results.append(
@@ -1060,13 +1097,14 @@ class NestedCVEngine:
         outer_train_ids: List[Any],
         hparams: Dict[str, Any],
         num_epochs: int,
+        outer_idx: Optional[int] = None,
     ) -> nn.Module:
         """Retrain model on full outer training set for a fixed number of epochs."""
         model = self.model_builder(hparams)
         model = model.to(self.device)
 
         model = self.train_fixed_epochs_fn(
-            model, outer_train_ids, num_epochs, hparams, self.task_type
+            model, outer_train_ids, num_epochs, hparams, self.task_type, outer_idx
         )
 
         return model

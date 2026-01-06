@@ -285,6 +285,9 @@ class VideoMILAdapter:
         mode: str,
         hparams: Dict[str, Any],
         train_video_ids: Optional[List[str]] = None,
+        outer_idx: Optional[int] = 0,
+        config_idx: Optional[int] = 0,
+        inner_idx: Optional[int] = 0,
     ) -> DataLoader:
         """Create dataloader for given video IDs and mode."""
         selection_cfg = update_config_with_hparams(
@@ -299,10 +302,17 @@ class VideoMILAdapter:
             data_cfg=self.data_cfg,
             selection_cfg=selection_cfg,
             mode=mode,
+            base_seed=train_cfg.seed,
+            outer_idx=outer_idx,
+            config_idx=config_idx,
+            inner_idx=inner_idx,
         )
 
         batch_transform = make_batch_transform(train_video_ids, self.data_cfg)
         collate_fn = make_collate_fn(batch_transform)
+
+        g = torch.Generator()
+        g.manual_seed(int(train_cfg.seed))
 
         return DataLoader(
             dataset,
@@ -310,6 +320,7 @@ class VideoMILAdapter:
             shuffle=(mode == "train"),
             collate_fn=collate_fn,
             num_workers=0,
+            generator=g,
         )
 
     # ========================================================================
@@ -333,9 +344,9 @@ class VideoMILAdapter:
         val_ids: List[str],
         hparams: Dict[str, Any],
         checkpoint_mgr: Optional[CheckpointManager] = None,
-        outer_idx: Optional[int] = None,
-        config_idx: Optional[int] = None,
-        inner_idx: Optional[int] = None,
+        outer_idx: Optional[int] = 0,
+        config_idx: Optional[int] = 0,
+        inner_idx: Optional[int] = 0,
     ) -> Tuple[nn.Module, float, int]:
         """Train model with early stopping and training-level checkpointing."""
         train_loader = self.create_dataloader(
@@ -343,9 +354,18 @@ class VideoMILAdapter:
             mode="train",
             hparams=hparams,
             train_video_ids=train_ids,
+            outer_idx=outer_idx,
+            config_idx=config_idx,
+            inner_idx=inner_idx,
         )
         val_loader = self.create_dataloader(
-            video_ids=val_ids, mode="val", hparams=hparams, train_video_ids=train_ids
+            video_ids=val_ids,
+            mode="val",
+            hparams=hparams,
+            train_video_ids=train_ids,
+            outer_idx=outer_idx,
+            config_idx=config_idx,
+            inner_idx=inner_idx,
         )
 
         train_cfg = update_config_with_hparams(
@@ -380,6 +400,7 @@ class VideoMILAdapter:
         num_epochs: int,
         hparams: Dict[str, Any],
         task_type: str,
+        outer_idx: Optional[int] = 0,
     ) -> nn.Module:
         """Train model for fixed epochs without validation."""
         train_loader = self.create_dataloader(
@@ -387,6 +408,7 @@ class VideoMILAdapter:
             mode="train",
             hparams=hparams,
             train_video_ids=train_ids,
+            outer_idx=outer_idx,
         )
 
         # Create optimizer
@@ -420,10 +442,20 @@ class VideoMILAdapter:
         data_ids: List[str],
         hparams: Dict[str, Any],
         train_ids: Optional[List[str]],
+        outer_idx: Optional[int] = 0,
+        config_idx: Optional[int] = 0,
+        inner_idx: Optional[int] = 0,
+        verbose: bool = False,
     ) -> float:
         """Evaluate model on data."""
         loader = self.create_dataloader(
-            video_ids=data_ids, mode="test", hparams=hparams, train_video_ids=train_ids
+            video_ids=data_ids,
+            mode="test",
+            hparams=hparams,
+            train_video_ids=train_ids,
+            outer_idx=outer_idx,
+            config_idx=config_idx,
+            inner_idx=inner_idx,
         )
         train_cfg = update_config_with_hparams(
             self.base_train_cfg, hparams, params_prefix="train"
@@ -482,7 +514,6 @@ def nested_cv_video_mil(
     device: torch.device,
     search_space: Dict[str, Any] = None,
     output_dir: str = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E11",
-    random_seed: int = 42,
     parallel_inner_cv: bool = False,
     max_workers: int = 4,
     resume: bool = True,
@@ -499,7 +530,6 @@ def nested_cv_video_mil(
         cv_cfg: CrossValidationConfig
         search_space: Hyperparameter search space
         output_dir: Output directory
-        random_seed: Random seed
         device: Device to use
         resume: If True, attempt to resume from checkpoint if available.
                 Set to False to start fresh even if checkpoints exist.
@@ -529,7 +559,7 @@ def nested_cv_video_mil(
         f"  Search strategy: {cv_cfg.search_strategy}\n"
         f"  N trials: {cv_cfg.n_trials}\n"
         f"  Output directory: {output_dir}\n"
-        f"  Random seed: {random_seed}\n"
+        f"  Random seed: {train_cfg.seed}\n"
         f"  Resume: {resume}\n"
         f"{'#' * 80}\n"
     )
@@ -561,7 +591,7 @@ def nested_cv_video_mil(
         cv_cfg=cv_cfg,
         search_space=search_space,
         output_dir=output_dir,
-        random_seed=random_seed,
+        random_seed=train_cfg.seed,
         verbose=True,
         resume=resume,
     )
