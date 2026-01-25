@@ -3,6 +3,9 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 from Zh.src.utils.common import load_obj, save_obj
@@ -17,7 +20,8 @@ class CheckpointManager:
 
         output_dir/
             nested_cv_checkpoint.json           # main run-level checkpoint
-
+            search_space.json                   # hyperparameter search space
+            args.json                           # full set of run arguments
             checkpoints/
                 outer_fold_0/
                     checkpoint.json             # metadata for this outer fold
@@ -47,6 +51,7 @@ class CheckpointManager:
         self.main_checkpoint_path = os.path.join(
             output_dir, "nested_cv_checkpoint.json"
         )
+        self.search_space_path = os.path.join(output_dir, "search_space.json")
         self.checkpoint_dir = os.path.join(output_dir, "checkpoints")
         create_folders(self.checkpoint_dir)
 
@@ -612,3 +617,376 @@ class CheckpointManager:
             "progress_percentage": progress_percentage,
             "current_fold_progress": current_fold_progress,
         }
+    
+    # -------------------------------------------------------------------------
+    # Training visualizations
+    # -------------------------------------------------------------------------
+
+    def _get_training_viz_dir(
+        self, outer_idx: int, config_idx: int, inner_idx: int
+    ) -> str:
+        """Get directory for training visualizations."""
+        train_dir = self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx)
+        viz_dir = os.path.join(train_dir, "visualizations")
+        os.makedirs(viz_dir, exist_ok=True)
+        return viz_dir
+
+    def _get_outer_fold_viz_dir(self, outer_idx: int) -> str:
+        """Get directory for outer fold visualizations."""
+        fold_dir = self._outer_fold_dir_path(outer_idx)
+        viz_dir = os.path.join(fold_dir, "visualizations")
+        os.makedirs(viz_dir, exist_ok=True)
+        return viz_dir
+
+    def save_training_visualization(
+        self,
+        outer_idx: int,
+        config_idx: int,
+        inner_idx: int,
+        epoch: int,
+        train_loss: float,
+        val_loss: float,
+        max_epochs: Optional[int],
+    ) -> None:
+        """
+        Save/update training loss visualization.
+
+        Args:
+            outer_idx: Outer fold index
+            config_idx: Config index
+            inner_idx: Inner fold index
+            epoch: Training epoch number (1-based)
+            train_loss: Training loss at this epoch
+            val_loss: Validation loss at this epoch
+            max_epochs: Maximum number of epochs (for scaling x-axis)
+        """
+        viz_dir = self._get_training_viz_dir(outer_idx, config_idx, inner_idx)
+        data_path = os.path.join(viz_dir, "training_data.json")
+        plot_path = os.path.join(viz_dir, "training_curves.png")
+
+        # Load existing data or create new
+        if os.path.exists(data_path):
+            try:
+                data = load_obj(data_path, file_type="json")
+            except Exception as e:
+                logging.error("Error loading training viz data: %s", e)
+                data = {"epochs": [], "train_losses": [], "val_losses": []}
+        else:
+            data = {"epochs": [], "train_losses": [], "val_losses": []}
+
+        # Append new entry
+        data["epochs"].append(epoch)
+        data["train_losses"].append(train_loss)
+        data["val_losses"].append(val_loss)
+
+        # Save updated data
+        save_obj(obj=data, output_path=data_path, file_type="json", atomic=True)
+
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        epochs = data["epochs"]
+        train_losses = data["train_losses"]
+        val_losses = data["val_losses"]
+
+        # Plot training and validation losses
+        ax.plot(
+            epochs, train_losses, "o-", color="orange", label="Training Loss", alpha=0.7
+        )
+        ax.plot(
+            epochs, val_losses, "s-", color="blue", label="Validation Loss", alpha=0.7
+        )
+
+        # Find and mark best epoch (minimum validation loss)
+        best_idx = np.argmin(val_losses)
+        best_epoch = epochs[best_idx]
+
+        ax.axvline(
+            x=best_epoch,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=f"Best epoch: {best_epoch}",
+        )
+
+        ax.set_xlabel("Training epoch", fontsize=12)
+        ax.set_ylabel("Loss", fontsize=12)
+        ax.set_title(
+            f"Training Progress - Outer {outer_idx}, Config {config_idx}, Inner {inner_idx}",
+            fontsize=14,
+        )
+        if max_epochs is not None:
+            ax.set_xlim(0.5, max_epochs + 0.5)
+        else:
+            ax.set_xlim(0.5, max(epochs) + 0.5)
+
+        ax.set_xticks(range(1, (max_epochs or max(epochs)) + 1, 1))
+
+        ax.legend(loc="best")
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+
+    def generate_hyperparameter_visualizations(self, outer_idx: int) -> None:
+        """
+        Generate hyperparameter performance visualizations for an outer fold.
+
+        This creates separate scatter plots for each hyperparameter dimension,
+        showing how different values affect model performance across all configs
+        and inner folds.
+
+        Args:
+            outer_idx: Outer fold index
+        """
+        fold_dir = self._outer_fold_dir_path(outer_idx)
+        viz_dir = self._get_outer_fold_viz_dir(outer_idx)
+
+        # Load search space
+        if not os.path.exists(self.search_space_path):
+            logging.warning("Search space file not found at %s", self.search_space_path)
+            return
+
+        try:
+            search_space = load_obj(self.search_space_path, file_type="json")
+        except Exception as e:
+            logging.error("Error loading search space: %s", e)
+            return
+
+        # Collect all results from partial configs
+        partial_configs_dir = os.path.join(fold_dir, "partial_configs")
+        if not os.path.exists(partial_configs_dir):
+            logging.warning("No partial configs directory found")
+            return
+
+        # Aggregate all hyperparameter results
+        all_results = []
+
+        for config_dir in os.listdir(partial_configs_dir):
+            if not config_dir.startswith("config_"):
+                continue
+
+            inner_results_path = os.path.join(
+                partial_configs_dir, config_dir, "inner_results.json"
+            )
+
+            if not os.path.exists(inner_results_path):
+                continue
+
+            try:
+                inner_results = load_obj(inner_results_path, file_type="json")
+                all_results.extend(inner_results)
+            except Exception as e:
+                logging.error("Error loading inner results from %s: %s", config_dir, e)
+                continue
+
+        if not all_results:
+            logging.warning("No results found for visualization")
+            return
+
+        # Define marker styles for different inner folds
+        markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "h"]
+
+        # Define colors for different metrics
+        metric_colors = {"train": "orange", "val": "blue", "test": "green"}
+
+        # Create a plot for each hyperparameter
+        hparam_names = list(search_space.keys())
+
+        for hparam_name in hparam_names:
+            fig, ax = plt.subplots(figsize=(12, 8))
+
+            # Collect data for this hyperparameter
+            hparam_values = []
+            train_metrics = []
+            val_metrics = []
+            test_metrics = []
+            inner_fold_indices = []
+
+            for result in all_results:
+                if hparam_name not in result["hparams"]:
+                    continue
+
+                hparam_values.append(result["hparams"][hparam_name])
+                train_metrics.append(result["inner_train_metric"])
+                val_metrics.append(result["inner_val_metric"])
+                test_metrics.append(result["outer_test_metric"])
+                inner_fold_indices.append(result["inner_fold"])
+
+            if not hparam_values:
+                plt.close()
+                continue
+
+            # Get unique inner folds
+            unique_folds = sorted(set(inner_fold_indices))
+
+            # Plot each inner fold with different marker
+            for fold_idx in unique_folds:
+                marker = markers[fold_idx % len(markers)]
+
+                # Filter data for this fold
+                fold_mask = [
+                    i for i, f in enumerate(inner_fold_indices) if f == fold_idx
+                ]
+                fold_hparams = [hparam_values[i] for i in fold_mask]
+                fold_train = [train_metrics[i] for i in fold_mask]
+                fold_val = [val_metrics[i] for i in fold_mask]
+                fold_test = [test_metrics[i] for i in fold_mask]
+
+                # Plot train, val, test with different colors
+                ax.scatter(
+                    fold_hparams,
+                    fold_train,
+                    marker=marker,
+                    color=metric_colors["train"],
+                    s=100,
+                    alpha=0.6,
+                    label=(
+                        f"Fold {fold_idx} - Train"
+                        if fold_idx == unique_folds[0]
+                        else ""
+                    ),
+                )
+                ax.scatter(
+                    fold_hparams,
+                    fold_val,
+                    marker=marker,
+                    color=metric_colors["val"],
+                    s=100,
+                    alpha=0.6,
+                    label=(
+                        f"Fold {fold_idx} - Val" if fold_idx == unique_folds[0] else ""
+                    ),
+                )
+                ax.scatter(
+                    fold_hparams,
+                    fold_test,
+                    marker=marker,
+                    color=metric_colors["test"],
+                    s=100,
+                    alpha=0.6,
+                    label=(
+                        f"Fold {fold_idx} - Test" if fold_idx == unique_folds[0] else ""
+                    ),
+                )
+
+            # # Set x-axis scale and limits based on search space type
+            spec = search_space[hparam_name]
+            print(spec, hparam_name, type(spec), len(spec))
+            if isinstance(spec, list):
+                if len(spec) == 1:
+                    if isinstance(spec[0], str):
+                        continue
+                    elif isinstance(spec[0], (int, float)):
+                        print("Setting fixed numeric limits for", hparam_name)
+                        margin = abs(spec[0]) * 0.05 if spec[0] != 0 else 0.05
+                        low = spec[0] - margin
+                        high = spec[0] + margin
+                        ax.set_xlim(low, high)
+                        ax.set_xticks([spec[0]])
+                        print("Set limits for", hparam_name, low, high)
+
+                elif all(isinstance(v, (int, float)) for v in spec):
+                    print("Setting categorical numeric limits for", hparam_name)
+                    margin = (max(spec) - min(spec)) * 0.05
+                    low = min(spec) - margin
+                    high = max(spec) + margin
+                    ax.set_xlim(low, high)
+                    ax.set_xticks(spec)
+                    print("Set limits for", hparam_name, low, high)
+
+                elif all(isinstance(v, str) for v in spec):
+                    print("Categorical string, skipping limits for", hparam_name)
+                    pass
+
+                elif len(spec) == 3 and isinstance(spec[0], str) and all(isinstance(v, (int, float)) for v in spec[1:]):
+                    margin = (spec[2] - spec[1]) * 0.05
+                    low = spec[1] - margin
+                    high = spec[2] + margin
+                    ax.set_xticks(np.linspace(spec[1], spec[2], num=5))
+                    if spec[0] == "log_uniform":
+                        print("Setting log scale for", hparam_name)
+                        ax.set_xscale("log")
+                        low = max(low, 1e-7)
+                        ax.set_xticks(np.logspace(np.log10(spec[1]), np.log10(spec[2]), num=5))
+
+                    ax.set_xlim(low, high)
+                    
+                    print("Set limits for", hparam_name, low, high)
+                    pass
+            else:
+                raise ValueError("Unknown search space specification")
+
+            ax.set_xlabel(hparam_name, fontsize=12)
+            ax.set_ylabel("Metric Value", fontsize=12)
+            ax.set_title(
+                f"Hyperparameter Performance - {hparam_name} (Outer Fold {outer_idx})",
+                fontsize=14,
+            )
+
+            # Create custom legend
+            # Metric colors
+            train_patch = mpatches.Patch(color=metric_colors["train"], label="Train")
+            val_patch = mpatches.Patch(color=metric_colors["val"], label="Validation")
+            test_patch = mpatches.Patch(color=metric_colors["test"], label="Test")
+
+            # Inner fold markers
+            fold_handles = []
+            for fold_idx in unique_folds:
+                marker = markers[fold_idx % len(markers)]
+                fold_handles.append(
+                    plt.Line2D(
+                        [0],
+                        [0],
+                        marker=marker,
+                        color="gray",
+                        linestyle="",
+                        markersize=8,
+                        label=f"Inner Fold {fold_idx}",
+                    )
+                )
+
+            # Combine legends
+            first_legend = ax.legend(
+                handles=[train_patch, val_patch, test_patch],
+                loc="upper left",
+                title="Metric Type",
+            )
+            ax.add_artist(first_legend)
+
+            ax.legend(
+                handles=fold_handles,
+                loc="upper right",
+                title="Inner Fold",
+                ncol=2 if len(unique_folds) > 5 else 1,
+            )
+
+            ax.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+
+            # Save plot
+            plot_filename = f'hparam_{hparam_name.replace(".", "_")}.png'
+            plot_path = os.path.join(viz_dir, plot_filename)
+            plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+            plt.close()
+
+        logging.info(
+            "Generated hyperparameter visualizations for outer fold %d in %s",
+            outer_idx,
+            viz_dir,
+        )
+
+    def clean_training_visualizations(
+        self, outer_idx: int, config_idx: int, inner_idx: int
+    ) -> None:
+        """Remove training visualizations after inner fold completes successfully."""
+        import shutil
+
+        viz_dir = os.path.join(
+            self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx),
+            "visualizations",
+        )
+        if os.path.exists(viz_dir):
+            shutil.rmtree(viz_dir)
