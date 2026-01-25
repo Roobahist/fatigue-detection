@@ -20,7 +20,7 @@ def wrapped_worker_function(params_and_worker):
 def get_task_slice(total_items: int):
     """
     Determine the slice of work for this SLURM task.
-    
+
     Returns:
         tuple: (start_index, end_index, task_id, total_tasks)
     """
@@ -98,7 +98,7 @@ def process(
     results = []
     if parallel:
         logging.info("Processing in Parallel Mode ...")
-        
+
         # Safely set multiprocessing start method
         try:
             multiprocessing.set_start_method("spawn", force=False)
@@ -109,13 +109,13 @@ def process(
         # Determine number of workers
         if max_workers is None:
             max_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", "1"))
-        
+
         with multiprocessing.Pool(
             processes=max_workers,
             maxtasksperchild=maxtasksperchild,
         ) as pool:
             tasks = [
-                (worker_function, params, idx) 
+                (worker_function, params, idx)
                 for idx, params in enumerate(worker_params_list)
             ]
             for result in tqdm(
@@ -150,7 +150,7 @@ def process(
 def _apply_handler(handler_function: Callable, result: Any) -> Any:
     """
     Apply handler function to result with backward compatibility.
-    
+
     Tries to unpack result as **kwargs if it's a dict, otherwise passes as single argument.
     """
     if isinstance(result, dict):
