@@ -733,12 +733,20 @@ class CheckpointManager:
         """
         Generate hyperparameter performance visualizations for an outer fold.
 
-        This creates separate scatter plots for each hyperparameter dimension,
-        showing how different values affect model performance across all configs
-        and inner folds.
+        For each hyperparameter, creates a grid of subplots:
+        - Columns: inner folds + one extra "Avg" column (averaged across folds)
+        - Rows: splits (Train, Val, Test)
+        - Each config contributes one point per subplot
+        - All subplots share the same y range: [0, global_max]
+        - Best 3 (lowest errors) in each subplot are marked with green stars
 
-        Args:
-            outer_idx: Outer fold index
+        Assumptions about inner_results entries:
+        - result["hparams"] is a dict of hyperparameters
+        - result["inner_fold"] is an int fold id
+        - metrics:
+            * Train: result["inner_train_metric"]
+            * Val:   result["inner_val_metric"]
+            * Test:  result["outer_test_metric"]
         """
         fold_dir = self._outer_fold_dir_path(outer_idx)
         viz_dir = self._get_outer_fold_viz_dir(outer_idx)
@@ -760,9 +768,7 @@ class CheckpointManager:
             logging.warning("No partial configs directory found")
             return
 
-        # Aggregate all hyperparameter results
-        all_results = []
-
+        all_results: List[Dict[str, Any]] = []
         for config_dir in os.listdir(partial_configs_dir):
             if not config_dir.startswith("config_"):
                 continue
@@ -770,13 +776,13 @@ class CheckpointManager:
             inner_results_path = os.path.join(
                 partial_configs_dir, config_dir, "inner_results.json"
             )
-
             if not os.path.exists(inner_results_path):
                 continue
 
             try:
                 inner_results = load_obj(inner_results_path, file_type="json")
-                all_results.extend(inner_results)
+                if isinstance(inner_results, list):
+                    all_results.extend(inner_results)
             except Exception as e:
                 logging.error("Error loading inner results from %s: %s", config_dir, e)
                 continue
@@ -785,208 +791,316 @@ class CheckpointManager:
             logging.warning("No results found for visualization")
             return
 
-        # Define marker styles for different inner folds
-        markers = ["o", "s", "^", "D", "v", "<", ">", "p", "*", "h"]
+        # Helpers
+        def _freeze_hparams(hp: Dict[str, Any]) -> str:
+            # Stable key for grouping results belonging to the same config
+            return json.dumps(hp, sort_keys=True, separators=(",", ":"))
 
-        # Define colors for different metrics
-        metric_colors = {"train": "orange", "val": "blue", "test": "green"}
+        def _to_numeric_x(values: List[Any]):
+            """
+            Convert possibly categorical values to numeric x coordinates and labels.
+            Returns: x_numeric, tick_positions, tick_labels, is_categorical
+            """
+            if not values:
+                return [], None, None, False
+
+            if all(isinstance(v, (int, float)) for v in values):
+                return values, None, None, False
+
+            # Treat anything else as categorical
+            uniq = []
+            seen = set()
+            for v in values:
+                if v not in seen:
+                    seen.add(v)
+                    uniq.append(v)
+            mapping = {v: i for i, v in enumerate(uniq)}
+            x = [mapping[v] for v in values]
+            ticks = list(range(len(uniq)))
+            labels = [str(v) for v in uniq]
+            return x, ticks, labels, True
+
+        def _apply_x_axis(ax, hparam_name: str, spec: Any, x_all_raw: List[Any]) -> None:
+            """
+            Try to respect your existing search_space conventions while staying robust.
+            """
+            # Categorical string list
+            if isinstance(spec, list) and spec and all(isinstance(v, str) for v in spec):
+                # Keep as categorical labels, actual tick handling is done by _to_numeric_x
+                return
+
+            # Fixed single numeric
+            if isinstance(spec, list) and len(spec) == 1 and isinstance(spec[0], (int, float)):
+                v = spec[0]
+                margin = abs(v) * 0.05 if v != 0 else 0.05
+                ax.set_xlim(v - margin, v + margin)
+                ax.set_xticks([v])
+                return
+
+            # Categorical numeric list
+            if isinstance(spec, list) and len(spec) > 1 and all(isinstance(v, (int, float)) for v in spec):
+                margin = (max(spec) - min(spec)) * 0.05 if max(spec) != min(spec) else 0.05
+                ax.set_xlim(min(spec) - margin, max(spec) + margin)
+                ax.set_xticks(spec)
+                return
+
+            # Distribution-like: ["log_uniform" or "uniform", low, high]
+            if (
+                isinstance(spec, list)
+                and len(spec) == 3
+                and isinstance(spec[0], str)
+                and all(isinstance(v, (int, float)) for v in spec[1:])
+            ):
+                kind, low0, high0 = spec[0], spec[1], spec[2]
+                margin = (high0 - low0) * 0.05 if high0 != low0 else 0.05
+                low = low0 - margin
+                high = high0 + margin
+
+                if kind == "log_uniform":
+                    ax.set_xscale("log")
+                    low = max(low, 1e-12)
+                    # Avoid forcing ticks if values are categorical-converted
+                    if all(isinstance(v, (int, float)) and v > 0 for v in x_all_raw):
+                        ax.set_xticks(np.logspace(np.log10(low0), np.log10(high0), num=5))
+                else:
+                    if all(isinstance(v, (int, float)) for v in x_all_raw):
+                        ax.set_xticks(np.linspace(low0, high0, num=5))
+
+                ax.set_xlim(low, high)
+                return
+
+            # If unknown spec, do nothing and let matplotlib pick
+            return
+
+        def _mark_best3(ax, x_vals: List[float], y_vals: List[float]) -> None:
+            if not x_vals or not y_vals:
+                return
+            # Pick indices of the 3 smallest y
+            order = np.argsort(np.asarray(y_vals))
+            topk = order[: min(3, len(order))]
+            bx = [x_vals[i] for i in topk]
+            by = [y_vals[i] for i in topk]
+            ax.scatter(bx, by, marker="*", color="green", s=220, zorder=5, label="_best3")
+
+        # Group results by config and fold
+        # fold_to_cfg_to_metrics[fold][cfg_key] = dict(train=..., val=..., test=..., hparams=...)
+        fold_to_cfg_to_metrics: Dict[int, Dict[str, Dict[str, Any]]] = {}
+        for r in all_results:
+            if "hparams" not in r or "inner_fold" not in r:
+                continue
+            fold = int(r["inner_fold"])
+            cfg_key = _freeze_hparams(r["hparams"])
+
+            fold_to_cfg_to_metrics.setdefault(fold, {})
+            fold_to_cfg_to_metrics[fold][cfg_key] = {
+                "hparams": r["hparams"],
+                "train": r.get("inner_train_metric"),
+                "val": r.get("inner_val_metric"),
+                "test": r.get("outer_test_metric"),
+            }
+
+        unique_folds = sorted(fold_to_cfg_to_metrics.keys())
+        if not unique_folds:
+            logging.warning("No inner folds found in results")
+            return
 
         # Create a plot for each hyperparameter
         hparam_names = list(search_space.keys())
 
+        split_rows = [("train", "Train"), ("val", "Validation"), ("test", "Test")]
+
         for hparam_name in hparam_names:
-            fig, ax = plt.subplots(figsize=(12, 8))
+            # Collect all config keys and their hparam value for this hparam
+            cfg_key_to_hval: Dict[str, Any] = {}
+            for fold in unique_folds:
+                for cfg_key, payload in fold_to_cfg_to_metrics[fold].items():
+                    hp = payload["hparams"]
+                    if hparam_name in hp and cfg_key not in cfg_key_to_hval:
+                        cfg_key_to_hval[cfg_key] = hp[hparam_name]
 
-            # Collect data for this hyperparameter
-            hparam_values = []
-            train_metrics = []
-            val_metrics = []
-            test_metrics = []
-            inner_fold_indices = []
-
-            for result in all_results:
-                if hparam_name not in result["hparams"]:
-                    continue
-
-                hparam_values.append(result["hparams"][hparam_name])
-                train_metrics.append(result["inner_train_metric"])
-                val_metrics.append(result["inner_val_metric"])
-                test_metrics.append(result["outer_test_metric"])
-                inner_fold_indices.append(result["inner_fold"])
-
-            if not hparam_values:
-                plt.close()
+            if not cfg_key_to_hval:
                 continue
 
-            # Get unique inner folds
-            unique_folds = sorted(set(inner_fold_indices))
+            # Compute global y max over all folds and splits (including avg)
+            y_vals_all: List[float] = []
 
-            # Plot each inner fold with different marker
-            for fold_idx in unique_folds:
-                marker = markers[fold_idx % len(markers)]
-
-                # Filter data for this fold
-                fold_mask = [
-                    i for i, f in enumerate(inner_fold_indices) if f == fold_idx
-                ]
-                fold_hparams = [hparam_values[i] for i in fold_mask]
-                fold_train = [train_metrics[i] for i in fold_mask]
-                fold_val = [val_metrics[i] for i in fold_mask]
-                fold_test = [test_metrics[i] for i in fold_mask]
-
-                # Plot train, val, test with different colors
-                ax.scatter(
-                    fold_hparams,
-                    fold_train,
-                    marker=marker,
-                    color=metric_colors["train"],
-                    s=100,
-                    alpha=0.6,
-                    label=(
-                        f"Fold {fold_idx} - Train"
-                        if fold_idx == unique_folds[0]
-                        else ""
-                    ),
-                )
-                ax.scatter(
-                    fold_hparams,
-                    fold_val,
-                    marker=marker,
-                    color=metric_colors["val"],
-                    s=100,
-                    alpha=0.6,
-                    label=(
-                        f"Fold {fold_idx} - Val" if fold_idx == unique_folds[0] else ""
-                    ),
-                )
-                ax.scatter(
-                    fold_hparams,
-                    fold_test,
-                    marker=marker,
-                    color=metric_colors["test"],
-                    s=100,
-                    alpha=0.6,
-                    label=(
-                        f"Fold {fold_idx} - Test" if fold_idx == unique_folds[0] else ""
-                    ),
-                )
-
-            # # Set x-axis scale and limits based on search space type
-            spec = search_space[hparam_name]
-            print(spec, hparam_name, type(spec), len(spec))
-            if isinstance(spec, list):
-                if len(spec) == 1:
-                    if isinstance(spec[0], str):
+            for fold in unique_folds:
+                for cfg_key, hval in cfg_key_to_hval.items():
+                    m = fold_to_cfg_to_metrics[fold].get(cfg_key)
+                    if not m:
                         continue
-                    elif isinstance(spec[0], (int, float)):
-                        print("Setting fixed numeric limits for", hparam_name)
-                        margin = abs(spec[0]) * 0.05 if spec[0] != 0 else 0.05
-                        low = spec[0] - margin
-                        high = spec[0] + margin
-                        ax.set_xlim(low, high)
-                        ax.set_xticks([spec[0]])
-                        print("Set limits for", hparam_name, low, high)
+                    for split_key, _ in split_rows:
+                        v = m.get(split_key)
+                        if isinstance(v, (int, float)) and np.isfinite(v):
+                            y_vals_all.append(float(v))
 
-                elif all(isinstance(v, (int, float)) for v in spec):
-                    print("Setting categorical numeric limits for", hparam_name)
-                    margin = (max(spec) - min(spec)) * 0.05
-                    low = min(spec) - margin
-                    high = max(spec) + margin
-                    ax.set_xlim(low, high)
-                    ax.set_xticks(spec)
-                    print("Set limits for", hparam_name, low, high)
+            # Avg across folds per config
+            for cfg_key, _ in cfg_key_to_hval.items():
+                for split_key, _ in split_rows:
+                    vals = []
+                    for fold in unique_folds:
+                        m = fold_to_cfg_to_metrics[fold].get(cfg_key)
+                        if not m:
+                            continue
+                        v = m.get(split_key)
+                        if isinstance(v, (int, float)) and np.isfinite(v):
+                            vals.append(float(v))
+                    if vals:
+                        y_vals_all.append(float(np.mean(vals)))
 
-                elif all(isinstance(v, str) for v in spec):
-                    print("Categorical string, skipping limits for", hparam_name)
-                    pass
+            if not y_vals_all:
+                continue
 
-                elif len(spec) == 3 and isinstance(spec[0], str) and all(isinstance(v, (int, float)) for v in spec[1:]):
-                    margin = (spec[2] - spec[1]) * 0.05
-                    low = spec[1] - margin
-                    high = spec[2] + margin
-                    ax.set_xticks(np.linspace(spec[1], spec[2], num=5))
-                    if spec[0] == "log_uniform":
-                        print("Setting log scale for", hparam_name)
-                        ax.set_xscale("log")
-                        low = max(low, 1e-7)
-                        ax.set_xticks(np.logspace(np.log10(spec[1]), np.log10(spec[2]), num=5))
+            y_max = float(max(y_vals_all))
+            if y_max <= 0:
+                y_max = 1.0
+            y_max = y_max * 1.05
 
-                    ax.set_xlim(low, high)
-                    
-                    print("Set limits for", hparam_name, low, high)
-                    pass
+            n_rows = len(split_rows)
+            n_cols = len(unique_folds) + 1  # + Avg column
+
+            fig_w = max(12.0, 3.2 * n_cols)
+            fig_h = max(8.0, 2.6 * n_rows)
+            fig, axes = plt.subplots(
+                n_rows,
+                n_cols,
+                figsize=(fig_w, fig_h),
+                sharey=True,
+                squeeze=False,
+            )
+
+            # Column titles
+            for j, fold in enumerate(unique_folds):
+                axes[0, j].set_title(f"Fold {fold}", fontsize=12)
+            axes[0, -1].set_title("Avg across folds", fontsize=12)
+
+            # Prepare x values (raw) so we can apply shared categorical mapping
+            x_raw_all = list(cfg_key_to_hval.values())
+            x_all_numeric, x_ticks, x_ticklabels, is_cat = _to_numeric_x(x_raw_all)
+
+            # Mapping cfg_key to numeric x
+            if is_cat:
+                # reconstruct the same mapping used inside _to_numeric_x
+                uniq = []
+                seen = set()
+                for v in x_raw_all:
+                    if v not in seen:
+                        seen.add(v)
+                        uniq.append(v)
+                cat_map = {v: i for i, v in enumerate(uniq)}
+                cfg_key_to_x = {k: float(cat_map[v]) for k, v in cfg_key_to_hval.items()}
             else:
-                raise ValueError("Unknown search space specification")
+                cfg_key_to_x = {k: float(v) for k, v in cfg_key_to_hval.items()}
 
-            ax.set_xlabel(hparam_name, fontsize=12)
-            ax.set_ylabel("Metric Value", fontsize=12)
-            ax.set_title(
-                f"Hyperparameter Performance - {hparam_name} (Outer Fold {outer_idx})",
+            # Fill fold columns
+            for j, fold in enumerate(unique_folds):
+                cfg_map = fold_to_cfg_to_metrics[fold]
+
+                for i, (split_key, split_label) in enumerate(split_rows):
+                    ax = axes[i, j]
+
+                    xs: List[float] = []
+                    ys: List[float] = []
+
+                    for cfg_key in cfg_key_to_hval.keys():
+                        m = cfg_map.get(cfg_key)
+                        if not m:
+                            continue
+                        yv = m.get(split_key)
+                        if not isinstance(yv, (int, float)) or not np.isfinite(yv):
+                            continue
+                        xs.append(cfg_key_to_x[cfg_key])
+                        ys.append(float(yv))
+
+                    if xs and ys:
+                        ax.scatter(xs, ys, s=80, alpha=0.65)
+
+                    _mark_best3(ax, xs, ys)
+
+                    ax.set_ylim(0.0, y_max)
+                    ax.grid(True, alpha=0.25)
+
+                    if j == 0:
+                        ax.set_ylabel(split_label, fontsize=12)
+
+                    if i == n_rows - 1:
+                        ax.set_xlabel(hparam_name, fontsize=11)
+
+                    if is_cat and x_ticks is not None and x_ticklabels is not None:
+                        ax.set_xticks(x_ticks)
+                        ax.set_xticklabels(x_ticklabels, rotation=30, ha="right")
+
+            # Fill Avg column
+            for i, (split_key, split_label) in enumerate(split_rows):
+                ax = axes[i, -1]
+
+                xs: List[float] = []
+                ys: List[float] = []
+
+                for cfg_key in cfg_key_to_hval.keys():
+                    vals = []
+                    for fold in unique_folds:
+                        m = fold_to_cfg_to_metrics[fold].get(cfg_key)
+                        if not m:
+                            continue
+                        yv = m.get(split_key)
+                        if isinstance(yv, (int, float)) and np.isfinite(yv):
+                            vals.append(float(yv))
+                    if not vals:
+                        continue
+                    xs.append(cfg_key_to_x[cfg_key])
+                    ys.append(float(np.mean(vals)))
+
+                if xs and ys:
+                    ax.scatter(xs, ys, s=90, alpha=0.75)
+
+                _mark_best3(ax, xs, ys)
+
+                ax.set_ylim(0.0, y_max)
+                ax.grid(True, alpha=0.25)
+
+                if i == n_rows - 1:
+                    ax.set_xlabel(hparam_name, fontsize=11)
+
+                if is_cat and x_ticks is not None and x_ticklabels is not None:
+                    ax.set_xticks(x_ticks)
+                    ax.set_xticklabels(x_ticklabels, rotation=30, ha="right")
+
+            # Apply x axis handling for numeric specs, log scaling, etc
+            spec = search_space.get(hparam_name)
+            for i in range(n_rows):
+                for j in range(n_cols):
+                    ax = axes[i, j]
+                    if not is_cat:
+                        _apply_x_axis(ax, hparam_name, spec, x_raw_all)
+
+            # Add a small legend entry for the best markers (only once)
+            # We add an invisible handle so it is consistent.
+            best_handle = plt.Line2D(
+                [0],
+                [0],
+                marker="*",
+                color="green",
+                linestyle="",
+                markersize=12,
+                label="Best 3 (lowest error)",
+            )
+            fig.legend(handles=[best_handle], loc="upper center", ncol=1, frameon=False)
+
+            fig.suptitle(
+                f"Hyperparameter Performance Grid: {hparam_name} (Outer Fold {outer_idx})",
                 fontsize=14,
             )
 
-            # Create custom legend
-            # Metric colors
-            train_patch = mpatches.Patch(color=metric_colors["train"], label="Train")
-            val_patch = mpatches.Patch(color=metric_colors["val"], label="Validation")
-            test_patch = mpatches.Patch(color=metric_colors["test"], label="Test")
+            plt.tight_layout(rect=[0.0, 0.0, 1.0, 0.95])
 
-            # Inner fold markers
-            fold_handles = []
-            for fold_idx in unique_folds:
-                marker = markers[fold_idx % len(markers)]
-                fold_handles.append(
-                    plt.Line2D(
-                        [0],
-                        [0],
-                        marker=marker,
-                        color="gray",
-                        linestyle="",
-                        markersize=8,
-                        label=f"Inner Fold {fold_idx}",
-                    )
-                )
-
-            # Combine legends
-            first_legend = ax.legend(
-                handles=[train_patch, val_patch, test_patch],
-                loc="upper left",
-                title="Metric Type",
-            )
-            ax.add_artist(first_legend)
-
-            ax.legend(
-                handles=fold_handles,
-                loc="upper right",
-                title="Inner Fold",
-                ncol=2 if len(unique_folds) > 5 else 1,
-            )
-
-            ax.grid(True, alpha=0.3)
-
-            plt.tight_layout()
-
-            # Save plot
-            plot_filename = f'hparam_{hparam_name.replace(".", "_")}.png'
+            plot_filename = f'hparam_grid_{hparam_name.replace(".", "_")}.png'
             plot_path = os.path.join(viz_dir, plot_filename)
             plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-            plt.close()
+            plt.close(fig)
 
         logging.info(
-            "Generated hyperparameter visualizations for outer fold %d in %s",
+            "Generated hyperparameter grid visualizations for outer fold %d in %s",
             outer_idx,
             viz_dir,
         )
-
-    def clean_training_visualizations(
-        self, outer_idx: int, config_idx: int, inner_idx: int
-    ) -> None:
-        """Remove training visualizations after inner fold completes successfully."""
-        import shutil
-
-        viz_dir = os.path.join(
-            self._training_checkpoint_dir_path(outer_idx, config_idx, inner_idx),
-            "visualizations",
-        )
-        if os.path.exists(viz_dir):
-            shutil.rmtree(viz_dir)
