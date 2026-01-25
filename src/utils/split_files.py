@@ -2,6 +2,7 @@ import os
 from typing import Dict, List, Optional
 
 import pandas as pd
+
 from Zh.src.utils.file_folder import get_file_paths
 
 
@@ -53,7 +54,12 @@ def _get_train_val_test_file_paths(
             ), f"Multiple Unique Secondary Values Found For Main Column Value {main_column_value} - {corresponding_secondary_value}"
             corresponding_secondary_value = corresponding_secondary_value[0]
 
-            fold_train_val_test_file_paths = {"index": index, "info": {}, "input_paths": {}, "output_paths": {}}
+            fold_train_val_test_file_paths = {
+                "index": index,
+                "info": {},
+                "input_paths": {},
+                "output_paths": {},
+            }
             index += 1
 
             test_split = columns_to_fold_by[
@@ -102,7 +108,12 @@ def _get_train_val_test_file_paths(
         for main_column_value_i in unique_main_column_values:
             for main_column_value_j in unique_main_column_values:
                 if main_column_value_i != main_column_value_j:
-                    fold_train_val_test_file_paths = {"index": index, "info": {}, "input_paths": {}, "output_paths": {}}
+                    fold_train_val_test_file_paths = {
+                        "index": index,
+                        "info": {},
+                        "input_paths": {},
+                        "output_paths": {},
+                    }
                     index += 1
 
                     test_split = columns_to_fold_by[
@@ -145,25 +156,33 @@ def _get_train_val_test_file_paths(
 
                     train_val_test_file_paths.append(fold_train_val_test_file_paths)
 
-
     for train_val_test_file_path in train_val_test_file_paths:
 
-        train_val_test_file_path['output_paths']['test']  = (
-            [os.path.join(output_path, 
-                          str(train_val_test_file_path['index']), 
-                          path.replace(input_path + '/', ''))
-            for path in train_val_test_file_path['input_paths']['test']])
-        
-        train_val_test_file_path['output_paths']['val']   = (
-            [os.path.join(output_path, 
-                          str(train_val_test_file_path['index']), 
-                          path.replace(input_path + '/', ''))
-            for path in train_val_test_file_path['input_paths']['val']])
-        
-        train_val_test_file_path['output_paths']['train'] = (
-            [os.path.join(output_path, 
-                          str(train_val_test_file_path['index']), 
-                          path.replace(input_path + '/', ''))
-            for path in train_val_test_file_path['input_paths']['train']])
+        train_val_test_file_path["output_paths"]["test"] = [
+            os.path.join(
+                output_path,
+                str(train_val_test_file_path["index"]),
+                path.replace(input_path + "/", ""),
+            )
+            for path in train_val_test_file_path["input_paths"]["test"]
+        ]
+
+        train_val_test_file_path["output_paths"]["val"] = [
+            os.path.join(
+                output_path,
+                str(train_val_test_file_path["index"]),
+                path.replace(input_path + "/", ""),
+            )
+            for path in train_val_test_file_path["input_paths"]["val"]
+        ]
+
+        train_val_test_file_path["output_paths"]["train"] = [
+            os.path.join(
+                output_path,
+                str(train_val_test_file_path["index"]),
+                path.replace(input_path + "/", ""),
+            )
+            for path in train_val_test_file_path["input_paths"]["train"]
+        ]
 
     return train_val_test_file_paths
