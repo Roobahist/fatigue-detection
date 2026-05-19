@@ -55,22 +55,26 @@ def pick_eventful_segments(
     pick_mean_top: int = 0,
     pick_max_top: int = 0,
     pick_random: int = 0,
+    rng: Optional[np.random.Generator] = None,
 ):
+    if rng is None:
+        rng = np.random.default_rng()
+
     stride = stride or window_size
     num_frames = MemmapHandler(eventfulness_scores_path).shape[0]
     num_windows = (num_frames - window_size) // stride
 
-    if not isinstance(pick_mean_top, int) or pick_mean_top < 0:
+    if not (isinstance(pick_mean_top, int) or isinstance(pick_mean_top, np.integer)) or pick_mean_top < 0:
         raise ValueError(
-            "pick_mean_top must be a non-negative integer. Please provide a valid value."
+            f"pick_mean_top must be a non-negative integer. Please provide a valid value, {pick_mean_top} of type {type(pick_mean_top)} given."
         )
-    if not isinstance(pick_max_top, int) or pick_max_top < 0:
+    if not (isinstance(pick_max_top, int) or isinstance(pick_max_top, np.integer)) or pick_max_top < 0:
         raise ValueError(
-            "pick_max_top must be a non-negative integer. Please provide a valid value."
+            f"pick_max_top must be a non-negative integer. Please provide a valid value, {pick_max_top} of type {type(pick_max_top)} given."
         )
-    if not isinstance(pick_random, int) or pick_random < 0:
+    if not (isinstance(pick_random, int) or isinstance(pick_random, np.integer)) or pick_random < 0:
         raise ValueError(
-            "pick_random must be a non-negative integer. Please provide a valid value."
+            f"pick_random must be a non-negative integer. Please provide a valid value, {pick_random} of type {type(pick_random)} given."
         )
     if pick_mean_top + pick_max_top + pick_random > num_windows:
         raise ValueError(
@@ -103,6 +107,14 @@ def pick_eventful_segments(
         .reset_index(drop=True)
     )
 
+    if len(eventfulness) < pick_mean_top + pick_max_top + pick_random:
+        print(
+            f"Warning: Not enough windows ({len(eventfulness)}) to satisfy the pick requirements (mean: {pick_mean_top}, max: {pick_max_top}, random: {pick_random})."
+        )
+        pick_mean_top = min(pick_mean_top, len(eventfulness))
+        pick_max_top = min(pick_max_top, len(eventfulness) - pick_mean_top)
+        pick_random = min(pick_random, len(eventfulness) - pick_mean_top - pick_max_top)
+
     picked_indices = []
 
     picked_indices += (
@@ -117,12 +129,22 @@ def pick_eventful_segments(
         .iloc[:pick_max_top]
         .index.to_list()
     )
-    picked_indices += (
-        eventfulness.drop(index=picked_indices)
-        .sample(
-            n=pick_random, replace=True, weights="mean_eventfulness", random_state=42
+    if pick_random > 0:
+        remaining = eventfulness.drop(index=picked_indices)
+
+        if len(remaining) == 0:
+            raise RuntimeError("No remaining windows to sample from.")
+
+        weights = remaining["mean_eventfulness"].to_numpy(dtype=np.float64)
+        weights = weights / weights.sum()
+
+        sampled_pos = rng.choice(
+            len(remaining),
+            size=pick_random,
+            replace=False,
+            p=weights,
         )
-        .index.to_list()
-    )
+
+        picked_indices += remaining.index.to_numpy()[sampled_pos].tolist()
 
     return eventfulness, picked_indices
