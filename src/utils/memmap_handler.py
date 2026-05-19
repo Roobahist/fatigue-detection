@@ -209,6 +209,223 @@ class MemmapHandler:
         if self.auto_metadata:
             self.update_metadata(shape=new_shape)
 
+    def remove_rows(
+        self,
+        *,
+        drop_indices: Optional[Sequence[int]] = None,
+        drop_mask: Optional[Union[np.ndarray, Sequence[bool]]] = None,
+        predicate: Optional[Callable[[np.ndarray], Union[bool, np.bool_]]] = None,
+        batch_size: int = 100_000,
+        make_backup: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Remove rows from a 2D memmap by rewriting the file.
+
+        You can specify exactly one of:
+        - drop_indices: row indices to remove
+        - drop_mask: boolean mask of length N where True means "drop"
+        - predicate: function that takes a single row (1D np.ndarray) and returns True to drop
+
+        Notes
+        -----
+        - This operation rewrites the entire file to a temporary file, then replaces the original.
+        - Works for 2D memmaps only (shape = (N, D)).
+        - Row order is always preserved.
+
+        Parameters
+        ----------
+        drop_indices:
+            Indices of rows to remove.
+        drop_mask:
+            Boolean mask of rows to remove. Length must be N.
+        predicate:
+            Called on each row, should return True if the row must be removed.
+        batch_size:
+            Rows per batch when streaming the rewrite.
+        make_backup:
+            If True, keeps a copy of the original .dat and .json next to the file with suffix ".bak".
+
+        Returns
+        -------
+        dict with keys:
+            - old_shape
+            - new_shape
+            - removed_count
+            - kept_count
+            - backup_paths (optional)
+        """
+        if self._memmap is None or self.shape is None:
+            raise ValueError("Memmap is not initialized.")
+        if len(self.shape) != 2:
+            raise ValueError("remove_rows is supported only for 2D memmaps.")
+        if self.mode == "r":
+            raise ValueError("remove_rows requires a writable mode (not 'r').")
+
+        provided = sum(x is not None for x in (drop_indices, drop_mask, predicate))
+        if provided != 1:
+            raise ValueError("Provide exactly one of drop_indices, drop_mask, or predicate.")
+
+        n_rows, n_cols = self.shape
+        old_shape = self.shape
+
+        # Build a "keep" mask or a set of rows to drop, with validation
+        if drop_mask is not None:
+            dm = np.asarray(drop_mask, dtype=bool)
+            if dm.ndim != 1 or dm.shape[0] != n_rows:
+                raise ValueError(
+                    f"drop_mask must be 1D of length {n_rows}, got shape {dm.shape}"
+                )
+            keep_mask = ~dm
+            drop_set = None
+            use_predicate = False
+
+        elif drop_indices is not None:
+            idx = np.asarray(drop_indices, dtype=np.int64)
+            if idx.ndim != 1:
+                raise ValueError("drop_indices must be a 1D sequence of integers.")
+            if idx.size == 0:
+                return {
+                    "old_shape": old_shape,
+                    "new_shape": old_shape,
+                    "removed_count": 0,
+                    "kept_count": n_rows,
+                }
+            if np.any(idx < 0) or np.any(idx >= n_rows):
+                bad = idx[(idx < 0) | (idx >= n_rows)]
+                raise ValueError(f"drop_indices out of range: {bad[:10].tolist()}")
+
+            drop_set = set(int(i) for i in idx.tolist())
+            keep_mask = None
+            use_predicate = False
+
+        else:
+            if not callable(predicate):
+                raise ValueError("predicate must be callable.")
+            keep_mask = None
+            drop_set = None
+            use_predicate = True
+
+        tmp_dat = self.path.with_suffix(self.path.suffix + ".tmp")
+        tmp_json = tmp_dat.with_suffix(".json")
+        backup_paths: Optional[Dict[str, str]] = None
+
+        # Flush and close the current memmap
+        self.flush()
+        try:
+            self._memmap._mmap.close()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        
+        # Keep reference to old memmap before setting to None
+        old_memmap = self._memmap
+        self._memmap = None
+        del old_memmap
+
+        # Open source memmap for reading
+        src_mm = np.memmap(self.path, dtype=self.dtype, mode="r", shape=old_shape)
+
+        kept = 0
+        removed = 0
+
+        # Write directly to file instead of using memmap initially
+        with open(tmp_dat, "wb") as f:
+            def _write_block(block: np.ndarray, global_row_start: int) -> None:
+                nonlocal kept, removed
+
+                if block.size == 0:
+                    return
+
+                if keep_mask is not None:
+                    km = keep_mask[global_row_start : global_row_start + block.shape[0]]
+                    out = block[km]
+                    k = out.shape[0]
+                    if k > 0:
+                        f.write(out.tobytes())
+                        kept += k
+                    removed += block.shape[0] - k
+                    return
+
+                if drop_set is not None:
+                    rows = np.arange(global_row_start, global_row_start + block.shape[0])
+                    km = np.fromiter(
+                        (int(r) not in drop_set for r in rows),
+                        dtype=bool,
+                        count=block.shape[0],
+                    )
+                    out = block[km]
+                    k = out.shape[0]
+                    if k > 0:
+                        f.write(out.tobytes())
+                        kept += k
+                    removed += block.shape[0] - k
+                    return
+
+                km_list = []
+                for i in range(block.shape[0]):
+                    should_drop = bool(predicate(block[i]))  # type: ignore[misc]
+                    km_list.append(not should_drop)
+                km = np.asarray(km_list, dtype=bool)
+                out = block[km]
+                k = out.shape[0]
+                if k > 0:
+                    f.write(out.tobytes())
+                    kept += k
+                removed += block.shape[0] - k
+
+            # Process data in batches
+            for i in range(0, n_rows, batch_size):
+                j = min(i + batch_size, n_rows)
+                block = np.asarray(src_mm[i:j])
+                _write_block(block, i)
+
+        # Close the source memmap
+        del src_mm
+
+        # Create new shape based on kept rows
+        new_shape = (kept, n_cols)
+
+        # Write metadata for new file
+        meta: Dict[str, Any] = {
+            "shape": list(new_shape),
+            "dtype": str(self.dtype),
+            "misc": self.misc if self.misc is not None else {},
+        }
+        if self._column_names is not None:
+            meta["column_names"] = self._column_names
+        tmp_json.write_text(json.dumps({**meta, "path": str(self.path)}, indent=2))
+
+        # Handle backup or deletion of original files
+        if make_backup:
+            bak_dat = self.path.with_suffix(self.path.suffix + ".bak")
+            bak_json = self.meta_path.with_suffix(self.meta_path.suffix + ".bak")
+            if self.path.exists():
+                self.path.replace(bak_dat)
+            if self.meta_path.exists():
+                self.meta_path.replace(bak_json)
+            backup_paths = {"dat": str(bak_dat), "json": str(bak_json)}
+        else:
+            if self.path.exists():
+                self.path.unlink()
+            if self.meta_path.exists():
+                self.meta_path.unlink()
+
+        # Replace original with temporary files
+        tmp_dat.replace(self.path)
+        tmp_json.replace(self.meta_path)
+
+        # Reopen the memmap with new shape
+        self.shape = new_shape
+        self._memmap = np.memmap(
+            self.path, dtype=self.dtype, mode="r+", shape=self.shape
+        )
+
+        return {
+            "old_shape": old_shape,
+            "new_shape": new_shape,
+            "removed_count": removed,
+            "kept_count": kept,
+            **({"backup_paths": backup_paths} if backup_paths is not None else {}),
+        }
     # -------------------- Reading --------------------
 
     def read(self, slice=slice(None)) -> np.ndarray:
