@@ -174,6 +174,50 @@ class MemmapHandler:
         self._check_array_size(arr)
         return arr
 
+    def _normalize_target_and_data_for_slice(
+        self, slc: Union[slice, Tuple], arr: np.ndarray
+    ) -> np.ndarray:
+        """
+        Validate arr against the target slice shape, and reshape when safe.
+        This enables partial-column writes like:
+            mh.write(block, slice=(slice(r0, r1), slice(c0, c1)))
+        """
+        target = self._memmap[slc]
+        target_shape = target.shape
+
+        if arr.ndim == 0:
+            arr = np.asarray(arr, dtype=self.dtype).reshape(())
+        else:
+            arr = np.asarray(arr, dtype=self.dtype)
+
+        # Common case: target is (N, 1) and arr is (N,) or (N, 1)
+        if arr.shape == target_shape:
+            return arr
+
+        if (
+            arr.ndim == 1
+            and len(target_shape) == 2
+            and target_shape[1] == 1
+            and arr.shape[0] == target_shape[0]
+        ):
+            return arr.reshape(target_shape)
+
+        if (
+            arr.ndim == 2
+            and len(target_shape) == 1
+            and target_shape[0] == arr.shape[0]
+            and arr.shape[1] == 1
+        ):
+            return arr.reshape(target_shape)
+
+        # Scalar broadcast to any target shape (explicit, and safe)
+        if arr.ndim == 0:
+            return np.full(target_shape, arr.item(), dtype=self.dtype)
+
+        raise ValueError(
+            f"Slice write shape mismatch: target_shape={target_shape}, arr_shape={arr.shape}"
+        )
+
     # -------------------- Writing --------------------
 
     def write(
