@@ -180,9 +180,45 @@ class MemmapHandler:
         self,
         data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]],
         start: int = 0,
+        slice: Optional[Union[slice, Tuple]] = None,
+        **kwargs,
     ):
-        """Overwrite a segment of the memmap starting from a given index."""
+        """
+        Write to the memmap.
+
+        Backward compatible modes:
+          1) Row-range write (original behavior):
+                mh.write(row_dict_or_array, start=idx)
+
+          2) Slice write (new behavior, supports your use case):
+                mh.write(block, slice=(slice(r0, r1), slice(c0, c1)))
+
+        Notes:
+          - The keyword "slice" is accepted (as used in your helper).
+          - When using slice writes, column count checks are based on the slice shape,
+            not on the full memmap column count.
+        """
+        # Support the caller's "slice=" keyword while keeping slice parameter name clean
+        if slice is None and "slice" in kwargs:
+            slice = kwargs["slice"]
+
+        if self._memmap is None or self.shape is None:
+            raise ValueError("Memmap is not initialized.")
+
         arr = self._prepare_data(data)
+
+        if slice is not None:
+            arr2 = self._normalize_target_and_data_for_slice(slice, arr)
+            self._memmap[slice] = arr2
+            self._memmap.flush()
+            return
+
+        # Original behavior: write contiguous rows starting at `start`
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+
+        self._check_array_size_full_row_write(arr)
+
         end = start + len(arr)
         self._memmap[start:end] = arr
         self._memmap.flush()
@@ -193,9 +229,20 @@ class MemmapHandler:
         Only valid for 2D arrays.
         """
         arr = self._prepare_data(data)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+
+        if self._memmap is None:
+            raise ValueError("Memmap is not initialized.")
+
         old_shape = self._memmap.shape
         if len(old_shape) != 2:
             raise ValueError("Append supported only for 2D arrays.")
+        if self.shape is None:
+            raise ValueError("Shape is not initialized.")
+
+        self._check_array_size_full_row_write(arr)
+
         new_rows = arr.shape[0]
         new_shape = (old_shape[0] + new_rows, old_shape[1])
         self._memmap.flush()
