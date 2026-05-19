@@ -1,0 +1,38 @@
+{
+  "model.temporal.backbone": ["gru"],
+  "model.temporal.hidden_size": [16],
+  "model.temporal.num_layers": [2],
+  "model.temporal.dropout": [0.45],
+  "model.temporal.activation": ["relu"],
+
+  "model.window_mlp.hidden_size": [8],
+  "model.window_mlp.num_layers": [2],
+  "model.window_mlp.dropout": [0.35],
+  "model.window_mlp.activation": ["relu"],
+
+  "model.reg_head_mlp.hidden_size": [8],
+  "model.reg_head_mlp.num_layers": [2],
+  "model.reg_head_mlp.dropout": [0.35],
+  "model.reg_head_mlp.activation": ["relu"],
+
+  "model.d_embed": [768],
+  "model.d_blend": [52],
+  "model.d_other": [4],
+  "model.d_temporal_embed": [24],
+  "model.d_temporal_blend": [12],
+  "model.d_temporal_other": [2],
+
+  "model.attn_hidden_size": [4],
+  "model.attn_activation": ["tanh"],
+
+  "train.batch_size": [64],
+  "train.lr": ["log_uniform", 1e-4, 5e-4],
+  "train.weight_decay": ["log_uniform", 1e-3, 5e-3],
+  "train.step_lr_step_size": [30],
+  "train.step_lr_gamma": [0.1],
+  "train.momentum": [0.9],
+
+  "sel.window_size": [32],
+  "sel.stride": [32],
+  "sel.n_windows": [16]
+}
