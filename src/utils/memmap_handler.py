@@ -124,27 +124,29 @@ class MemmapHandler:
                 f"Inconsistent keys: expected {self._column_names}, got {keys}"
             )
 
-    def _check_array_size(self, arr: np.ndarray):
+    def _check_array_size_full_row_write(self, arr: np.ndarray):
         """
-        Ensure that the incoming array has the same number of columns as existing metadata.
+        Ensure that the incoming array has the same number of columns as the memmap.
+        Used only for full-row writes (write by row range).
         """
-        # Skip for 1D arrays (must be reshaped)
+        if self.shape is None:
+            raise ValueError("Shape is not initialized.")
         if arr.ndim == 1:
             arr = arr.reshape(1, -1)
-
-        num_cols = arr.shape[1]
-
-        if self.shape[1] != num_cols:
-            raise ValueError(f"Expected {self.shape[1]} columns but got {num_cols}")
+        if len(self.shape) < 2:
+            raise ValueError("Full-row write expects a 2D memmap.")
+        if self.shape[1] != arr.shape[1]:
+            raise ValueError(f"Expected {self.shape[1]} columns but got {arr.shape[1]}")
 
     def _prepare_data(
         self, data: Union[np.ndarray, Dict[str, Any], List[Dict[str, Any]]]
     ) -> np.ndarray:
         """
-        Normalize input data into a 2D NumPy array and update/check column metadata.
+        Normalize input data into a NumPy array and update/check column metadata.
         """
-        # Single dict
         if data is None:
+            if self.shape is None:
+                raise ValueError("Shape is required when writing None.")
             arr = np.empty((1, self.shape[1]), dtype=self.dtype)
 
         elif isinstance(data, dict):
@@ -152,26 +154,27 @@ class MemmapHandler:
             arr = np.array(list(data.values()), dtype=self.dtype).reshape(1, -1)
             self._validate_or_set_columns(keys)
 
-        # List of dicts
         elif isinstance(data, list) and all(isinstance(d, dict) for d in data):
-            for _, d in enumerate(data):
-                keys = list(d.keys())
-                self._validate_or_set_columns(keys)
+            keys = None
+            for d in data:
+                if keys is None:
+                    keys = list(d.keys())
+                self._validate_or_set_columns(list(d.keys()))
+            if keys is None:
+                raise ValueError("Empty list of dicts is not supported.")
             arr = np.array([[d[k] for k in keys] for d in data], dtype=self.dtype)
 
         elif isinstance(data, list) and all(isinstance(d, np.ndarray) for d in data):
             arr = np.array(data, dtype=self.dtype)
-            
-        # Already NumPy
+
         elif isinstance(data, np.ndarray):
             arr = data.astype(self.dtype)
 
         else:
             raise TypeError(
-                "Data must be a NumPy array, dict, or list of dicts or None."
+                "Data must be a NumPy array, dict, list of dicts, list of arrays, or None."
             )
 
-        self._check_array_size(arr)
         return arr
 
     def _normalize_target_and_data_for_slice(
