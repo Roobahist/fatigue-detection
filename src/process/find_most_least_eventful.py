@@ -26,7 +26,7 @@ def process_single_video(
     )
 
     ranked_segments = rank_eventfulness(
-        evenfulness_scores_path=eventfulness_scores_path,
+        eventfulness_scores_path=eventfulness_scores_path,
         stride=stride,
         window_size=window_size,
     )
