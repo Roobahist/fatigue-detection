@@ -47,13 +47,16 @@ def aggregate_normalization_info(
             M2=file_stats["M2"],
         )
 
-        mean, std = stats_to_mean_std(file_stats)
+        # mean, std = stats_to_mean_std(file_stats)
 
         df["file_index"] = file_index
         df["subject_id"] = int(os.path.basename(file_path).split("__")[0])
         df["modality"] = os.path.basename(file_path).split("__")[1]
-        df["mean"] = mean
-        df["std"] = std
+        df["n"] = file_stats.n
+        df["mean"] = file_stats.mean
+        df["M2"] = file_stats.M2
+        # df["mean"] = mean
+        # df["std"] = std
 
         df_list.append(df)
 
