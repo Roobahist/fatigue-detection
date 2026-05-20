@@ -1,3 +1,6 @@
+import argparse
+import json
+from argparse import BooleanOptionalAction
 from datetime import datetime
 
 from Zh.experiments.e15.dataclasses import *
@@ -8,7 +11,6 @@ from Zh.src.utils.file_folder import *
 
 
 def main():
-    import argparse
 
     def build_parser():
         parser = argparse.ArgumentParser()
@@ -133,7 +135,10 @@ def main():
         parser.add_argument("--model.d_temporal_blend", type=int, default=64)
         parser.add_argument("--model.d_temporal_other", type=int, default=32)
 
-        parser.add_argument("--model.attn_hidden_size", type=int, default=128)
+        # ---------------------------
+        # MIL Attention Config
+        # ---------------------------
+        parser.add_argument("--model.attn_hidden_size", type=int, default=64)
         parser.add_argument(
             "--model.attn_activation",
             type=str,
@@ -145,7 +150,7 @@ def main():
         # TrainingConfig
         # ---------------------------
         parser.add_argument("--train.num_epochs", type=int, default=120)
-        parser.add_argument("--train.batch_size", type=int, default=32)
+        parser.add_argument("--train.batch_size", type=int, default=256)
         parser.add_argument(
             "--train.optimizer",
             type=str,
@@ -159,10 +164,10 @@ def main():
             type=str,
             default="mse",
             help="Loss function. "
-                "Regression: mse, smooth_l1, mae, huber. "
-                "Classification: cross_entropy, emd, combined_emd_ce, weighted_emd, coral, corn",
+            "Regression: mse, smooth_l1, mae, huber. "
+            "Classification: cross_entropy, emd, combined_emd_ce, weighted_emd, coral, corn",
         )
-        parser.add_argument("--train.early_stopping_patience", type=int, default=40)
+        parser.add_argument("--train.early_stopping_patience", type=int, default=70)
         parser.add_argument(
             "--train.device", type=str, default="cuda", choices=["cuda", "cpu"]
         )
@@ -186,7 +191,10 @@ def main():
         parser.add_argument("--sel.n_windows", type=int, default=16)
 
         parser.add_argument(
-            "--sel.no_curriculum", action="store_false", dest="sel.use_curriculum"
+            "--sel.use_curriculum",
+            action=BooleanOptionalAction,
+            default=True,
+            help="Enable or disable curriculum-based selection",
         )
 
         parser.add_argument("--sel.pick_mean_top_begin", type=int, default=4)
@@ -202,6 +210,15 @@ def main():
         # ---------------------------
         # CrossValidationConfig
         # ---------------------------
+        parser.add_argument(
+            "--search_space_json",
+            type=str,
+            default=None,
+            help=(
+                "Optional path to a JSON file containing the search space dict. "
+                "If not provided, uses the default search_space defined in the script."
+            ),
+        )
         parser.add_argument(
             "--cv.search_strategy",
             type=str,
@@ -224,7 +241,7 @@ def main():
         parser.add_argument(
             "--cv.inner_folds",
             type=int,
-            default=0,
+            default=3,
             help="Number of inner folds for cross-validation",
         )
 
@@ -291,33 +308,27 @@ def main():
         )
 
         # ---------- SelectionConfig ----------
-        use_curriculum = (vars(args)["sel.use_curriculum"],)
+        use_curriculum = vars(args)["sel.use_curriculum"]
+
+        if not use_curriculum:
+            vars(args)["sel.pick_mean_top_begin"] = vars(args)["sel.n_windows"]
+            vars(args)["sel.pick_mean_top_end"] = vars(args)["sel.n_windows"]
+            vars(args)["sel.pick_max_top_begin"] = 0
+            vars(args)["sel.pick_max_top_end"] = 0
+            vars(args)["sel.pick_random_begin"] = 0
+            vars(args)["sel.pick_random_end"] = 0
 
         selection_cfg = SelectionConfig(
-            window_size=vars(args)["sel.window_size"],
-            stride=vars(args)["sel.stride"],
-            n_windows=vars(args)["sel.n_windows"],
-            pick_mean_top_begin=(
-                vars(args)["sel.pick_mean_top_begin"]
-                if use_curriculum
-                else vars(args)["sel.n_windows"]
-            ),
-            pick_max_top_begin=(
-                vars(args)["sel.pick_max_top_begin"] if use_curriculum else 0
-            ),
-            pick_random_begin=(
-                vars(args)["sel.pick_random_begin"] if use_curriculum else 0
-            ),
-            pick_mean_top_end=(
-                vars(args)["sel.pick_mean_top_end"]
-                if use_curriculum
-                else vars(args)["sel.n_windows"]
-            ),
-            pick_max_top_end=(
-                vars(args)["sel.pick_max_top_end"] if use_curriculum else 0
-            ),
-            pick_random_end=vars(args)["sel.pick_random_end"] if use_curriculum else 0,
-            converge_ratio=vars(args)["sel.converge_ratio"],
+            window_size=int(vars(args)["sel.window_size"]),
+            stride=int(vars(args)["sel.stride"]),
+            n_windows=int(vars(args)["sel.n_windows"]),
+            pick_mean_top_begin=int(vars(args)["sel.pick_mean_top_begin"]),
+            pick_mean_top_end=int(vars(args)["sel.pick_mean_top_end"]),
+            pick_max_top_begin=int(vars(args)["sel.pick_max_top_begin"]),
+            pick_max_top_end=int(vars(args)["sel.pick_max_top_end"]),
+            pick_random_begin=int(vars(args)["sel.pick_random_begin"]),
+            pick_random_end=int(vars(args)["sel.pick_random_end"]),
+            converge_ratio=float(vars(args)["sel.converge_ratio"]),
         )
 
         # ---------- CrossValidationConfig ----------
@@ -331,7 +342,6 @@ def main():
         # Parse label mapping if provided
         label_mapping = None
         if vars(args).get("label_mapping"):
-            import json
 
             mapping_str = vars(args)["label_mapping"]
             # Parse JSON and convert keys/values to float
@@ -384,37 +394,10 @@ def main():
                 class_labels = None
                 thresholds = None
 
-        if dataset_name == "UTA":
-            data_cfg = DataConfig(
-                dataset_name="UTA",
-                embeddings_dir="/work/long_lab/Mojtaba/data/UTA/3.1-embedding/dinov2-base/cls/ROI0",
-                features_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/features",
-                eventfulness_scores_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
-                normalization_info_path="/work/long_lab/Mojtaba/data/UTA/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
-                task_type=task_type,
-                num_classes=num_classes,
-                class_labels=class_labels,
-                label_mapping=label_mapping,
-                thresholds=thresholds,
-            )
-        elif dataset_name == "DROZY":
-            data_cfg = DataConfig(
-                dataset_name="DROZY",
-                embeddings_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.1-embedding/dinov2-base/cls/ROI0",
-                features_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/features",
-                eventfulness_scores_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
-                normalization_info_path="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
-                task_type=task_type,
-                num_classes=num_classes,
-                class_labels=class_labels,
-                label_mapping=label_mapping,
-                thresholds=thresholds,
-            )
-
-        data_cfg.field_normalization = {
+        field_normalization = {
             "embeddings": {
                 "modality": "embeddings_ROI0",
-                "indices": None,
+                "indices": list(range(0, 768)),
             },
             "blendshapes": {
                 "modality": "features",
@@ -422,11 +405,118 @@ def main():
             },
             "others": {
                 "modality": "features",
-                "indices": [1, 2, 3, 4],
+                "indices": list(range(1, 5)),
             },
         }
 
+        if dataset_name == "UTA":  # ONLY BASE IN USE
+            data_cfg = DataConfig(
+                dataset_name="UTA",
+                embeddings_dir="/work/long_lab/Mojtaba/data/UTA/3.1-embedding/dinov2-base/cls/ROI0",
+                features_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/features",
+                eventfulness_scores_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
+                normalization_info_path="/work/long_lab/Mojtaba/data/UTA/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
+                field_normalization=field_normalization,
+                task_type=task_type,
+                num_classes=num_classes,
+                class_labels=class_labels,
+                label_mapping=label_mapping,
+                thresholds=thresholds,
+            )
+        elif dataset_name == "DROZY":  # ONLY BASE IN USE
+            data_cfg = DataConfig(
+                dataset_name="DROZY",
+                embeddings_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.1-embedding/dinov2-base/cls/ROI0",
+                features_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/features",
+                eventfulness_scores_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
+                normalization_info_path="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
+                field_normalization=field_normalization,
+                task_type=task_type,
+                num_classes=num_classes,
+                class_labels=class_labels,
+                label_mapping=label_mapping,
+                thresholds=thresholds,
+            )
+
+        # print("#######################################################")
+        # print("################## ONLY BASE IN USE ###################")
+        # print("################## ONLY BASE IN USE ###################")
+        # print("################## ONLY BASE IN USE ###################")
+        # print("################## ONLY BASE IN USE ###################")
+        # print("################## ONLY BASE IN USE ###################")
+        # print("#######################################################")
+
         return model_cfg, train_cfg, selection_cfg, cv_cfg, data_cfg
+
+    def get_default_search_space():
+        return {
+            # TemporalConfig
+            "model.temporal.backbone": ["gru"],
+            "model.temporal.hidden_size": [128],
+            "model.temporal.num_layers": [2],
+            "model.temporal.dropout": [0],
+            "model.temporal.activation": ["relu"],
+
+            # Window MLPConfig
+            "model.window_mlp.hidden_size": [128],
+            "model.window_mlp.num_layers": [2],
+            "model.window_mlp.dropout": [0],
+            "model.window_mlp.activation": ["relu"],
+
+            # Regression Head MLPConfig
+            "model.reg_head_mlp.hidden_size": [64],
+            "model.reg_head_mlp.num_layers": [2],
+            "model.reg_head_mlp.dropout": [0],
+            "model.reg_head_mlp.activation": ["relu"],
+
+            # ModelConfig
+            "model.d_embed": [768],
+            "model.d_blend": [52],
+            "model.d_other": [4],
+            "model.d_temporal_embed": [256],
+            "model.d_temporal_blend": [64],
+            "model.d_temporal_other": [32],
+
+            # MIL Attention Config
+            "model.attn_hidden_size": [64],
+            "model.attn_activation": ["tanh"],
+
+            # TrainingConfig
+            "train.num_epochs": [120],
+            "train.batch_size": [256],
+            "train.optimizer": ["adamw"],
+            "train.lr": [1e-3],
+            "train.weight_decay": [0],
+            "train.loss": ["mse"],
+            "train.early_stopping_patience": [70],
+            "train.device": ["cuda"],
+            "train.use_scheduler": [False],
+            "train.step_lr_step_size": [30],
+            "train.step_lr_gamma": [0.1],
+            "train.momentum": [0.9],
+            "train.betas": [(0.9, 0.999)],
+            "train.training_time_limit": [7200], # 2 hours
+
+            # SelectionConfig
+            "sel.window_size": [32],
+            "sel.stride": [32],
+            "sel.n_windows": [16],
+            "sel.pick_mean_top_begin": [16],
+            "sel.pick_max_top_begin": [0],
+            "sel.pick_random_begin": [0],
+            "sel.pick_mean_top_end": [16],
+            "sel.pick_max_top_end": [0],
+            "sel.pick_random_end": [0],
+            "sel.converge_ratio": [0],
+        }
+    
+    def load_search_space(search_space_json_path: Union[str, None]) -> dict:
+        if search_space_json_path is None:
+            return get_default_search_space()
+
+        with open(search_space_json_path, "r") as f:
+            return json.load(f)
+
 
     args = build_parser().parse_args()
     (model_cfg, train_cfg, selection_cfg, cv_cfg, data_cfg) = build_configs_from_args(
@@ -437,13 +527,6 @@ def main():
         input_path=data_cfg.embeddings_dir, depth=3, EXT_LIST=".dat"
     )
 
-    search_space = {
-        "train.lr": ("log_uniform", 1e-5, 1e-3),  # Still critical
-        "model.temporal.dropout": ("uniform", 0.2, 0.5),  # MORE important now
-        "model.window_mlp.dropout": ("uniform", 0.1, 0.4),  # Regularization crucial
-        "sel.converge_ratio": ("uniform", 0.1, 0.3),  # CRITICAL for curriculum
-        "train.batch_size": [32, 64],  # Affects curriculum stability
-    }
 
     # Determine output directory
     if vars(args).get("resume") and vars(args).get("resume_dir"):
@@ -460,6 +543,8 @@ def main():
         output_dir = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E14|{task_suffix}"
         resume = False
 
+    search_space = load_search_space(vars(args)["search_space_json"])
+
     create_folders(output_dir)
     save_obj(vars(args), os.path.join(output_dir, "args.json"), "json")
     save_obj(search_space, os.path.join(output_dir, "search_space.json"), "json")
@@ -468,7 +553,13 @@ def main():
     print(
         f"\n{'='*80}\n"
         f"CONFIGURATION SUMMARY\n"
-        f"{'='*80}\n"
+        f"{'-'*80}\n"
+        f"  Model Config:\n    {model_cfg}\n"
+        f"  Training Config:\n    {train_cfg}\n"
+        f"  Selection Config:\n    {selection_cfg}\n"
+        f"  Cross-Validation Config:\n    {cv_cfg}\n"
+        f"  Data Config:\n    {data_cfg}\n"
+        f"{'-'*80}\n"
         f"  Dataset: {data_cfg.dataset_name}\n"
         f"  Task Type: {data_cfg.task_type}\n"
         f"  Num Classes: {data_cfg.num_classes}\n"
@@ -497,82 +588,6 @@ def main():
     print(f"Results saved to: {output_dir}")
     print(f"{'='*80}\n")
 
-    """
-    from Zh.experiments.e11.dataclasses import ModelConfig, TrainingConfig, SelectionConfig
-    
-    # Define search space for Bayesian optimization
-    def search_space(trial):
-        return {
-            "learning_rate": trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-            "weight_decay": trial.suggest_float("wd", 1e-6, 1e-3, log=True),
-            "temporal_hidden_size": trial.suggest_categorical("hidden", [64, 128, 256]),
-            "temporal_num_layers": trial.suggest_int("layers", 1, 3),
-            "dropout": trial.suggest_float("dropout", 0.1, 0.5)
-        }
-    
-    results = nested_cv_video_mil(
-        video_ids=my_video_ids,
-        model_cfg=my_model_cfg,
-        train_cfg=my_train_cfg,
-        selection_cfg=my_selection_cfg,
-        embeddings_root="/path/to/embeddings",
-        features_root="/path/to/features",
-        eventfulness_scores_root="/path/to/eventfulness",
-        outer_folds=5,
-        inner_folds=3,
-        output_dir="./nested_cv_results",
-        search_strategy="bayesian",
-        search_space=search_space,
-        n_trials=30,
-        random_seed=42
-    )
-    """
-
-    # Example 2: Random search
-    """
-    results = nested_cv_video_mil(
-        video_ids=my_video_ids,
-        model_cfg=my_model_cfg,
-        train_cfg=my_train_cfg,
-        selection_cfg=my_selection_cfg,
-        embeddings_root="/path/to/embeddings",
-        features_root="/path/to/features",
-        eventfulness_scores_root="/path/to/eventfulness",
-        outer_folds=5,
-        inner_folds=3,
-        output_dir="./nested_cv_results",
-        search_strategy="random",
-        search_space={
-            "learning_rate": ("log_uniform", 1e-5, 1e-2),
-            "weight_decay": ("log_uniform", 1e-6, 1e-3),
-            "temporal_hidden_size": [64, 128, 256]
-        },
-        n_trials=20,
-        random_seed=42
-    )
-    """
-
-    # Example 3: Grid search
-    """
-    results = nested_cv_video_mil(
-        video_ids=my_video_ids,
-        model_cfg=my_model_cfg,
-        train_cfg=my_train_cfg,
-        selection_cfg=my_selection_cfg,
-        embeddings_root="/path/to/embeddings",
-        features_root="/path/to/features",
-        eventfulness_scores_root="/path/to/eventfulness",
-        outer_folds=5,
-        inner_folds=3,
-        output_dir="./nested_cv_results",
-        search_strategy="grid",
-        search_space={
-            "learning_rate": [1e-4, 1e-3],
-            "weight_decay": [0.0, 1e-5],
-            "temporal_hidden_size": [128, 256]
-        }
-    )
-    """
 
 
 if __name__ == "__main__":
