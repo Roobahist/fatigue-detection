@@ -69,8 +69,9 @@ def default_logger(msg: str) -> None:
 
 
 def list_videos(videos_dir: str, video_glob: str) -> List[str]:
-    pattern = os.path.join(videos_dir, video_glob)
-    paths = sorted(glob.glob(pattern))
+    # Recursive search
+    pattern = os.path.join(videos_dir, "**", video_glob)
+    paths = sorted(glob.glob(pattern, recursive=True))
     return paths
 
 
@@ -101,8 +102,9 @@ def find_embedding_path(
       "*__embedding_dinov2-base_strategy_cls.dat"
     We constrain by key and "__embedding" presence.
     """
-    pattern = os.path.join(embeddings_dir, f"{key}__*{embedding_glob.lstrip('*')}")
-    matches = sorted(glob.glob(pattern))
+    # Recursive search
+    pattern = os.path.join(embeddings_dir, "**", f"{key}__*{embedding_glob.lstrip('*')}")
+    matches = sorted(glob.glob(pattern, recursive=True))
     if len(matches) == 0:
         return None
     if len(matches) == 1:
