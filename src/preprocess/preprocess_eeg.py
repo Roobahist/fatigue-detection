@@ -252,8 +252,8 @@ def preprocess_eeg_recording(
 
     print(f"Selected channels: {raw.ch_names}")
     report["selected_channels"] = raw.ch_names.copy()
-    report["n_eeg_channels"] = len(eeg_channels)
-    report["n_aux_channels"] = len(raw.ch_names) - len(eeg_channels)
+    report["n_eeg_channels"] = len([ch for ch in eeg_channels if ch in present])
+    report["n_aux_channels"] = len(raw.ch_names) - report["n_eeg_channels"]
 
     # Montage (optional)
     try:
@@ -331,7 +331,12 @@ def preprocess_eeg_recording(
     # ICA
     print("Running ICA for artifact removal...")
 
-    n_eeg = len(eeg_channels)
+    # Recompute EEG count based on what is actually present now
+    eeg_present = raw.copy().pick_types(eeg=True).ch_names
+    n_eeg = len(eeg_present)
+    if n_eeg < 2:
+        raise RuntimeError("Need at least 2 EEG channels for ICA.")
+
     default_n_ica = max(2, min(n_eeg - 1, 25))
     n_components = (
         default_n_ica
@@ -352,27 +357,42 @@ def preprocess_eeg_recording(
 
     excluded_components: list[int] = []
 
-    if use_eog_channels and eog_channels:
-        try:
-            eog_indices, _ = ica.find_bads_eog(raw_ica, ch_name=eog_channels, threshold=eog_threshold, verbose=False)
-            excluded_components.extend(eog_indices)
-            print(f"ICA components excluded (EOG): {eog_indices}")
-            report["ica_eog_components"] = eog_indices
-        except Exception as e:
-            print(f"Could not perform EOG detection: {e}")
-            report["ica_eog_components"] = "detection_failed"
+    if use_eog_channels:
+        eog_present = raw.copy().pick_types(eog=True).ch_names
+        if eog_present:
+            try:
+                eog_indices, _ = ica.find_bads_eog(
+                    raw_ica, ch_name=eog_present, threshold=eog_threshold, verbose=False
+                )
+                excluded_components.extend(eog_indices)
+                print(f"ICA components excluded (EOG): {eog_indices}")
+                report["ica_eog_components"] = eog_indices
+            except Exception as e:
+                print(f"Could not perform EOG detection: {e}")
+                report["ica_eog_components"] = "detection_failed"
+        else:
+            report["ica_eog_components"] = "not_performed"
     else:
         report["ica_eog_components"] = "not_performed"
 
-    if use_ecg_channels and ecg_channels:
-        try:
-            ecg_indices, _ = ica.find_bads_ecg(raw_ica, ch_name=ecg_channels[0], threshold=ecg_threshold, verbose=False)
-            excluded_components.extend(ecg_indices)
-            print(f"ICA components excluded (ECG): {ecg_indices}")
-            report["ica_ecg_components"] = ecg_indices
-        except Exception as e:
-            print(f"Could not perform ECG detection: {e}")
-            report["ica_ecg_components"] = "detection_failed"
+    if use_ecg_channels:
+        ecg_present = raw.copy().pick_types(ecg=True).ch_names
+        if ecg_present:
+            try:
+                ecg_indices, _ = ica.find_bads_ecg(
+                    raw_ica,
+                    ch_name=ecg_present[0],
+                    threshold=ecg_threshold,
+                    verbose=False,
+                )
+                excluded_components.extend(ecg_indices)
+                print(f"ICA components excluded (ECG): {ecg_indices}")
+                report["ica_ecg_components"] = ecg_indices
+            except Exception as e:
+                print(f"Could not perform ECG detection: {e}")
+                report["ica_ecg_components"] = "detection_failed"
+        else:
+            report["ica_ecg_components"] = "not_performed"
     else:
         report["ica_ecg_components"] = "not_performed"
 
@@ -395,7 +415,15 @@ def preprocess_eeg_recording(
     report["ica_excluded_components"] = ica.exclude
 
     raw_clean = raw.copy()
-    ica.apply(raw_clean, picks="eeg", verbose=False)
+
+    eeg_picks = mne.pick_types(raw_clean.info, eeg=True)
+    raw_eeg_view = raw_clean.copy().pick(eeg_picks)
+
+    ica.apply(raw_eeg_view, verbose=False)
+
+    # Copy cleaned EEG data back into the full Raw (keeps EOG/ECG unchanged)
+    raw_clean._data[eeg_picks, :] = raw_eeg_view.get_data()
+
     print(f"ICA applied to EEG channels only. Excluded {len(ica.exclude)} components")
 
     if plot_steps:
@@ -495,6 +523,7 @@ def preprocess_eeg_recordings(
                 file_path=file_path,
                 input_folder=input_folder,
                 output_folder=output_folder,
+                extension=".fif",
             ),
             "bandpass_low": bandpass_low,
             "bandpass_high": bandpass_high,
