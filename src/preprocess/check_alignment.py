@@ -16,6 +16,7 @@ Outputs:
 
 Usage example:
   python -m Zh.src.preprocess.check_alignment --videos_dir /work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05 --features_dir /work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/features --embeddings_dir /work/long_lab/Mojtaba/data/DROZY/data/videos/3.1-embedding --embedding_glob "*__embedding_dinov2-base_strategy_cls.dat" --out_csv /work/long_lab/Mojtaba/data/DROZY/data/videos/alignment_report.csv
+  python -m Zh.src.preprocess.check_alignment --videos_dir /work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05 --features_dir /work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/features --embeddings_dir /work/long_lab/Mojtaba/data/UTA/3.1-embedding --embedding_glob "*__embedding_dinov2-base_strategy_cls.dat" --out_csv /work/long_lab/Mojtaba/data/UTA/alignment_report.csv
 """
 
 from __future__ import annotations
