@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import List, Optional
 
@@ -32,10 +33,11 @@ def process_single_video(
         path=file_path,
         mode="r",
     )
+
+    output_rel_path = os.path.relpath(file_path, input_folder)
+    output_rel_root, _ = os.path.splitext(output_rel_path)
     mh_output = MemmapHandler(
-        path=os.path.join(
-            output_folder, os.path.relpath(file_path, input_folder)
-        ).replace(".dat", "__eventfulness.dat"),
+        path=os.path.join(output_folder, output_rel_root + "__eventfulness.dat"),
         shape=(mh_input.shape[0], 1),
         dtype="float32",
         mode="w+",
@@ -53,14 +55,14 @@ def process_single_video(
             )
             raise ValueError(f"Key {k} not found in input memmap columns.")
 
-    eventfulness = np.zeros((end_frame - start_frame, 1))
+    eventfulness = np.zeros((end_frame - start_frame, 1), dtype=np.float32)
     for k, v in weights.items():
         col_idx = mh_input._column_names.index(k)
         eventfulness += v * mh_input.read(
             slice=(slice(start_frame, end_frame), slice(col_idx, col_idx + 1))
         )
 
-    mh_output.write(eventfulness)
+    mh_output.write(eventfulness, slice=(slice(start_frame, end_frame), slice(0, 1)))
     mh_output.close()
     mh_input.close()
 
@@ -126,7 +128,6 @@ def process_multiple_videos(
 
 if __name__ == "__main__":
     import argparse
-    import logging
 
     logging.basicConfig(
         level=logging.INFO,  # or DEBUG for more verbosity
