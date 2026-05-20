@@ -7,6 +7,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.ticker import LogFormatterSciNotation, LogLocator
 
 from Zh.src.utils.common import load_obj, save_obj
 from Zh.src.utils.file_folder import create_folders
@@ -617,7 +618,7 @@ class CheckpointManager:
             "progress_percentage": progress_percentage,
             "current_fold_progress": current_fold_progress,
         }
-    
+
     # -------------------------------------------------------------------------
     # Training visualizations
     # -------------------------------------------------------------------------
@@ -691,10 +692,22 @@ class CheckpointManager:
 
         # Plot training and validation losses
         ax.plot(
-            epochs, train_losses, "o-", color="orange", label="Training Loss", alpha=0.7
+            epochs,
+            train_losses,
+            "o-",
+            color="orange",
+            label="Training Loss",
+            alpha=0.7,
+            markersize=3,
         )
         ax.plot(
-            epochs, val_losses, "s-", color="blue", label="Validation Loss", alpha=0.7
+            epochs,
+            val_losses,
+            "s-",
+            color="blue",
+            label="Validation Loss",
+            alpha=0.7,
+            markersize=3,
         )
 
         # Find and mark best epoch (minimum validation loss)
@@ -720,7 +733,7 @@ class CheckpointManager:
         else:
             ax.set_xlim(0.5, max(epochs) + 0.5)
 
-        ax.set_xticks(range(1, (max_epochs or max(epochs)) + 1, 1))
+        ax.set_xticks([1] + list(range(10, (max_epochs or max(epochs)) + 1, 10)))
 
         ax.legend(loc="best")
         ax.grid(True, alpha=0.3)
@@ -820,17 +833,27 @@ class CheckpointManager:
             labels = [str(v) for v in uniq]
             return x, ticks, labels, True
 
-        def _apply_x_axis(ax, hparam_name: str, spec: Any, x_all_raw: List[Any]) -> None:
+        def _apply_x_axis(
+            ax, hparam_name: str, spec: Any, x_all_raw: List[Any]
+        ) -> None:
             """
             Try to respect your existing search_space conventions while staying robust.
             """
             # Categorical string list
-            if isinstance(spec, list) and spec and all(isinstance(v, str) for v in spec):
+            if (
+                isinstance(spec, list)
+                and spec
+                and all(isinstance(v, str) for v in spec)
+            ):
                 # Keep as categorical labels, actual tick handling is done by _to_numeric_x
                 return
 
             # Fixed single numeric
-            if isinstance(spec, list) and len(spec) == 1 and isinstance(spec[0], (int, float)):
+            if (
+                isinstance(spec, list)
+                and len(spec) == 1
+                and isinstance(spec[0], (int, float))
+            ):
                 v = spec[0]
                 margin = abs(v) * 0.05 if v != 0 else 0.05
                 ax.set_xlim(v - margin, v + margin)
@@ -838,8 +861,14 @@ class CheckpointManager:
                 return
 
             # Categorical numeric list
-            if isinstance(spec, list) and len(spec) > 1 and all(isinstance(v, (int, float)) for v in spec):
-                margin = (max(spec) - min(spec)) * 0.05 if max(spec) != min(spec) else 0.05
+            if (
+                isinstance(spec, list)
+                and len(spec) > 1
+                and all(isinstance(v, (int, float)) for v in spec)
+            ):
+                margin = (
+                    (max(spec) - min(spec)) * 0.05 if max(spec) != min(spec) else 0.05
+                )
                 ax.set_xlim(min(spec) - margin, max(spec) + margin)
                 ax.set_xticks(spec)
                 return
@@ -852,16 +881,15 @@ class CheckpointManager:
                 and all(isinstance(v, (int, float)) for v in spec[1:])
             ):
                 kind, low0, high0 = spec[0], spec[1], spec[2]
-                margin = (high0 - low0) * 0.05 if high0 != low0 else 0.05
-                low = low0 - margin
-                high = high0 + margin
+                m = 1.2
+                low = low0 / m
+                high = high0 * m
 
                 if kind == "log_uniform":
                     ax.set_xscale("log")
-                    low = max(low, 1e-12)
-                    # Avoid forcing ticks if values are categorical-converted
-                    if all(isinstance(v, (int, float)) and v > 0 for v in x_all_raw):
-                        ax.set_xticks(np.logspace(np.log10(low0), np.log10(high0), num=5))
+                    ax.xaxis.set_major_locator(LogLocator(base=10.0))
+                    ax.xaxis.set_major_formatter(LogFormatterSciNotation(base=10.0))
+
                 else:
                     if all(isinstance(v, (int, float)) for v in x_all_raw):
                         ax.set_xticks(np.linspace(low0, high0, num=5))
@@ -880,7 +908,9 @@ class CheckpointManager:
             topk = order[: min(3, len(order))]
             bx = [x_vals[i] for i in topk]
             by = [y_vals[i] for i in topk]
-            ax.scatter(bx, by, marker="*", color="green", s=220, zorder=5, label="_best3")
+            ax.scatter(
+                bx, by, marker="*", color="green", s=80, zorder=5, label="_best3"
+            )
 
         # Group results by config and fold
         # fold_to_cfg_to_metrics[fold][cfg_key] = dict(train=..., val=..., test=..., hparams=...)
@@ -988,7 +1018,9 @@ class CheckpointManager:
                         seen.add(v)
                         uniq.append(v)
                 cat_map = {v: i for i, v in enumerate(uniq)}
-                cfg_key_to_x = {k: float(cat_map[v]) for k, v in cfg_key_to_hval.items()}
+                cfg_key_to_x = {
+                    k: float(cat_map[v]) for k, v in cfg_key_to_hval.items()
+                }
             else:
                 cfg_key_to_x = {k: float(v) for k, v in cfg_key_to_hval.items()}
 
@@ -1013,7 +1045,7 @@ class CheckpointManager:
                         ys.append(float(yv))
 
                     if xs and ys:
-                        ax.scatter(xs, ys, s=80, alpha=0.65)
+                        ax.scatter(xs, ys, s=40, alpha=0.65)
 
                     _mark_best3(ax, xs, ys)
 
@@ -1052,7 +1084,7 @@ class CheckpointManager:
                     ys.append(float(np.mean(vals)))
 
                 if xs and ys:
-                    ax.scatter(xs, ys, s=90, alpha=0.75)
+                    ax.scatter(xs, ys, s=40, alpha=0.75)
 
                 _mark_best3(ax, xs, ys)
 
@@ -1085,7 +1117,13 @@ class CheckpointManager:
                 markersize=12,
                 label="Best 3 (lowest error)",
             )
-            fig.legend(handles=[best_handle], loc="upper center", ncol=1, frameon=False)
+            fig.legend(
+                handles=[best_handle],
+                loc="upper center",
+                bbox_to_anchor=(0.5, 0.95),
+                ncol=1,
+                frameon=False,
+            )
 
             fig.suptitle(
                 f"Hyperparameter Performance Grid: {hparam_name} (Outer Fold {outer_idx})",
