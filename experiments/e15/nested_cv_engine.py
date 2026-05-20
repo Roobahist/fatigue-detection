@@ -121,21 +121,91 @@ class HyperparameterSearcher:
             raise ValueError("Random search requires callable or dict search_space")
 
     def _sample_from_spec(self, spec: Any) -> Any:
-        """Sample a value from a specification."""
-        if isinstance(spec, list):
-            return np.random.choice(spec)
-        elif isinstance(spec, tuple) and len(spec) == 3:
-            dist_type, low, high = spec
-            if dist_type == "uniform":
-                return float(np.random.uniform(low, high))
-            elif dist_type == "log_uniform":
-                return float(np.exp(np.random.uniform(np.log(low), np.log(high))))
-            elif dist_type == "int_uniform":
-                return int(np.random.randint(low, high + 1))
-            else:
-                raise ValueError(f"Unknown distribution: {dist_type}")
-        else:
+        """
+        Sample a value from a hyperparameter specification.
+
+        Supported formats:
+        1) Categorical choices:
+            ["adam", "adamw", "sgd"]
+            [128, 256, 512]
+
+        2) Distribution specs (first element is a known keyword):
+            ["uniform", low, high]
+            ["log_uniform", low, high]
+            ["int_uniform", low, high]
+
+            Tuple versions also work:
+            ("log_uniform", 1e-6, 3e-4)
+
+        Behavior:
+        - If the first element is a known distribution keyword, we sample from it.
+        - Otherwise, we treat the sequence as categorical choices.
+        - If it's not a sequence, return it as-is.
+        """
+        dist_keywords = {"uniform", "log_uniform", "int_uniform"}
+
+        # Treat list/tuple the same without branching on exact type
+        is_sequence = isinstance(spec, (list, tuple))
+
+        if not is_sequence:
             return spec
+
+        if len(spec) == 0:
+            raise ValueError("Empty hyperparameter spec is not valid.")
+
+        first = spec[0]
+
+        # Distribution spec: ["log_uniform", low, high]
+        if isinstance(first, str) and first in dist_keywords:
+            if len(spec) != 3:
+                raise ValueError(
+                    f"Distribution spec '{first}' must have exactly 3 elements: "
+                    f"['{first}', low, high]. Got: {spec}"
+                )
+
+            _, low, high = spec
+
+            try:
+                low_f = float(low)
+                high_f = float(high)
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Invalid bounds for distribution '{first}'. low/high must be numeric. "
+                    f"Got low={low}, high={high}"
+                ) from e
+
+            if first == "uniform":
+                return float(np.random.uniform(low_f, high_f))
+
+            if first == "log_uniform":
+                if low_f <= 0 or high_f <= 0:
+                    raise ValueError(
+                        f"log_uniform requires low>0 and high>0. Got low={low_f}, high={high_f}"
+                    )
+                return float(np.exp(np.random.uniform(np.log(low_f), np.log(high_f))))
+
+            if first == "int_uniform":
+                low_i = int(low_f)
+                high_i = int(high_f)
+                if low_i > high_i:
+                    raise ValueError(
+                        f"int_uniform requires low <= high. Got low={low_i}, high={high_i}"
+                    )
+                return int(np.random.randint(low_i, high_i + 1))
+
+            # This should never happen because of dist_keywords check
+            raise ValueError(f"Unknown distribution: {first}")
+
+        # Otherwise: treat as categorical choices
+        # np.random.choice can return numpy scalar types (np.str_, np.float64, ...)
+        # normalize to pure Python when possible.
+        chosen = np.random.choice(spec)
+
+        # Convert numpy scalar -> python scalar
+        if isinstance(chosen, np.generic):
+            return chosen.item()
+
+        return chosen
 
     def suggest_from_trial(self, trial, key: str, value_spec: Any) -> Any:
         """Suggest parameter value using Optuna trial."""
@@ -377,12 +447,32 @@ class NestedCVEngine:
                 outer_idx=outer_idx,
             )
 
+            print(
+                f"\n{'-' * 80}\n"
+                f"EVALUATING FINAL MODEL [Outer={outer_idx}]\n"
+                f"{'-' * 80}\n"
+            )
             # Evaluate final model
             outer_train_metric = self.evaluate_fn(
-                final_model, outer_train_ids, best_hparams, outer_train_ids
+                final_model,
+                outer_train_ids,
+                best_hparams,
+                outer_train_ids,
+                outer_idx,
+                verbose=True,
             )
             outer_test_metric = self.evaluate_fn(
-                final_model, outer_test_ids, best_hparams, outer_train_ids
+                final_model,
+                outer_test_ids,
+                best_hparams,
+                outer_train_ids,
+                outer_idx,
+                verbose=True,
+            )
+            print(
+                f"{'-' * 80}\n"
+                f"FINAL EVALUATION COMPLETE [Outer={outer_idx}]\n"
+                f"{'-' * 80}\n"
             )
 
             # Save model
@@ -941,72 +1031,75 @@ class NestedCVEngine:
                     config=hparams,
                     inner_results=inner_results,
                 )
+                checkpoint_mgr.generate_hyperparameter_visualizations(
+                    outer_idx=outer_idx
+                )
 
         return inner_results
 
-    def _run_inner_cv(
-        self,
-        outer_train_ids: List[Any],
-        outer_test_ids: List[Any],
-        hparams: Dict[str, Any],
-        inner_folds: int,
-        verbose: bool = True,
-    ) -> List[InnerFoldResult]:
-        """Run inner cross-validation for a hyperparameter configuration (no checkpointing)."""
-        inner_results: List[InnerFoldResult] = []
+    # def _run_inner_cv(
+    #     self,
+    #     outer_train_ids: List[Any],
+    #     outer_test_ids: List[Any],
+    #     hparams: Dict[str, Any],
+    #     inner_folds: int,
+    #     verbose: bool = True,
+    # ) -> List[InnerFoldResult]:
+    #     """Run inner cross-validation for a hyperparameter configuration (no checkpointing)."""
+    #     inner_results: List[InnerFoldResult] = []
 
-        for inner_idx in range(inner_folds):
-            if verbose:
-                print(
-                    f"\n{'=' * 80}\n"
-                    f"INNER FOLD {inner_idx + 1}/{inner_folds}\n"
-                    f"{'=' * 80}\n"
-                )
+    #     for inner_idx in range(inner_folds):
+    #         if verbose:
+    #             print(
+    #                 f"\n{'=' * 80}\n"
+    #                 f"INNER FOLD {inner_idx + 1}/{inner_folds}\n"
+    #                 f"{'=' * 80}\n"
+    #             )
 
-            inner_train_ids, inner_val_ids = self.split_fn(
-                outer_train_ids, inner_folds, inner_idx
-            )
+    #         inner_train_ids, inner_val_ids = self.split_fn(
+    #             outer_train_ids, inner_folds, inner_idx
+    #         )
 
-            model = self.model_builder(hparams)
-            model = model.to(self.device)
+    #         model = self.model_builder(hparams)
+    #         model = model.to(self.device)
 
-            model, best_val_metric, best_epoch = self.train_fn(
-                model, inner_train_ids, inner_val_ids, hparams
-            )
+    #         model, best_val_metric, best_epoch = self.train_fn(
+    #             model, inner_train_ids, inner_val_ids, hparams
+    #         )
 
-            train_metric = self.evaluate_fn(
-                model, inner_train_ids, hparams, inner_train_ids
-            )
-            val_metric = self.evaluate_fn(
-                model, inner_val_ids, hparams, inner_train_ids
-            )
-            outer_test_metric = self.evaluate_fn(
-                model, outer_test_ids, hparams, inner_train_ids
-            )
+    #         train_metric = self.evaluate_fn(
+    #             model, inner_train_ids, hparams, inner_train_ids
+    #         )
+    #         val_metric = self.evaluate_fn(
+    #             model, inner_val_ids, hparams, inner_train_ids
+    #         )
+    #         outer_test_metric = self.evaluate_fn(
+    #             model, outer_test_ids, hparams, inner_train_ids
+    #         )
 
-            if verbose:
-                print(
-                    f"{'-' * 80}\n"
-                    f"INNER FOLD RESULTS\n"
-                    f"{'-' * 80}\n"
-                    f"  Best epoch: {best_epoch}\n"
-                    f"  Train metric: {train_metric:.4f}\n"
-                    f"  Val metric: {val_metric:.4f}\n"
-                    f"  Outer test metric: {outer_test_metric:.4f}\n"
-                    f"{'-' * 80}\n"
-                )
+    #         if verbose:
+    #             print(
+    #                 f"{'-' * 80}\n"
+    #                 f"INNER FOLD RESULTS\n"
+    #                 f"{'-' * 80}\n"
+    #                 f"  Best epoch: {best_epoch}\n"
+    #                 f"  Train metric: {train_metric:.4f}\n"
+    #                 f"  Val metric: {val_metric:.4f}\n"
+    #                 f"  Outer test metric: {outer_test_metric:.4f}\n"
+    #                 f"{'-' * 80}\n"
+    #             )
 
-            result = InnerFoldResult(
-                inner_fold=inner_idx,
-                hparams=copy.deepcopy(hparams),
-                inner_train_metric=train_metric,
-                inner_val_metric=val_metric,
-                outer_test_metric=outer_test_metric,
-                best_epoch=best_epoch,
-            )
-            inner_results.append(result)
+    #         result = InnerFoldResult(
+    #             inner_fold=inner_idx,
+    #             hparams=copy.deepcopy(hparams),
+    #             inner_train_metric=train_metric,
+    #             inner_val_metric=val_metric,
+    #             outer_test_metric=outer_test_metric,
+    #             best_epoch=best_epoch,
+    #         )
+    #         inner_results.append(result)
 
-        return inner_results
+    #     return inner_results
 
     def _run_inner_cv_optuna_prunable(
         self,
