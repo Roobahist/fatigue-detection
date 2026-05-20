@@ -2,8 +2,9 @@ import logging
 import math
 import os
 from datetime import datetime
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
+import numpy as np
 from tqdm import tqdm
 
 from Zh.src.process.embedding_models.embedders import *
@@ -14,6 +15,168 @@ from Zh.src.utils.serialized_parallel import process
 from Zh.src.utils.video import VideoReader
 
 embedder = None
+
+
+def _add_unfinished_suffix(path: str) -> str:
+    root, ext = os.path.splitext(path)
+    return f"{root}_unfinished{ext}"
+
+
+def _resolve_log_dir(output_folder: str) -> str:
+    output_dir = os.environ.get("OUTPUT_DIR", "").strip()
+    if output_dir:
+        return os.path.join(output_dir, "logs")
+    return os.path.join(output_folder, "logs")
+
+
+def _setup_logger(log_dir: str, name: str) -> logging.Logger:
+    os.makedirs(log_dir, exist_ok=True)
+
+    logger = logging.getLogger(f"{name}_{os.getpid()}")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    if logger.handlers:
+        return logger
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(log_dir, f"{name}_pid{os.getpid()}_{ts}.log")
+    fmt = logging.Formatter("[%(asctime)s][%(levelname)s] %(message)s")
+
+    fh = logging.FileHandler(log_path)
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    sh = logging.StreamHandler()
+    sh.setLevel(logging.INFO)
+    sh.setFormatter(fmt)
+    logger.addHandler(sh)
+
+    logger.info(f"log_path={log_path}")
+    return logger
+
+
+def _init_valid_column_to_unwritten(
+    mh: MemmapHandler, valid_col: int, chunk_rows: int = 200_000
+) -> None:
+    n = int(mh.shape[0])
+    start = 0
+    while start < n:
+        end = min(start + chunk_rows, n)
+        block = np.full((end - start, 1), -1.0, dtype=np.float32)
+        mh.write(
+            data=block,
+            start=start,
+            slice=(slice(start, end), slice(valid_col, valid_col + 1)),
+        )
+        start = end
+
+
+def _find_resume_row_by_valid(
+    mh: MemmapHandler, valid_col: int, chunk_rows: int = 200_000
+) -> int:
+    """
+    Returns first row index where valid == -1.0 (unwritten).
+    If all rows are written (valid in {0,1}), returns mh.shape[0].
+    """
+    n = int(mh.shape[0])
+    if n == 0:
+        return 0
+    start = 0
+    while start < n:
+        end = min(start + chunk_rows, n)
+        arr = mh.read(slice=(slice(start, end), slice(valid_col, valid_col + 1)))
+        if arr is None:
+            return start
+        v = np.asarray(arr).reshape(-1)
+        idx = np.where(v == -1.0)[0]
+        if idx.size > 0:
+            return start + int(idx[0])
+        start = end
+    return n
+
+
+def _validate_before_finalize(
+    unfinished_path: str,
+    expected_rows: int,
+    expected_cols: int,
+    valid_col: int,
+    chunk_rows: int = 200_000,
+) -> tuple[bool, str]:
+    try:
+        mh = MemmapHandler(path=unfinished_path, mode="r")
+    except Exception as e:
+        return False, f"open_failed {type(e).__name__}: {e}"
+
+    if int(mh.shape[0]) != int(expected_rows):
+        return (
+            False,
+            f"row_count_mismatch shape_rows={mh.shape[0]} expected_rows={expected_rows}",
+        )
+
+    if int(mh.shape[1]) != int(expected_cols):
+        return (
+            False,
+            f"col_count_mismatch shape_cols={mh.shape[1]} expected_cols={expected_cols}",
+        )
+
+    n = int(expected_rows)
+    start = 0
+    while start < n:
+        end = min(start + chunk_rows, n)
+        arr = mh.read(slice=(slice(start, end), slice(valid_col, valid_col + 1)))
+        if arr is None:
+            return False, f"valid_read_failed range={start}:{end}"
+
+        v = np.asarray(arr).reshape(-1)
+
+        bad_val = np.where((v != -1.0) & (v != 0.0) & (v != 1.0))[0]
+        if bad_val.size > 0:
+            i = start + int(bad_val[0])
+            return (
+                False,
+                f"valid_out_of_domain row={i} value={float(v[int(bad_val[0])])}",
+            )
+
+        unwritten = np.where(v == -1.0)[0]
+        if unwritten.size > 0:
+            i = start + int(unwritten[0])
+            return False, f"unwritten_rows_remaining first_unwritten_row={i}"
+
+        start = end
+
+    return True, ""
+
+
+def _touch_success_files(logger: logging.Logger) -> None:
+    output_dir = os.environ.get("OUTPUT_DIR", "").strip()
+    if not output_dir:
+        return
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    default_success = os.path.join(output_dir, "EXPERIMENT_COMPLETE")
+    try:
+        with open(default_success, "a"):
+            os.utime(default_success, None)
+        logger.info(f"success_file_touched path={default_success}")
+    except Exception as e:
+        logger.error(
+            f"success_file_touch_failed path={default_success} err={type(e).__name__}: {e}"
+        )
+
+    env_success = os.environ.get("SUCCESS_FILE", "").strip()
+    if env_success:
+        env_path = os.path.join(output_dir, env_success)
+        try:
+            with open(env_path, "a"):
+                os.utime(env_path, None)
+            logger.info(f"success_file_touched path={env_path}")
+        except Exception as e:
+            logger.error(
+                f"success_file_touch_failed path={env_path} err={type(e).__name__}: {e}"
+            )
 
 
 def get_embedder(embedding_model_name: str):
@@ -35,29 +198,18 @@ def process_single_video(
     use_tqdm: Optional[bool] = False,
     file_index: Optional[int] = 0,
 ):
-    """
-    Process a single video and write embeddings to HDF5 using multiple strategies.
+    logger = _setup_logger(
+        _resolve_log_dir(output_folder=output_folder), name="embeddings"
+    )
 
-    Args:
-        input_folder (str): Path to the input folder containing video files.
-        output_folder (str): Path to the output folder to save processed videos.
-        file_path (str): Relative path of the video file to process.
-        start_second (int, optional): Start processing from this second. Defaults to 0.
-        end_second (int, optional): End processing at this second. Defaults to None.
-        embedding_model_name (str, optional): Embedding model to use. Defaults to "Facenet".
-        strategies (Union[str, List[str]]): List of strategies to use for embedding. Defaults to "cls".
-        batch_size (int, optional): Number of frames to process in parallel. Defaults to 32.
-        use_tqdm (bool, optional): Whether to use tqdm progress bars. Defaults to False.
-        file_index (int, optional): Index of the file being processed. Defaults to 0
-    """
-    logging.info(f"Processing file {file_index}: {file_path}")
+    logger.info(f"file_start file_index={file_index} file_path={file_path}")
 
     embedder = get_embedder(embedding_model_name)
 
     vr = VideoReader(file_path)
     info = vr.get_info()
     total_frames = info["total_frames"]
-    batch_size = min(batch_size, total_frames)
+    batch_size = min(batch_size, total_frames) if total_frames > 0 else batch_size
     video_fps = info["fps"]
 
     start_frame = (
@@ -69,61 +221,182 @@ def process_single_video(
         else total_frames
     )
 
-    valid_strategies = [s for s in strategies if s in embedder.valid_strategies]
-
-    # calculating the embedding for the first frame to find the
-    # dimension of the embeddings and instantiate the writers
-    writers = {}
-    ret, temp_frame = vr.read_frame(0)
-    if ret:
-        for strategy in valid_strategies:
-            shape = (
-                end_frame - start_frame,
-                embedder.embed(frames=temp_frame, strategy=strategy).shape[0],
-            )
-            output_file_path = update_file_name(
-                file_path=file_path,
-                input_folder=input_folder,
-                output_folder=output_folder,
-                suffix=f"__embedding_{embedding_model_name.split('/')[-1]}_strategy_{strategy}",
-                prefix=f"{embedding_model_name.split('/')[-1]}/{strategy}/",
-                extension=".dat",
-            )
-            writer = MemmapHandler(
-                path=output_file_path, mode="w+", shape=shape, dtype="float32"
-            )
-            writers[strategy] = writer
-    else:
-        logging.error(f"Failed to read frame at index 0, skipping {file_path}")
+    expected_rows = int(end_frame - start_frame)
+    if expected_rows <= 0:
+        logger.warning(
+            f"file_skip_empty file_index={file_index} start_frame={start_frame} end_frame={end_frame}"
+        )
+        vr.release()
         return
 
+    valid_strategies = [s for s in strategies if s in embedder.valid_strategies]
+
+    writers = {}
+    writer_paths = {}
+
+    ret, temp_frame = vr.read_frame(start_frame)
+    if not ret:
+        logger.error(
+            f"file_fail_read_start_frame file_index={file_index} start_frame={start_frame} file_path={file_path}"
+        )
+        vr.release()
+        return
+
+    for strategy in valid_strategies:
+        base_dim = embedder.embed(frames=temp_frame, strategy=strategy).shape[0]
+        dim_with_valid = int(base_dim) + 1
+        shape = (expected_rows, dim_with_valid)
+        valid_col = dim_with_valid - 1
+
+        output_file_path = update_file_name(
+            file_path=file_path,
+            input_folder=input_folder,
+            output_folder=output_folder,
+            suffix=f"__embedding_{embedding_model_name.split('/')[-1]}_strategy_{strategy}",
+            prefix=f"{embedding_model_name.split('/')[-1]}/{strategy}/",
+            extension=".dat",
+        )
+
+        final_path = output_file_path
+        unfinished_path = _add_unfinished_suffix(final_path)
+        os.makedirs(os.path.dirname(final_path), exist_ok=True)
+
+        if os.path.exists(final_path):
+            logger.info(
+                f"file_skip_finalized file_index={file_index} strategy={strategy} path={final_path}"
+            )
+            continue
+
+        if os.path.exists(unfinished_path):
+            writer = MemmapHandler(path=unfinished_path, mode="r+")
+            if (
+                int(writer.shape[0]) != expected_rows
+                or int(writer.shape[1]) != dim_with_valid
+            ):
+                logger.warning(
+                    f"file_warn_unfinished_shape_mismatch file_index={file_index} strategy={strategy} "
+                    f"shape={writer.shape} expected={(expected_rows, dim_with_valid)} path={unfinished_path}"
+                )
+            writers[strategy] = writer
+            writer_paths[strategy] = (
+                unfinished_path,
+                final_path,
+                valid_col,
+                expected_rows,
+                dim_with_valid,
+            )
+        else:
+            writer = MemmapHandler(
+                path=unfinished_path, mode="w+", shape=shape, dtype="float32"
+            )
+            _init_valid_column_to_unwritten(writer, valid_col=valid_col)
+            writers[strategy] = writer
+            writer_paths[strategy] = (
+                unfinished_path,
+                final_path,
+                valid_col,
+                expected_rows,
+                dim_with_valid,
+            )
+            logger.info(
+                f"file_create_unfinished file_index={file_index} strategy={strategy} path={unfinished_path} shape={shape}"
+            )
+
+    if not writers:
+        vr.release()
+        logger.info(f"file_end_no_work file_index={file_index} file_path={file_path}")
+        return
+
+    any_strategy = next(iter(writers.keys()))
+    any_writer = writers[any_strategy]
+    valid_col_any = int(any_writer.shape[1]) - 1
+    resume_row = _find_resume_row_by_valid(any_writer, valid_col=valid_col_any)
+    start_iter = start_frame + int(resume_row)
+
+    if resume_row > 0:
+        logger.info(
+            f"file_resume file_index={file_index} resume_row={resume_row} start_iter_frame={start_iter}"
+        )
+
+    read_failures = 0
+
     for frame_index in tqdm(
-        range(start_frame, end_frame, batch_size),
+        range(start_iter, end_frame, batch_size),
         desc=f"Processing {file_index}: {file_path}",
         disable=not use_tqdm,
-        unit="frame",
-        total=math.ceil((end_frame - start_frame) / batch_size),
+        unit="batch",
+        total=(
+            math.ceil((end_frame - start_iter) / batch_size)
+            if end_frame > start_iter
+            else 0
+        ),
         miniters=5,
     ):
         ret, frames = vr.read_frames(
             frame_indices=range(frame_index, min(frame_index + batch_size, end_frame)),
             jump=False,
         )
+        local_idx = frame_index - start_frame
+        n = min(batch_size, end_frame - frame_index)
+
         if not ret:
-            print(f"{file_path} Failed to read frame at index {frame_index}, skipping.")
+            read_failures += 1
+            for strategy, writer in writers.items():
+                dim = int(writer.shape[1])
+                out = np.zeros((n, dim), dtype=np.float32)
+                out[:, -1] = 0.0
+                writer.write(data=out, start=local_idx)
             continue
 
         for strategy, writer in writers.items():
-            local_idx = frame_index - start_frame
-            writer.write(
-                data=embedder.embed_batch(frames=frames, strategy=strategy),
-                start=local_idx,
-            )
+            emb = embedder.embed_batch(frames=frames, strategy=strategy)
+            emb = np.asarray(emb, dtype=np.float32)
+            n_local = emb.shape[0]
+            dim = int(writer.shape[1])
+
+            out = np.zeros((n_local, dim), dtype=np.float32)
+            out[:, : emb.shape[1]] = emb
+            out[:, -1] = 1.0
+            writer.write(data=out, start=local_idx)
 
     for _, writer in writers.items():
         writer.close()
 
+    finalized_ok = True
+
+    for strategy, (
+        unfinished_path,
+        final_path,
+        valid_col,
+        exp_rows,
+        exp_cols,
+    ) in writer_paths.items():
+        ok, reason = _validate_before_finalize(
+            unfinished_path=unfinished_path,
+            expected_rows=exp_rows,
+            expected_cols=exp_cols,
+            valid_col=valid_col,
+        )
+        if ok:
+            if os.path.exists(unfinished_path) and not os.path.exists(final_path):
+                os.replace(unfinished_path, final_path)
+            logger.info(f"file_finalize strategy={strategy} path={final_path}")
+        else:
+            finalized_ok = False
+            logger.error(
+                f"file_not_finalized strategy={strategy} path={unfinished_path} reason={reason}"
+            )
+
     vr.release()
+
+    if read_failures > 0:
+        logger.warning(
+            f"file_issues file_index={file_index} read_failures={read_failures}"
+        )
+
+    logger.info(
+        f"file_end file_index={file_index} finalized_ok={finalized_ok} file_path={file_path}"
+    )
 
 
 def process_multiple_videos(
@@ -141,14 +414,13 @@ def process_multiple_videos(
     max_workers: Optional[int] = 10,
     maxtasksperchild: Optional[int] = 1,
 ):
-    """
-    video_files : relative path after the input folder should be provided,
-                       otherwise all the files in all subdirectories would be
-                       processed.
-    """
+    logger = _setup_logger(
+        _resolve_log_dir(output_folder=output_folder), name="embeddings"
+    )
+
     if relative_selected_paths is None:
         relative_selected_paths = []
-        
+
     file_index_to_path = pick_selected_file_paths(
         input_folder=input_folder,
         depth=4,
@@ -158,9 +430,7 @@ def process_multiple_videos(
         sort_and_dedupe=True,
     )
 
-    logging.info(f"Processing {len(file_index_to_path)} files")
-    for file_index, file_path in file_index_to_path.items():
-        logging.info(f"file {file_index}: {file_path} will be processed")
+    logger.info(f"batch_start n_files={len(file_index_to_path)}")
 
     args_list = [
         {
@@ -189,14 +459,43 @@ def process_multiple_videos(
         auto_slice=False,
     )
 
+    # Completion check: for every selected file and every valid strategy, final file exists and unfinished does not.
+    emb = get_embedder(embedding_model_name)
+    valid_strategies = [s for s in strategies if s in emb.valid_strategies]
+
+    incomplete = []
+    for _, file_path in file_index_to_path.items():
+        for strategy in valid_strategies:
+            final_path = update_file_name(
+                file_path=file_path,
+                input_folder=input_folder,
+                output_folder=output_folder,
+                suffix=f"__embedding_{embedding_model_name.split('/')[-1]}_strategy_{strategy}",
+                prefix=f"{embedding_model_name.split('/')[-1]}/{strategy}/",
+                extension=".dat",
+            )
+            unfinished_path = _add_unfinished_suffix(final_path)
+
+            if os.path.exists(unfinished_path) or not os.path.exists(final_path):
+                incomplete.append((file_path, strategy))
+
+    if len(incomplete) == 0:
+        logger.info("batch_complete all_outputs_finalized=true")
+        _touch_success_files(logger)
+    else:
+        logger.warning(
+            f"batch_incomplete missing_or_unfinished_count={len(incomplete)} sample={incomplete[:5]}"
+        )
+
+    logger.info("batch_end")
+
 
 if __name__ == "__main__":
     import argparse
     import logging
 
     logging.basicConfig(
-        level=logging.INFO,  # or DEBUG for more verbosity
-        format="[%(asctime)s][%(levelname)s] %(message)s",
+        level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s"
     )
 
     parser = argparse.ArgumentParser(description="Find Video Embeddings")
@@ -220,49 +519,31 @@ if __name__ == "__main__":
         "--file_indices_spec",
         type=str,
         default="",
-        help="Comma-separated indices/ranges, e.g. '0-9,20,35-'",
+        help="Comma-separated indices/ranges.",
     )
     parser.add_argument(
-        "--start_second",
-        type=int,
-        default=0,
-        help="Start processing from this second.",
+        "--start_second", type=int, default=0, help="Start processing from this second."
     )
     parser.add_argument(
-        "--end_second",
-        type=int,
-        default=None,
-        help="End processing at this second.",
+        "--end_second", type=int, default=None, help="End processing at this second."
     )
     parser.add_argument(
         "--embedding_model_name",
         type=str,
         default="Facenet",
-        help="Embedding model to use (default: Facenet)",
+        help="Embedding model to use.",
     )
     parser.add_argument(
-        "--strategies",
-        type=str,
-        nargs="*",
-        default=["cls"],
-        help="List of strategies to use for embedding (default: ['cls'])",
+        "--strategies", type=str, nargs="*", default=["cls"], help="List of strategies."
     )
     parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=32,
-        help="Batch size for processing frames (default: 32)",
+        "--batch_size", type=int, default=32, help="Batch size for processing frames."
     )
     parser.add_argument(
-        "--parallel",
-        action="store_true",
-        help="Process videos in parallel.",
+        "--parallel", action="store_true", help="Process videos in parallel."
     )
     parser.add_argument(
-        "--max_workers",
-        type=int,
-        default=None,
-        help="Maximum number of workers for parallel processing.",
+        "--max_workers", type=int, default=None, help="Maximum number of workers."
     )
     parser.add_argument(
         "--maxtasksperchild",
@@ -280,8 +561,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    logging.info("Starting ...")
-
     process_multiple_videos(
         input_folder=args.input_folder,
         output_folder=args.output_folder,
@@ -297,5 +576,3 @@ if __name__ == "__main__":
         max_workers=args.max_workers,
         maxtasksperchild=args.maxtasksperchild,
     )
-
-    logging.info("Done!")
