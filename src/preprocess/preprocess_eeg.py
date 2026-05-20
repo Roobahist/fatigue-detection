@@ -231,17 +231,23 @@ def preprocess_eeg_recording(
     if use_emg_channels and emg_channels:
         channels_to_keep.extend(emg_channels)
 
-    raw.pick_channels(channels_to_keep)
+    raw.pick(channels_to_keep)
 
-    channel_types = {}
+    present = set(raw.ch_names)
+    channel_types: dict[str, str] = {}
     for ch in eeg_channels:
-        channel_types[ch] = "eeg"
+        if ch in present:
+            channel_types[ch] = "eeg"
     for ch in eog_channels:
-        channel_types[ch] = "eog"
+        if ch in present:
+            channel_types[ch] = "eog"
     for ch in ecg_channels:
-        channel_types[ch] = "ecg"
+        if ch in present:
+            channel_types[ch] = "ecg"
     for ch in emg_channels:
-        channel_types[ch] = "emg"
+        if ch in present:
+            channel_types[ch] = "emg"
+
     raw.set_channel_types(channel_types)
 
     print(f"Selected channels: {raw.ch_names}")
