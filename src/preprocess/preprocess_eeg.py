@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional, Sequence, Union
-
 import argparse
 import logging
+from typing import Iterable, Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
 import mne
@@ -12,7 +11,6 @@ import numpy as np
 from Zh.src.utils.common import update_file_name
 from Zh.src.utils.file_folder import copy_directory_structure, pick_selected_file_paths
 from Zh.src.utils.serialized_parallel import process
-
 
 NotchType = Union[None, float, int, Sequence[Union[float, int]]]
 
@@ -122,8 +120,7 @@ def _detect_bad_eeg_channels_auto(
             hf_mask = np.abs(z_hf) > z_thresh_hf
 
     bad_mask = flat_mask | var_mask | hf_mask
-    bads = [ch for ch, is_bad in zip(ch_names, bad_mask) if bool(is_bad)]
-    return bads
+    return [ch for ch, is_bad in zip(ch_names, bad_mask) if bool(is_bad)]
 
 
 def _detect_bad_channels(
@@ -139,21 +136,23 @@ def _detect_bad_channels(
     """
     if prefer_ransac:
         try:
-            from autoreject import Ransac 
+            from autoreject import Ransac
 
             raw_eeg = raw.copy().pick_types(eeg=True)
             # RANSAC expects epochs. Use short fixed-length epochs for stability.
-            epochs = mne.make_fixed_length_epochs(raw_eeg, duration=2.0, preload=True, verbose=False)
+            epochs = mne.make_fixed_length_epochs(
+                raw_eeg, duration=2.0, preload=True, verbose=False
+            )
             r = Ransac(verbose=False, n_jobs=1)
             r.fit(epochs)
-            bads = list(r.bad_chs_)
-            return bads, "autoreject_ransac"
+            return list(r.bad_chs_), "autoreject_ransac"
         except Exception:
-            print("Autoreject RANSAC not available or failed, falling back to robust stats detector")
+            print(
+                "Autoreject RANSAC not available or failed, falling back to robust stats detector"
+            )
             pass
 
-    bads = _detect_bad_eeg_channels_auto(raw)
-    return bads, "robust_stats_fallback"
+    return _detect_bad_eeg_channels_auto(raw), "robust_stats_fallback"
 
 
 def preprocess_eeg_recording(
@@ -270,16 +269,28 @@ def preprocess_eeg_recording(
         report["reference"] = "original (as stored)"
 
     if plot_steps:
-        raw.plot(duration=10, n_channels=len(raw.ch_names), title="After re-referencing", scalings="auto")
+        raw.plot(
+            duration=10,
+            n_channels=len(raw.ch_names),
+            title="After re-referencing",
+            scalings="auto",
+        )
         plt.show()
 
     # Bandpass filter
-    raw.filter(l_freq=bandpass_low, h_freq=bandpass_high, fir_design="firwin", verbose=False)
+    raw.filter(
+        l_freq=bandpass_low, h_freq=bandpass_high, fir_design="firwin", verbose=False
+    )
     print(f"Applied bandpass filter: {bandpass_low}-{bandpass_high} Hz")
     report["bandpass_filter"] = (bandpass_low, bandpass_high)
 
     if plot_steps:
-        raw.plot(duration=10, n_channels=len(raw.ch_names), title="After bandpass filtering", scalings="auto")
+        raw.plot(
+            duration=10,
+            n_channels=len(raw.ch_names),
+            title="After bandpass filtering",
+            scalings="auto",
+        )
         plt.show()
 
     # Notch filter (DROZY Belgium defaults)
@@ -316,7 +327,11 @@ def preprocess_eeg_recording(
 
     n_eeg = len(eeg_channels)
     default_n_ica = max(2, min(n_eeg - 1, 25))
-    n_components = default_n_ica if n_ica_components is None else min(n_eeg - 1, int(n_ica_components))
+    n_components = (
+        default_n_ica
+        if n_ica_components is None
+        else min(n_eeg - 1, int(n_ica_components))
+    )
     report["ica_n_components"] = n_components
 
     ica = mne.preprocessing.ICA(
@@ -358,7 +373,9 @@ def preprocess_eeg_recording(
     # Muscle IC detection does not require EMG channels
     if use_emg_channels:
         try:
-            muscle_indices, _ = ica.find_bads_muscle(raw_ica, threshold=muscle_threshold, verbose=False)
+            muscle_indices, _ = ica.find_bads_muscle(
+                raw_ica, threshold=muscle_threshold, verbose=False
+            )
             excluded_components.extend(muscle_indices)
             print(f"ICA components excluded (Muscle): {muscle_indices}")
             report["ica_muscle_components"] = muscle_indices
@@ -378,8 +395,18 @@ def preprocess_eeg_recording(
     if plot_steps:
         ica.plot_sources(raw, show_scrollbars=False)
         plt.show()
-        raw.plot(duration=10, n_channels=len(eeg_channels), title="Before ICA", scalings="auto")
-        raw_clean.plot(duration=10, n_channels=len(eeg_channels), title="After ICA", scalings="auto")
+        raw.plot(
+            duration=10,
+            n_channels=len(eeg_channels),
+            title="Before ICA",
+            scalings="auto",
+        )
+        raw_clean.plot(
+            duration=10,
+            n_channels=len(eeg_channels),
+            title="After ICA",
+            scalings="auto",
+        )
         plt.show()
 
     raw_preprocessed = raw_clean.copy()
@@ -450,7 +477,9 @@ def preprocess_eeg_recordings(
     )
 
     if parallel and plot_steps:
-        logging.warning("plot_steps=True with parallel=True is not supported. Disabling plotting.")
+        logging.warning(
+            "plot_steps=True with parallel=True is not supported. Disabling plotting."
+        )
         plot_steps = False
 
     args_list = [
@@ -495,14 +524,26 @@ def preprocess_eeg_recordings(
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="preprocess EEG EDF files")
 
-    parser.add_argument("input_folder", type=str, help="Path to the input folder containing EDF files.")
+    parser.add_argument(
+        "input_folder", type=str, help="Path to the input folder containing EDF files."
+    )
     parser.add_argument(
         "relative_selected_paths",
         nargs="*",
         help="Relative EDF paths to process. If empty, all EDFs in input_folder are processed.",
     )
-    parser.add_argument("--output_folder", type=str, default="", help="Output folder. If not specified, input_folder is used.")
-    parser.add_argument("--file_indices_spec", type=str, default="", help="Comma-separated indices/ranges, example: '0-9,20,35-'")
+    parser.add_argument(
+        "--output_folder",
+        type=str,
+        default="",
+        help="Output folder. If not specified, input_folder is used.",
+    )
+    parser.add_argument(
+        "--file_indices_spec",
+        type=str,
+        default="",
+        help="Comma-separated indices/ranges, example: '0-9,20,35-'",
+    )
 
     parser.add_argument("--bandpass_low", type=float, default=0.5)
     parser.add_argument("--bandpass_high", type=float, default=45.0)
@@ -549,7 +590,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reference", type=str, default="original")
 
     parser.add_argument(
-        "--detect_bad_channels", action=argparse.BooleanOptionalAction, default=True, help="Detect and interpolate bad EEG channels. Uses autoreject RANSAC if available, else robust fallback.",
+        "--detect_bad_channels",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Detect and interpolate bad EEG channels. Uses autoreject RANSAC if available, else robust fallback.",
     )
     parser.add_argument(
         "--plot_steps",
@@ -558,7 +602,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Plot intermediate steps. Not supported with parallel=True.",
     )
 
-    parser.add_argument("--parallel", action="store_true", help="Process files in parallel.")
+    parser.add_argument(
+        "--parallel", action="store_true", help="Process files in parallel."
+    )
     parser.add_argument("--max_workers", type=int, default=None)
     parser.add_argument("--maxtasksperchild", type=int, default=None)
     parser.add_argument(
@@ -572,7 +618,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="[%(asctime)s][%(levelname)s] %(message)s"
+    )
     parser = _build_arg_parser()
     args = parser.parse_args()
 
