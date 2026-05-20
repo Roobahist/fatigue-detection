@@ -71,6 +71,7 @@ def train_for_fixed_epochs(
     train_loader: DataLoader,
     num_epochs: int,
     optimizer: torch.optim.Optimizer,
+    scheduler: Optional[Callable[[int], None]],
     loss_fn: nn.Module,
     task_type: str,
     device: torch.device,
@@ -430,6 +431,7 @@ class VideoMILAdapter:
             train_loader=train_loader,
             num_epochs=num_epochs,
             optimizer=optimizer,
+            scheduler=scheduler,
             loss_fn=loss_fn,
             task_type=task_type,
             device=self.device,
@@ -478,7 +480,7 @@ class VideoMILAdapter:
             train_cfg=train_cfg,
             thresholds=thresholds,
             unique_classes=unique_classes,
-            verbose=False,
+            verbose=verbose,
         )[0]
 
     def split_fn(
@@ -538,14 +540,7 @@ def nested_cv_video_mil(
         Dictionary with nested CV results
     """
     # Default search space
-    if search_space is None:
-        print(
-            f"\n{'!' * 80}\n" f"WARNING: Using default search space\n" f"{'!' * 80}\n"
-        )
-        search_space = {
-            "learning_rate": ("log_uniform", 1e-5, 1e-2),
-            "weight_decay": ("log_uniform", 1e-6, 1e-3),
-        }
+    search_space = search_space or {}
 
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
