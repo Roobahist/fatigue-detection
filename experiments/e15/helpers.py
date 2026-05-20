@@ -1,5 +1,5 @@
 import copy
-import hashlib
+
 import json
 import os
 import time
@@ -17,11 +17,6 @@ from Zh.experiments.e15.checkpoint_manager import CheckpointManager
 from Zh.experiments.e15.dataclasses import *
 from Zh.experiments.e15.datasets import *
 from Zh.src.utils.losses import *
-
-
-def _stable_int_hash(s: str) -> int:
-    h = hashlib.blake2b(s.encode("utf-8"), digest_size=8).digest()
-    return int.from_bytes(h, byteorder="little", signed=False)
 
 
 def _format_location(outer_idx=None, config_idx=None, inner_idx=None):
@@ -107,16 +102,14 @@ def evaluate_on_loader(
                 # Get probabilities for reporting
                 if loss_name == "coral":
                     probs = torch.sigmoid(logits)
-                    predicted_values.extend(probs.mean(dim=1).tolist())
                 elif loss_name == "corn":
                     probs = torch.sigmoid(logits)
                     probs = torch.cumprod(probs, dim=1)
-                    predicted_values.extend(probs.mean(dim=1).tolist())
                 else:
                     # Standard classification
                     probs = torch.softmax(logits, dim=1)
-                    predicted_values.extend(probs.max(dim=1)[0].tolist())
 
+                predicted_values.extend(probs.tolist())
                 true_classes.extend(targets.tolist())
                 predicted_classes.extend(preds.tolist())
 
@@ -218,6 +211,7 @@ def train_one_split(
     thresholds, unique_classes = get_task_info_from_dataset_name(
         data_cfg.dataset_name, data_cfg.task_type, data_cfg.label_mapping
     )
+    assert data_cfg.class_labels == unique_classes
 
     model.to(device)
     optimizer, scheduler = build_optimizer(model, train_cfg)
@@ -267,6 +261,8 @@ def train_one_split(
                     f"{'=' * 80}\n"
                 )
 
+    true_classes_train = []
+
     # Training loop
     for epoch in range(start_epoch, train_cfg.num_epochs):
         # Check time limit
@@ -310,6 +306,9 @@ def train_one_split(
                 device=device,
             )
 
+            if epoch == start_epoch:
+                true_classes_train.extend(targets.tolist())
+
             optimizer.zero_grad()
             preds = model(batch_on_device)
             loss = loss_fn(preds, targets)
@@ -326,8 +325,24 @@ def train_one_split(
             train_loss_sum / train_samples if train_samples > 0 else float("inf")
         )
 
+        # train_eval_loss, (
+        #     predicted_values_train,
+        #     true_classes_train,
+        #     predicted_classes_train,
+        # ) = evaluate_on_loader(
+        #     model=model,
+        #     loader=train_loader,
+        #     loss_fn=loss_fn,
+        #     device=device,
+        #     data_cfg=data_cfg,
+        #     train_cfg=train_cfg,
+        #     thresholds=thresholds,
+        #     unique_classes=unique_classes,
+        #     verbose=False,
+        # )
+
         # Validation phase
-        val_loss, (predicted_values, true_classes, predicted_classes) = (
+        val_loss, (predicted_values_val, true_classes_val, predicted_classes_val) = (
             evaluate_on_loader(
                 model=model,
                 loader=val_loader,
@@ -340,6 +355,34 @@ def train_one_split(
                 verbose=False,
             )
         )
+
+        true_train = torch.as_tensor(true_classes_train, dtype=torch.float32)
+        true_val = torch.as_tensor(true_classes_val, dtype=torch.float32)
+
+        baseline_train_loss = 0
+        baseline_val_loss = 0
+
+        baseline_response = (
+            float(np.mean(true_classes_train))
+            if data_cfg.task_type == "regression"
+            else int(np.bincount(true_classes_train).argmax())
+        )
+
+        if data_cfg.task_type == "regression":
+            # Build baseline tensors with the same shape
+            baseline_train = torch.full_like(true_train, baseline_response)
+            baseline_val = torch.full_like(true_val, baseline_response)
+
+            baseline_train_loss = loss_fn(baseline_train, true_train)
+            baseline_val_loss = loss_fn(baseline_val, true_val)
+
+        else:
+            baseline_train_loss = sum(
+                1 for t in true_classes_train if t != baseline_response
+            ) / len(true_classes_train)
+            baseline_val_loss = sum(
+                1 for t in true_classes_val if t != baseline_response
+            ) / len(true_classes_val)
 
         if scheduler is not None:
             scheduler.step()
@@ -357,27 +400,49 @@ def train_one_split(
         if verbose:
 
             if data_cfg.task_type == "classification" and unique_classes:
-                true_labels = [unique_classes[int(c)] for c in true_classes]
-                pred_labels = [unique_classes[int(c)] for c in predicted_classes]
+                true_labels_val = [unique_classes[int(c)] for c in true_classes_val]
+                pred_labels_val = [
+                    unique_classes[int(c)] for c in predicted_classes_val
+                ]
+                # true_labels_train = [unique_classes[int(c)] for c in true_classes_train]
+                # pred_labels_train = [
+                #     unique_classes[int(c)] for c in predicted_classes_train
+                # ]
             else:
-                true_labels = true_classes
-                pred_labels = predicted_classes
+                true_labels_val = true_classes_val
+                pred_labels_val = predicted_classes_val
+                # true_labels_train = true_classes_train
+                # pred_labels_train = predicted_classes_train
 
-            cr = classification_report(
-                y_true=true_labels,
-                y_pred=pred_labels,
+            cr_val = classification_report(
+                y_true=true_labels_val,
+                y_pred=pred_labels_val,
                 labels=unique_classes if unique_classes else None,
                 output_dict=True,
                 zero_division=False,
             )
-
-            cm = safe_confusion_matrix(
-                y_true=true_labels,
-                y_pred=pred_labels,
+            cm_val = safe_confusion_matrix(
+                y_true=true_labels_val,
+                y_pred=pred_labels_val,
                 all_labels=(
-                    unique_classes if unique_classes else sorted(set(true_labels))
+                    unique_classes if unique_classes else sorted(set(true_labels_val))
                 ),
             )
+
+            # cr_train = classification_report(
+            #     y_true=true_labels_train,
+            #     y_pred=pred_labels_train,
+            #     labels=unique_classes if unique_classes else None,
+            #     output_dict=True,
+            #     zero_division=False,
+            # )
+            # cm_train = safe_confusion_matrix(
+            #     y_true=true_labels_train,
+            #     y_pred=pred_labels_train,
+            #     all_labels=(
+            #         unique_classes if unique_classes else sorted(set(true_labels_train))
+            #     ),
+            # )
 
             elapsed = time.time() - training_start_time
             time_remaining = (
@@ -391,26 +456,49 @@ def train_one_split(
                 f"EPOCH {epoch + 1}/{train_cfg.num_epochs} {loc}\n"
                 f"{'=' * 80}\n"
                 f"  Time - Elapsed: {elapsed:.1f}s | Remaining: {time_remaining}\n"
-                f"  Loss - Train: {train_loss:.4f} | Val: {val_loss:.4f}\n"
+                f"  Loss - Train: {train_loss:.4f} | Baseline: {baseline_train_loss:.4f}\n"
+                f"  Loss - Val: {val_loss:.4f} | Baseline: {baseline_val_loss:.4f}\n"
                 f"  Best - Val Loss: {best_val_loss:.4f} (epoch {best_epoch})\n"
                 f"  Early Stop - Epochs w/o improvement: {epochs_without_improvement}/{train_cfg.early_stopping_patience}\n"
                 + "-" * 80
                 + "\n"
-                "  Confusion Matrix:\n"
-                f"  {cm}\n" + "-" * 80 + "\n"
-                "  Classification Report:\n"
-                f"  {json.dumps(cr, cls=NumpyEncoder, indent=4)}\n" + "-" * 80 + "\n"
-                f"  Predictions: {[(p, c, t) for p, c, t in zip(predicted_values, pred_labels, true_labels)]}\n"
+                "  Confusion Matrix - Val:\n"
+                f"  {cm_val}\n" + "-" * 80 + "\n"
+                # "  Classification Report - Val:\n"
+                # f"  {json.dumps(cr_val, cls=NumpyEncoder, indent=4)}\n"
+                # + "-" * 80
+                # + "\n"
+                # "  Confusion Matrix - Train:\n"
+                # f"  {cm_train}\n" + "-" * 80 + "\n"
+                # "  Classification Report - Train:\n"
+                # f"  {json.dumps(cr_train, cls=NumpyEncoder, indent=4)}\n"
+                # + "-" * 80
+                # + "\n"
+                f"  Predictions: {[(p, c, t) for p, c, t in zip(predicted_values_val, pred_labels_val, true_labels_val)]}\n"
                 f"{'=' * 80}\n"
             )
 
-        # Save checkpoint periodically (every 5 epochs or on improvement)
-        should_checkpoint = (
+        should_visualize = (
             checkpoint_mgr
             and outer_idx is not None
             and config_idx is not None
             and inner_idx is not None
-            and (epoch % 5 == 0 or epochs_without_improvement == 0)
+        )
+
+        if should_visualize:
+            checkpoint_mgr.save_training_visualization(
+                outer_idx=outer_idx,
+                config_idx=config_idx,
+                inner_idx=inner_idx,
+                epoch=epoch + 1,
+                train_loss=train_loss,
+                val_loss=val_loss,
+                max_epochs=train_cfg.num_epochs,
+            )
+
+        # Save checkpoint periodically (every 5 epochs or on improvement)
+        should_checkpoint = should_visualize and (
+            epoch % 5 == 0 or epochs_without_improvement == 0
         )
 
         if should_checkpoint:
@@ -447,14 +535,14 @@ def train_one_split(
 
     # Clean up training checkpoint after successful completion
     # (only if we didn't hit time limit - keep checkpoint if interrupted by time limit)
-    if (
-        checkpoint_mgr
-        and outer_idx is not None
-        and config_idx is not None
-        and inner_idx is not None
-        and not time_limit_exceeded
-    ):
-        checkpoint_mgr.clean_training_checkpoint(outer_idx, config_idx, inner_idx)
+    # if (
+    #     checkpoint_mgr
+    #     and outer_idx is not None
+    #     and config_idx is not None
+    #     and inner_idx is not None
+    #     and not time_limit_exceeded
+    # ):
+    #     checkpoint_mgr.clean_training_checkpoint(outer_idx, config_idx, inner_idx)
 
     if verbose:
         status = "TIME LIMITED" if time_limit_exceeded else "COMPLETED"
@@ -478,96 +566,6 @@ def assign_class(value, thresholds, unique_classes):
         (unique_classes[i] for i, t in enumerate(thresholds) if value < t),
         unique_classes[-1],
     )
-
-
-def compute_training_picks(
-    sel_cfg: SelectionConfig,
-    epoch: int,
-    num_epochs: int,
-    converge_ratio: float = 1.0,
-) -> Tuple[int, int, int]:
-    """
-    Linearly interpolate (mean, max, random) from *_begin to *_end over epochs.
-
-    Parameters
-    ----------
-    sel_cfg : SelectionConfig
-        Holds pick_*_begin, pick_*_end, and n_windows.
-    epoch : int
-        0-based epoch index.
-    num_epochs : int
-        Total number of epochs.
-    converge_ratio : float, default 1.0
-        Fraction of training over which to converge from *_begin to *_end.
-        - 1.0  → converge over the full training (original behavior).
-        - 0.5  → converge by halfway, then stay at *_end.
-        - 0.3  → converge by 30% of the epochs, then stay at *_end.
-        - <= 0 → snap to *_end from the start.
-
-    Ensures the three counts sum to n_windows (with minor rounding fixes).
-    """
-    if num_epochs <= 1:
-        # Degenerate case: just use *_end
-        mean_f = sel_cfg.pick_mean_top_end
-        max_f = sel_cfg.pick_max_top_end
-        rand_f = sel_cfg.pick_random_end
-    else:
-        # epoch is 0-based inside train loop, normalize to [0, 1]
-        denom = num_epochs - 1
-        raw_t = epoch / denom  # in [0, 1]
-
-        if converge_ratio <= 0:
-            # Immediately at *_end
-            t = 1.0
-        elif converge_ratio >= 1.0:
-            # Original behavior: spread over full training
-            t = raw_t
-        else:
-            # Stretch the [0, converge_ratio] part to [0, 1], then clamp
-            t = raw_t / converge_ratio
-            if t > 1.0:
-                t = 1.0
-
-        mean_f = sel_cfg.pick_mean_top_begin + t * (
-            sel_cfg.pick_mean_top_end - sel_cfg.pick_mean_top_begin
-        )
-        max_f = sel_cfg.pick_max_top_begin + t * (
-            sel_cfg.pick_max_top_end - sel_cfg.pick_max_top_begin
-        )
-        rand_f = sel_cfg.pick_random_begin + t * (
-            sel_cfg.pick_random_end - sel_cfg.pick_random_begin
-        )
-
-    mean_i = int(round(mean_f))
-    max_i = int(round(max_f))
-    rand_i = int(round(rand_f))
-
-    # Fix sum to be exactly n_windows
-    total = mean_i + max_i + rand_i
-    diff = sel_cfg.n_windows - total
-
-    # Adjust random first (since it's the least “structural”)
-    rand_i += diff
-    if rand_i < 0:
-        # Clamp random at 0, push remaining deficit into mean
-        deficit = -rand_i
-        rand_i = 0
-        mean_i = max(0, mean_i - deficit)
-
-    # Final safety clamp
-    if mean_i < 0:
-        mean_i = 0
-    if max_i < 0:
-        max_i = 0
-
-    # If we still don’t sum correctly, force n_windows by tweaking mean
-    total = mean_i + max_i + rand_i
-    if total != sel_cfg.n_windows:
-        mean_i = max(0, sel_cfg.n_windows - max_i - rand_i)
-
-    assert mean_i + max_i + rand_i == sel_cfg.n_windows
-
-    return mean_i, max_i, rand_i
 
 
 def get_activation(name: str) -> nn.Module:
@@ -692,22 +690,6 @@ def get_subject_id_from_video_id(video_id: str, dataset_name: str) -> int:
         return int(os.path.basename(video_id).split("-")[0])
     else:
         raise ValueError(f"Unknown dataset for subject ID extraction: {dataset_name}")
-
-
-def get_target_from_video_id(video_id: str, dataset_name: str) -> float:
-    if dataset_name == "UTA":
-        return float(os.path.basename(video_id).split("_")[2])
-    elif dataset_name == "DROZY":
-        subject_id = int(os.path.basename(video_id).split("_")[0].split("-")[0])
-        session_id = int(os.path.basename(video_id).split("_")[0].split("-")[1])
-        kss_score_path = "/work/long_lab/Mojtaba/data/DROZY/data/original/KSS.txt"
-        with open(kss_score_path, "r") as f:
-            kss_scores = list(
-                map(lambda x: list(map(int, x.strip().split(" "))), f.readlines())
-            )
-        return float(kss_scores[subject_id - 1][session_id - 1])
-    else:
-        raise ValueError(f"Unknown dataset for target extraction: {dataset_name}")
 
 
 def kfold_split_indices(
