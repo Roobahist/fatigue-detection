@@ -1,11 +1,53 @@
+# Zh/experiments/e15/model.py
+
 import math
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
 from Zh.experiments.e15.dataclasses import *
 from Zh.experiments.e15.helpers import *
+
+
+def _safe_str(x: Any, max_len: int = 220) -> str:
+    s = str(x)
+    return s if len(s) <= max_len else (s[:max_len] + "...")
+
+
+def _fmt_kv(meta: Dict[str, Any]) -> str:
+    if not meta:
+        return "(no meta)"
+    parts = []
+    for k in sorted(meta.keys()):
+        v = meta[k]
+        if v is None:
+            continue
+        parts.append(f"{k}={_safe_str(v)}")
+    return " ".join(parts) if parts else "(no meta)"
+
+
+def _seq_stats(name: str, x: Any) -> str:
+    if not torch.is_tensor(x):
+        return f"{name}: type={type(x)}"
+    shape = tuple(x.shape)
+    if x.numel() == 0:
+        return f"{name}: shape={shape} numel=0"
+    with torch.no_grad():
+        finite = bool(torch.isfinite(x).all().item())
+        minv = float(x.min().item())
+        maxv = float(x.max().item())
+    return f"{name}: shape={shape} finite={finite} min={minv:.4g} max={maxv:.4g}"
+
+
+def _log_block(title: str, lines: List[str]) -> None:
+    border = "=" * 88
+    print("\n" + border)
+    print(title)
+    for ln in lines:
+        print(ln)
+    print(border + "\n")
+
 
 # ==============================
 # Positional Encoding for Transformer
@@ -77,7 +119,7 @@ class WindowTemporalEncoder(nn.Module):
                     dropout=rnn_dropout,
                     bidirectional=self.bidirectional,
                 )
-            backbone_out_dim = self.hidden_size * 2  # bidirectional
+            backbone_out_dim = self.hidden_size * 2
 
         elif self.backbone_type == "tcn":
             self.hidden_size = int(cfg.hidden_size)
@@ -137,20 +179,17 @@ class WindowTemporalEncoder(nn.Module):
             raise ValueError("Sequence length T must be > 0")
 
         if self.backbone_type in ("gru", "lstm"):
-            # RNN expects [T, B, D]
             x_in = x.unsqueeze(1)  # [T, 1, D_in]
             outputs, _ = self.rnn(x_in)  # [T, 1, H*2]
             pooled = outputs.mean(dim=0).squeeze(0)  # [H*2]
 
         elif self.backbone_type == "tcn":
-            # Conv1d expects [B, C, T]
             x_in = x.transpose(0, 1).unsqueeze(0)  # [1, D_in, T]
             for layer in self.tcn:
                 x_in = layer(x_in)  # [1, hidden_size, T]
             pooled = x_in.mean(dim=2).squeeze(0)  # [hidden_size]
 
         elif self.backbone_type == "transformer":
-            # [T, 1, D_model]
             x_in = self.input_proj(x)  # [T, D_model]
             x_in = x_in.unsqueeze(1)  # [T, 1, D_model]
             x_in = self.pos_encoder(x_in)
@@ -202,7 +241,6 @@ class MultiPathWindowEncoder(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        # Use separate temporal output dims for each path
         self.embed_encoder = WindowTemporalEncoder(
             int(cfg.d_embed), int(cfg.d_temporal_embed), cfg.temporal
         )
@@ -225,57 +263,75 @@ class MultiPathWindowEncoder(nn.Module):
         embed_seq: torch.Tensor,
         blend_seq: torch.Tensor,
         other_seq: torch.Tensor,
+        *,
+        meta: Optional[Dict[str, Any]] = None,
+        window_index: Optional[int] = None,
     ) -> torch.Tensor:
-        h_embed = self.embed_encoder(embed_seq)  # [d_temporal_embed]
-        h_blend = self.blend_encoder(blend_seq)  # [d_temporal_blend]
-        h_other = self.other_encoder(other_seq)  # [d_temporal_other]
-        h = torch.cat([h_embed, h_blend, h_other], dim=-1)  # [sum d_temporal_*]
-        out = self.mlp(h)  # [d_window]
+        # Detect empty sequences early and fail with identifiers
+        t_e = int(embed_seq.shape[0]) if torch.is_tensor(embed_seq) and embed_seq.ndim >= 1 else None
+        t_b = int(blend_seq.shape[0]) if torch.is_tensor(blend_seq) and blend_seq.ndim >= 1 else None
+        t_o = int(other_seq.shape[0]) if torch.is_tensor(other_seq) and other_seq.ndim >= 1 else None
+
+        if (t_e == 0) or (t_b == 0) or (t_o == 0):
+            meta_str = _fmt_kv(meta or {})
+            wi = window_index if window_index is not None else "?"
+            _log_block(
+                "EMPTY WINDOW SEQUENCE DETECTED in MultiPathWindowEncoder",
+                [
+                    f"where: {meta_str} window_index={wi}",
+                    _seq_stats("embed_seq", embed_seq),
+                    _seq_stats("blend_seq", blend_seq),
+                    _seq_stats("other_seq", other_seq),
+                    f"note: error will be raised to stop the run and surface identifiers",
+                ],
+            )
+            raise ValueError(
+                "Empty temporal sequence (T==0). "
+                f"{meta_str} window_index={wi} "
+                f"embed_T={t_e} blend_T={t_b} other_T={t_o}"
+            )
+
+        h_embed = self.embed_encoder(embed_seq)
+        h_blend = self.blend_encoder(blend_seq)
+        h_other = self.other_encoder(other_seq)
+        h = torch.cat([h_embed, h_blend, h_other], dim=-1)
+        out = self.mlp(h)
         return out
 
 
 class AttentionMILPooling(nn.Module):
     """
-    Ilse-style attention pooling over window embeddings.
-    Input:  H: [N_windows, D_window]
-    Output: z: [D_window], a: [N_windows]
+    Gated Attention MIL Pooling from Ilse et al. 2018
+    "Attention-based Deep Multiple Instance Learning"
     """
 
     def __init__(self, d_window: int, attn_hidden_size: int, attn_activation: str):
         super().__init__()
-        self.V = nn.Linear(int(d_window), int(attn_hidden_size))
-        self.w = nn.Linear(int(attn_hidden_size), 1, bias=False)
-        self.activation = get_activation(attn_activation)
+        self.attention_V = nn.Linear(int(d_window), int(attn_hidden_size))
+        self.attention_U = nn.Linear(int(d_window), int(attn_hidden_size))
+        self.attention_w = nn.Linear(int(attn_hidden_size), 1, bias=False)
 
     def forward(self, H: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """H: [N_windows, D_window] -> z: [D_window], a: [N_windows]"""
         if H.ndim != 2:
             raise ValueError(f"Expected [N_windows, D_window], got {H.shape}")
         if H.size(0) == 0:
             raise ValueError("N_windows must be > 0")
 
-        A_hidden = self.activation(self.V(H))  # [N, H_attn]
-        logits = self.w(A_hidden).squeeze(-1)  # [N]
-        a = torch.softmax(logits, dim=0)  # [N]
-        z = torch.sum(a.unsqueeze(-1) * H, dim=0)  # [D_window]
-        return z, a
+        A_V = torch.tanh(self.attention_V(H))
+        A_U = torch.sigmoid(self.attention_U(H))
+        A = A_V * A_U
+        A = self.attention_w(A)
+        a = torch.softmax(A, dim=0)
+
+        z = torch.sum(a * H, dim=0)
+        return z, a.squeeze(-1)
 
 
 class MultiPathMILRegressor(nn.Module):
-    """
-    Main model supporting both regression and classification tasks.
-    Task type is determined from data_cfg passed during initialization.
-        - For each window: MultiPathWindowEncoder -> window embedding
-        - AttentionMILPooling over windows -> video embedding
-        - Regression head -> scalar fatigue score
-    """
-
-    def __init__(
-        self, cfg: ModelConfig, data_cfg: DataConfig, train_cfg: TrainingConfig
-    ):
+    def __init__(self, cfg: ModelConfig, data_cfg: DataConfig, train_cfg: TrainingConfig):
         super().__init__()
         self.cfg = cfg
-        self.task_type = data_cfg.task_type  # Get from single source of truth
+        self.task_type = data_cfg.task_type
         self.num_classes = data_cfg.num_classes
         self.loss_name = train_cfg.loss.lower()
 
@@ -284,69 +340,81 @@ class MultiPathMILRegressor(nn.Module):
             cfg.d_window, cfg.attn_hidden_size, cfg.attn_activation
         )
 
-        # Task-specific head
         if self.task_type == "classification":
             if self.num_classes is None:
-                raise ValueError(
-                    "num_classes must be specified in DataConfig for classification task"
-                )
+                raise ValueError("num_classes must be specified in DataConfig for classification task")
             if self.loss_name == "coral":
-                # Use special CORAL layer with bias initialization
                 from Zh.src.utils.losses import CoralLayer
-
-                self.head = CoralLayer(
-                    size_in=cfg.d_window,
-                    num_classes=self.num_classes,
-                    preinit_bias=True,
-                )
+                self.head = CoralLayer(size_in=cfg.d_window, num_classes=self.num_classes, preinit_bias=True)
             elif self.loss_name == "corn":
-                # Use regular MLP for CORN
                 self.head = MLP(cfg.d_window, self.num_classes - 1, cfg.reg_head_mlp)
             else:
-                # Standard classification
                 self.head = MLP(cfg.d_window, self.num_classes, cfg.reg_head_mlp)
-        else:  # regression
-            # Output single value
+        else:
             self.head = MLP(cfg.d_window, 1, cfg.reg_head_mlp)
 
     def forward(self, batch: List[Dict]) -> torch.Tensor:
-        """
-        batch: list of video dicts
-
-        Returns:
-          - For regression: [B] tensor of scalar predictions
-          - For classification: [B, num_classes] tensor of logits
-        """
         video_embeddings = []
 
-        for video in batch:
+        for video_i, video in enumerate(batch):
             emb_list: List[torch.Tensor] = video["embeddings"]
             blend_list: List[torch.Tensor] = video["blendshapes"]
             other_list: List[torch.Tensor] = video["others"]
 
-            assert (
-                len(emb_list) == len(blend_list) == len(other_list)
-            ), "Window lists must have same length"
+            if not (len(emb_list) == len(blend_list) == len(other_list)):
+                _log_block(
+                    "MISMATCHED WINDOW LIST LENGTHS in MultiPathMILRegressor",
+                    [
+                        f"video_index_in_batch={video_i}",
+                        f"len(embeddings)={len(emb_list)} len(blendshapes)={len(blend_list)} len(others)={len(other_list)}",
+                        f"meta: {_fmt_kv(video.get('meta', {}))}",
+                    ],
+                )
+                raise ValueError(
+                    "Window lists must have same length. "
+                    f"video_index_in_batch={video_i} "
+                    f"len_emb={len(emb_list)} len_blend={len(blend_list)} len_other={len(other_list)} "
+                    f"meta={_fmt_kv(video.get('meta', {}))}"
+                )
+
             n_windows = len(emb_list)
             if n_windows == 0:
-                raise ValueError("Each video must have at least one window")
+                _log_block(
+                    "NO WINDOWS FOUND for video in MultiPathMILRegressor",
+                    [
+                        f"video_index_in_batch={video_i}",
+                        f"meta: {_fmt_kv(video.get('meta', {}))}",
+                    ],
+                )
+                raise ValueError(
+                    f"Each video must have at least one window. video_index_in_batch={video_i} meta={_fmt_kv(video.get('meta', {}))}"
+                )
 
+            base_meta = dict(video.get("meta", {}))
+            base_meta.update({"video_index_in_batch": video_i})
+
+            windows_meta = video.get("windows_meta", None)
             window_embs = []
-            for i in range(n_windows):
-                e = emb_list[i]
-                b = blend_list[i]
-                o = other_list[i]
-                window_emb = self.window_encoder(e, b, o)
+
+            for w_i in range(n_windows):
+                e = emb_list[w_i]
+                b = blend_list[w_i]
+                o = other_list[w_i]
+
+                meta = dict(base_meta)
+                if isinstance(windows_meta, list) and w_i < len(windows_meta) and isinstance(windows_meta[w_i], dict):
+                    meta.update(windows_meta[w_i])
+
+                window_emb = self.window_encoder(e, b, o, meta=meta, window_index=w_i)
                 window_embs.append(window_emb)
 
-            H = torch.stack(window_embs, dim=0)  # [N_windows, d_window]
-            z, _ = self.mil_pool(H)  # [d_window]
+            H = torch.stack(window_embs, dim=0)
+            z, _ = self.mil_pool(H)
             video_embeddings.append(z)
 
-        video_embeddings = torch.stack(video_embeddings, dim=0)  # [B, d_window]
-        outputs = self.head(video_embeddings)  # [B, 1] or [B, num_classes]
+        video_embeddings = torch.stack(video_embeddings, dim=0)
+        outputs = self.head(video_embeddings)
 
         if self.task_type == "regression":
-            return outputs.squeeze(-1)  # [B]
-        else:  # classification
-            return outputs  # [B, num_classes]
+            return outputs.squeeze(-1)
+        return outputs
