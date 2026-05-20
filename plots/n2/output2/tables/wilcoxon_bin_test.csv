@@ -1,0 +1,2 @@
+test,n_sessions,n_increased,pct_increased,mean_diff,median_diff,statistic,p_value,significant_0.05
+Wilcoxon bin test (late > early composite index),36,24,66.7,0.0827,0.0353,465.0,0.0189,True

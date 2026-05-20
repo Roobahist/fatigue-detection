@@ -1,0 +1,2 @@
+test,n_sessions,n_positive_slope,pct_positive,mean_slope_per_min,median_slope_per_min,statistic,p_value,significant_0.05
+Wilcoxon slope test (slope > 0),36,27,75.0,0.012785,0.004269,489.0,0.0066,True
