@@ -1,0 +1,6 @@
+metric,value
+Mean PC1 recovery correlation,0.7899796878647323
+Mean best recovery correlation among first k PCs,0.8092907511994428
+PC1 recovery rate,0.7625308641975309
+First-k-PC recovery rate,0.7630246913580246
+Mean PC1 explained variance,0.2499527736484186
