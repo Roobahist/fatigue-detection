@@ -1,0 +1,10 @@
+metric,value
+Mean PC1 correlation with shared structure,0.5976981272032684
+Mean best correlation among first k PCs,0.782825218848465
+Mean first-k subspace R2,0.8034186658720035
+PC1 correlation recovery rate,0.4049826388888889
+First-k correlation recovery rate,0.7328086419753086
+First-k subspace recovery rate,0.766195987654321
+Mean PC1 explained variance,0.25049101843987553
+Mean first-k explained variance,0.5763268194642371
+Mean PC1 source-loading balance ratio,0.6923856282782163
