@@ -95,7 +95,6 @@ class DataConfig:
     features_dir: str
     eventfulness_scores_dir: str
     normalization_info_path: str
-    kss_score_path: Optional[str] = None
     field_normalization: Optional[Dict[str, Dict]] = field(default_factory=dict)
 
     # TASK CONFIGURATION
@@ -111,6 +110,9 @@ class DataConfig:
 
     # For regression with binning for evaluation metrics
     thresholds: Optional[List[float]] = None  # e.g., [2.5, 7.5] for UTA
+
+    # Optional dataset-specific label table. Keep at the end for positional compatibility.
+    kss_score_path: Optional[str] = None
 
 
 @dataclass
