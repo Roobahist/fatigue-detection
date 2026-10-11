@@ -1,12 +1,15 @@
 import argparse
 import json
+import os
 from argparse import BooleanOptionalAction
 from datetime import datetime
+from pathlib import Path
 
 from Zh.experiments.e15.dataclasses import *
 from Zh.experiments.e15.video_mil_adapter import nested_cv_video_mil
 from Zh.src.utils.common import save_obj
 from Zh.src.utils.cpu_gpu import setup_torch
+from Zh.src.utils.experiment_data import DEFAULT_DATA_ROOT, resolve_data_paths
 from Zh.src.utils.file_folder import *
 
 
@@ -37,6 +40,27 @@ def main():
             type=int,
             default=None,
             help="Number of classes (required for classification, auto-set if not provided)",
+        )
+
+        # Dataset layouts are resolved separately from the training pipeline.
+        parser.add_argument(
+            "--data-root",
+            default=os.environ.get("FATIGUE_DATA_ROOT", str(DEFAULT_DATA_ROOT)),
+            help="Root containing the UTA and DROZY datasets.",
+        )
+        for flag, destination in (
+            ("--embeddings-dir", "embeddings_dir"),
+            ("--features-dir", "features_dir"),
+            ("--eventfulness-scores-dir", "eventfulness_scores_dir"),
+            ("--normalization-info-path", "normalization_info_path"),
+            ("--kss-score-path", "kss_score_path"),
+        ):
+            parser.add_argument(flag, dest=destination, default=None)
+
+        parser.add_argument(
+            "--output-root",
+            default=os.environ.get("FATIGUE_OUTPUT_ROOT", "outputs"),
+            help="Root for timestamped results when --output_dir is not provided.",
         )
 
         # General settings
@@ -409,42 +433,31 @@ def main():
             },
         }
 
-        if dataset_name == "UTA":  # ONLY BASE IN USE
-            data_cfg = DataConfig(
-                dataset_name="UTA",
-                embeddings_dir="/work/long_lab/Mojtaba/data/UTA/3.1-embedding/dinov2-base/cls/ROI0",
-                features_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/features",
-                eventfulness_scores_dir="/work/long_lab/Mojtaba/data/UTA/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
-                normalization_info_path="/work/long_lab/Mojtaba/data/UTA/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
-                field_normalization=field_normalization,
-                task_type=task_type,
-                num_classes=num_classes,
-                class_labels=class_labels,
-                label_mapping=label_mapping,
-                thresholds=thresholds,
-            )
-        elif dataset_name == "DROZY":  # ONLY BASE IN USE
-            data_cfg = DataConfig(
-                dataset_name="DROZY",
-                embeddings_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.1-embedding/dinov2-base/cls/ROI0",
-                features_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/features",
-                eventfulness_scores_dir="/work/long_lab/Mojtaba/data/DROZY/data/videos/3-augmented_roi/masked_aligned_cropped0.05/eventfulness",
-                normalization_info_path="/work/long_lab/Mojtaba/data/DROZY/data/videos/3.2.1-subjectwise_normalization_info_aggregated/normalization_info.csv",
-                field_normalization=field_normalization,
-                task_type=task_type,
-                num_classes=num_classes,
-                class_labels=class_labels,
-                label_mapping=label_mapping,
-                thresholds=thresholds,
-            )
-
-        # print("#######################################################")
-        # print("################## ONLY BASE IN USE ###################")
-        # print("################## ONLY BASE IN USE ###################")
-        # print("################## ONLY BASE IN USE ###################")
-        # print("################## ONLY BASE IN USE ###################")
-        # print("################## ONLY BASE IN USE ###################")
-        # print("#######################################################")
+        data_paths = resolve_data_paths(
+            dataset_name,
+            vars(args)["data_root"],
+            overrides={
+                name: vars(args)[name]
+                for name in (
+                    "embeddings_dir",
+                    "features_dir",
+                    "eventfulness_scores_dir",
+                    "normalization_info_path",
+                    "kss_score_path",
+                )
+                if vars(args)[name] is not None
+            },
+        )
+        data_cfg = DataConfig(
+            dataset_name=dataset_name,
+            **data_paths,
+            field_normalization=field_normalization,
+            task_type=task_type,
+            num_classes=num_classes,
+            class_labels=class_labels,
+            label_mapping=label_mapping,
+            thresholds=thresholds,
+        )
 
         return model_cfg, train_cfg, selection_cfg, cv_cfg, data_cfg
 
@@ -540,7 +553,10 @@ def main():
         resume = vars(args).get("resume", False)
     else:
         task_suffix = "cls" if data_cfg.task_type == "classification" else "reg"
-        output_dir = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E14|{task_suffix}"
+        output_dir = str(
+            Path(vars(args)["output_root"]).expanduser()
+            / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_E15_{task_suffix}"
+        )
         resume = False
 
     search_space = load_search_space(vars(args)["search_space_json"])

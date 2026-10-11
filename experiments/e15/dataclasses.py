@@ -111,6 +111,9 @@ class DataConfig:
     # For regression with binning for evaluation metrics
     thresholds: Optional[List[float]] = None  # e.g., [2.5, 7.5] for UTA
 
+    # Optional dataset-specific label table. Keep at the end for positional compatibility.
+    kss_score_path: Optional[str] = None
+
 
 @dataclass
 class InnerFoldResult:
