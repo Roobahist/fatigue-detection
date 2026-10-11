@@ -27,8 +27,11 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: python -m unittest discover -s Zh/tests -v
 
-      - name: Compile Python sources
-        run: python -m compileall -q Zh/src Zh/experiments/e15
+      - name: Compile active Python sources
+        run: |
+          set -euo pipefail
+          find Zh/src Zh/experiments/e15 -type f -name '*.py' ! -path '*/archive/*' -print0 |
+            xargs -0 -r python -m py_compile
 
       - name: Validate shell syntax
         run: bash -n Zh/src/jobs/submit_job.sh Zh/src/jobs/manage_experiments.sh
