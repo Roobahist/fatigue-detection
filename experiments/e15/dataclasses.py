@@ -95,6 +95,7 @@ class DataConfig:
     features_dir: str
     eventfulness_scores_dir: str
     normalization_info_path: str
+    kss_score_path: Optional[str] = None
     field_normalization: Optional[Dict[str, Dict]] = field(default_factory=dict)
 
     # TASK CONFIGURATION
