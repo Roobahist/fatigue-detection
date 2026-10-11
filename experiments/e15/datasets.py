@@ -1,6 +1,3 @@
-# Zh/experiments/e15/datasets.py
-# (or wherever your dataset lives)
-
 import os
 import random
 import hashlib
@@ -12,23 +9,31 @@ from torch.utils.data import Dataset
 
 from Zh.experiments.e15.dataclasses import *
 from Zh.src.utils.eventfulness import pick_eventful_segments
+from Zh.src.utils.experiment_data import (
+    DEFAULT_DATA_ROOT,
+    extract_target,
+    load_kss_scores,
+    resolve_data_paths,
+)
 from Zh.src.utils.memmap_handler import MemmapHandler
 
 
-def get_target_from_video_id(video_id: str, dataset_name: str) -> float:
-    if dataset_name == "UTA":
-        return float(os.path.basename(video_id).split("_")[2])
-    elif dataset_name == "DROZY":
-        subject_id = int(os.path.basename(video_id).split("_")[0].split("-")[0])
-        session_id = int(os.path.basename(video_id).split("_")[0].split("-")[1])
-        kss_score_path = "/work/long_lab/Mojtaba/data/DROZY/data/original/KSS.txt"
-        with open(kss_score_path, "r") as f:
-            kss_scores = list(
-                map(lambda x: list(map(int, x.strip().split(" "))), f.readlines())
-            )
-        return float(kss_scores[subject_id - 1][session_id - 1])
-    else:
-        raise ValueError(f"Unknown dataset for target extraction: {dataset_name}")
+def get_target_from_video_id(
+    video_id: str, dataset_name: str, kss_score_path: Optional[str] = None
+) -> float:
+    """Return the raw label using a configured or legacy DROZY score table.
+
+    Loading is cached per worker process, so repeated samples from nested CV
+    do not trigger repeated reads of the same score matrix.
+    """
+    if dataset_name == "DROZY":
+        if kss_score_path is None:
+            root = os.environ.get("FATIGUE_DATA_ROOT", str(DEFAULT_DATA_ROOT))
+            kss_score_path = resolve_data_paths("DROZY", root)["kss_score_path"]
+        return extract_target(
+            video_id, dataset_name, kss_scores=load_kss_scores(kss_score_path)
+        )
+    return extract_target(video_id, dataset_name)
 
 
 def _stable_int_hash(s: str) -> int:
@@ -416,7 +421,9 @@ class RealVideoDataset(Dataset):
                 }
             )
 
-        raw_target = get_target_from_video_id(video_id, self.dataset_name)
+        raw_target = get_target_from_video_id(
+            video_id, self.dataset_name, kss_score_path=self.data_cfg.kss_score_path
+        )
         if self.data_cfg.label_mapping is not None:
             mapped_target = self.data_cfg.label_mapping[raw_target]
         else:
