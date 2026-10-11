@@ -49,7 +49,7 @@ From the parent of `Zh`:
 
 ```bash
 PYTHONPATH=. python -m unittest discover -s Zh/tests -v
-python -m compileall -q Zh/src Zh/experiments/e15
+find Zh/src Zh/experiments/e15 -type f -name '*.py' ! -path '*/archive/*' -print0 | xargs -0 -r python -m py_compile
 bash -n Zh/src/jobs/submit_job.sh Zh/src/jobs/manage_experiments.sh
 ```
 
