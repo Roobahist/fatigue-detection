@@ -2,6 +2,26 @@
 
 Research code and archived results for multimodal fatigue and drowsiness detection using facial video, EEG, and behavioral/self-report information. Includes preprocessing, feature extraction, video MIL training with nested cross-validation, exploratory notebooks, and PCA simulation studies. This is a research archive, not a production inference service.
 
+## Research overview and selected findings
+
+The research investigates whether **facial video can predict a proxy for fatigue** learned from supervision combining three kinds of measurements: EEG spectral features, psychomotor reaction times, and self-reported sleepiness (KSS). The measurements guide training; the proposed prediction pathway uses **video-derived features only**. The PCA-based composite is an indirect, correlational proxy, not a direct measurement of brain fatigue or a clinical diagnostic label.
+
+**Video model architecture.** Temporal encoders process deep visual embeddings, facial blendshapes, and other facial features. Multiple Instance Learning aggregates selected video windows into a segment-level estimate. This schematic is the version referenced in the research manuscript, and shows LSTM encoders as one supported temporal backbone.
+
+![Three-stream temporal video model with MIL aggregation](docs/figures/video-mil-architecture.png)
+
+**Composite target.** The first principal component (PC1) of six standardized measurements (four reaction-time statistics, KSS, and EEG slow-over-fast ratio) accounted for approximately **65%** of the observed variance in the reported analysis. All six PC1 loadings have the same sign in the selected orientation.
+
+![Explained variance of six input features by principal component](docs/figures/pca-explained-variance.png)
+
+**Temporal evidence.** In the reported within-session analysis of **36 session-subject pairs**, around **75%** had a positive composite-index slope and **24 of 36 (67%)** increased from the early to the late part of the session. These are measurements of the *constructed index*, not independently established video-prediction performance.
+
+![Distribution of composite-index slopes across sessions](plots/n2/output2/plots/slope_distribution.png)
+
+The research manuscript reports mean held-out test MAE of **0.293 on UTA-RLDD** (self-report target) and **0.70 on DROZY** (composite target). Their target definitions and scales differ, so the numbers **must not be used to rank or directly compare the datasets**. Results have not been independently rerun during repository documentation work.
+
+For the rest of the exact thesis-referenced figures, the cross-modal evidence, the full reported validation/test MAE summary, and limitations, see **[Selected research results and visualizations](docs/research-results.md)**. [Figure provenance](docs/figure-provenance.md) records the manuscript figure labels and verified image identities. This public showcase does not include the thesis manuscript or source datasets.
+
 ## Structure
 
 | Directory | Purpose |
