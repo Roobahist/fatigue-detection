@@ -748,7 +748,7 @@ class CheckpointManager:
 
         For each hyperparameter, creates a grid of subplots:
         - Columns: inner folds + one extra "Avg" column (averaged across folds)
-        - Rows: splits (Train, Val, Test)
+        - Rows: Train, Validation, plus Test only for legacy inner-fold artifacts
         - Each config contributes one point per subplot
         - All subplots share the same y range: [0, global_max]
         - Best 3 (lowest errors) in each subplot are marked with green stars
@@ -759,7 +759,7 @@ class CheckpointManager:
         - metrics:
             * Train: result["inner_train_metric"]
             * Val:   result["inner_val_metric"]
-            * Test:  result["outer_test_metric"]
+            * Test:  result["outer_test_metric"] (legacy runs only)
         """
         fold_dir = self._outer_fold_dir_path(outer_idx)
         viz_dir = self._get_outer_fold_viz_dir(outer_idx)
@@ -937,7 +937,15 @@ class CheckpointManager:
         # Create a plot for each hyperparameter
         hparam_names = list(search_space.keys())
 
-        split_rows = [("train", "Train"), ("val", "Validation"), ("test", "Test")]
+        split_rows = [("train", "Train"), ("val", "Validation")]
+        # Older experiments recorded outer-test scores while tuning. Retain their
+        # historical figures, but omit the empty test row for new sealed runs.
+        if any(
+            isinstance(r.get("outer_test_metric"), (int, float))
+            and np.isfinite(r["outer_test_metric"])
+            for r in all_results
+        ):
+            split_rows.append(("test", "Legacy outer test"))
 
         for hparam_name in hparam_names:
             # Collect all config keys and their hparam value for this hparam

@@ -991,15 +991,8 @@ class NestedCVEngine:
                 config_idx,
                 inner_idx,
             )
-            outer_test_metric = self.evaluate_fn(
-                model,
-                outer_test_ids,
-                hparams,
-                inner_train_ids,
-                outer_idx,
-                config_idx,
-                inner_idx,
-            )
+            # The outer test fold is evaluated only after final-model retraining.
+            outer_test_metric = None
 
             if verbose:
                 print(
@@ -1009,7 +1002,6 @@ class NestedCVEngine:
                     f"  Best epoch: {best_epoch}\n"
                     f"  Train metric: {train_metric:.4f}\n"
                     f"  Val metric: {val_metric:.4f}\n"
-                    f"  Outer test metric: {outer_test_metric:.4f}\n"
                     f"{'-' * 80}\n"
                 )
 
@@ -1036,70 +1028,6 @@ class NestedCVEngine:
                 )
 
         return inner_results
-
-    # def _run_inner_cv(
-    #     self,
-    #     outer_train_ids: List[Any],
-    #     outer_test_ids: List[Any],
-    #     hparams: Dict[str, Any],
-    #     inner_folds: int,
-    #     verbose: bool = True,
-    # ) -> List[InnerFoldResult]:
-    #     """Run inner cross-validation for a hyperparameter configuration (no checkpointing)."""
-    #     inner_results: List[InnerFoldResult] = []
-
-    #     for inner_idx in range(inner_folds):
-    #         if verbose:
-    #             print(
-    #                 f"\n{'=' * 80}\n"
-    #                 f"INNER FOLD {inner_idx + 1}/{inner_folds}\n"
-    #                 f"{'=' * 80}\n"
-    #             )
-
-    #         inner_train_ids, inner_val_ids = self.split_fn(
-    #             outer_train_ids, inner_folds, inner_idx
-    #         )
-
-    #         model = self.model_builder(hparams)
-    #         model = model.to(self.device)
-
-    #         model, best_val_metric, best_epoch = self.train_fn(
-    #             model, inner_train_ids, inner_val_ids, hparams
-    #         )
-
-    #         train_metric = self.evaluate_fn(
-    #             model, inner_train_ids, hparams, inner_train_ids
-    #         )
-    #         val_metric = self.evaluate_fn(
-    #             model, inner_val_ids, hparams, inner_train_ids
-    #         )
-    #         outer_test_metric = self.evaluate_fn(
-    #             model, outer_test_ids, hparams, inner_train_ids
-    #         )
-
-    #         if verbose:
-    #             print(
-    #                 f"{'-' * 80}\n"
-    #                 f"INNER FOLD RESULTS\n"
-    #                 f"{'-' * 80}\n"
-    #                 f"  Best epoch: {best_epoch}\n"
-    #                 f"  Train metric: {train_metric:.4f}\n"
-    #                 f"  Val metric: {val_metric:.4f}\n"
-    #                 f"  Outer test metric: {outer_test_metric:.4f}\n"
-    #                 f"{'-' * 80}\n"
-    #             )
-
-    #         result = InnerFoldResult(
-    #             inner_fold=inner_idx,
-    #             hparams=copy.deepcopy(hparams),
-    #             inner_train_metric=train_metric,
-    #             inner_val_metric=val_metric,
-    #             outer_test_metric=outer_test_metric,
-    #             best_epoch=best_epoch,
-    #         )
-    #         inner_results.append(result)
-
-    #     return inner_results
 
     def _run_inner_cv_optuna_prunable(
         self,
@@ -1153,15 +1081,8 @@ class NestedCVEngine:
                 trial.number,
                 inner_idx,
             )
-            outer_test_metric = self.evaluate_fn(
-                model,
-                outer_test_ids,
-                hparams,
-                inner_train_ids,
-                outer_idx,
-                trial.number,
-                inner_idx,
-            )
+            # The outer test fold is evaluated only after final-model retraining.
+            outer_test_metric = None
 
             inner_results.append(
                 InnerFoldResult(

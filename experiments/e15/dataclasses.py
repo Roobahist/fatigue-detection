@@ -123,7 +123,8 @@ class InnerFoldResult:
     hparams: Dict[str, Any]
     inner_train_metric: float
     inner_val_metric: float
-    outer_test_metric: float
+    # Missing for new inner folds; populated only in preserved historical checkpoints.
+    outer_test_metric: Optional[float]
     best_epoch: int
 
     def to_dict(self) -> Dict[str, Any]:

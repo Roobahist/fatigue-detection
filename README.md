@@ -41,7 +41,7 @@ Do not delete or regenerate tracked model checkpoints, plots, or previous experi
 The repository historically imports `Zh.src` and `Zh.experiments`. Clone to a folder named `Zh` and run Python modules from its parent directory until those imports can be migrated with regression checks.
 
 ```bash
-git clone https://github.com/Roobahist/fatigueDetection.git Zh
+git clone https://github.com/Roobahist/fatigue-detection.git Zh
 cd Zh
 conda env create -f env.yaml
 conda activate .cvenv
@@ -62,6 +62,22 @@ python -m Zh.experiments.e15.main --help
 ```
 
 For the complete research workflow, read [architecture](docs/architecture.md), [reproducibility](docs/reproducibility.md), and [migration notes](docs/migration-notes.md). Existing `experiments/e15/configs/*.conf` files are HPC-specific historical examples.
+
+## E15 split integrity and historical compatibility
+
+New E15 nested-CV runs reject duplicate input IDs, invalid fold counts, incomplete
+partitions, and overlap between training and held-out subjects. The original
+participant grouping and fold assignment algorithm remain unchanged.
+
+Hyperparameter search selects using inner validation metrics only. Unlike
+historical runs, new inner-fold records do **not** evaluate the outer test fold:
+their `outer_test_metric` field is `null`. The outer test score is computed
+only after selecting the configuration and retraining on the outer training set.
+Older checkpoints retain their historical numeric inner-fold test metrics.
+This is a methodological improvement, not a reproduction of previous findings.
+
+See [E15 evaluation integrity](docs/e15-evaluation-integrity.md) for details,
+limitations, and the dataset-backed verification checklist.
 
 ## Lightweight checks
 
