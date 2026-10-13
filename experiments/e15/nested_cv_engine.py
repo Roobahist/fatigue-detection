@@ -991,15 +991,8 @@ class NestedCVEngine:
                 config_idx,
                 inner_idx,
             )
-            outer_test_metric = self.evaluate_fn(
-                model,
-                outer_test_ids,
-                hparams,
-                inner_train_ids,
-                outer_idx,
-                config_idx,
-                inner_idx,
-            )
+            # The outer test fold is evaluated only after final-model retraining.
+            outer_test_metric = None
 
             if verbose:
                 print(
@@ -1009,7 +1002,6 @@ class NestedCVEngine:
                     f"  Best epoch: {best_epoch}\n"
                     f"  Train metric: {train_metric:.4f}\n"
                     f"  Val metric: {val_metric:.4f}\n"
-                    f"  Outer test metric: {outer_test_metric:.4f}\n"
                     f"{'-' * 80}\n"
                 )
 
@@ -1153,15 +1145,8 @@ class NestedCVEngine:
                 trial.number,
                 inner_idx,
             )
-            outer_test_metric = self.evaluate_fn(
-                model,
-                outer_test_ids,
-                hparams,
-                inner_train_ids,
-                outer_idx,
-                trial.number,
-                inner_idx,
-            )
+            # The outer test fold is evaluated only after final-model retraining.
+            outer_test_metric = None
 
             inner_results.append(
                 InnerFoldResult(
