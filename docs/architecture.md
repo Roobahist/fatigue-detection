@@ -9,9 +9,11 @@ flowchart TD
     E --> D["E15 dataset loading and memmap windows"]
     K["DROZY KSS labels"] --> D
     C["E15 CLI and dataset path resolution"] --> D
-    D --> M["E15 MIL model"]
-    M --> CV["E15 nested cross-validation engine"]
-    CV --> O["Experiment results and checkpoints"]
+    D --> G["E15 subject-group split validation"]
+    G --> CV["E15 nested cross-validation engine"]
+    CV --> M["E15 MIL model and fold-wise fitting"]
+    M --> O["Outer-test evaluation after final refit"]
+    O --> R2["Experiment results and checkpoints"]
     H["SLURM scripts (optional HPC)"] --> C
 ```
 
