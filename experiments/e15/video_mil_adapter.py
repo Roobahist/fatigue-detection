@@ -1,5 +1,7 @@
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -13,6 +15,10 @@ from Zh.experiments.e15.datasets import RealVideoDataset
 from Zh.experiments.e15.helpers import *
 from Zh.experiments.e15.model import MultiPathMILRegressor
 from Zh.experiments.e15.nested_cv_engine import NestedCVEngine
+from Zh.src.utils.cv_splits import (
+    validate_group_kfold_input,
+    validate_group_partition,
+)
 from Zh.src.utils.normalization import (
     FileStats,
     aggregate_stats_for_files,
@@ -486,8 +492,13 @@ class VideoMILAdapter:
     def split_fn(
         self, data_ids: List[str], num_folds: int, fold_idx: int
     ) -> Tuple[List[str], List[str]]:
-        """Split data into train and test."""
-        # Your kfold_split_indices expects indices, not data_ids
+        """Split samples without allowing a participant into both partitions."""
+        group_of = lambda video_id: get_subject_id_from_video_id(
+            video_id, self.data_cfg.dataset_name
+        )
+        validate_group_kfold_input(data_ids, num_folds, group_of)
+
+        # Retain the historical fold assignment algorithm for reproducibility.
         indices = list(range(len(data_ids)))
         train_indices, test_indices = kfold_split_indices(
             indices=indices,
@@ -498,6 +509,7 @@ class VideoMILAdapter:
         )
         train_ids = [data_ids[i] for i in train_indices]
         test_ids = [data_ids[i] for i in test_indices]
+        validate_group_partition(data_ids, train_ids, test_ids, group_of)
         return train_ids, test_ids
 
 
@@ -515,7 +527,7 @@ def nested_cv_video_mil(
     cv_cfg: CrossValidationConfig,
     device: torch.device,
     search_space: Dict[str, Any] = None,
-    output_dir: str = f"/home/mojtaba.kananisarche/Zh/outputs/{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}|E11",
+    output_dir: Optional[str] = None,
     parallel_inner_cv: bool = False,
     max_workers: int = 4,
     resume: bool = True,
@@ -539,6 +551,13 @@ def nested_cv_video_mil(
     Returns:
         Dictionary with nested CV results
     """
+    # Callers normally inject the run directory; direct API calls use a portable fallback.
+    if output_dir is None:
+        output_root = Path(os.environ.get("FATIGUE_OUTPUT_ROOT", "outputs")).expanduser()
+        output_dir = str(
+            output_root / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_E15"
+        )
+
     # Default search space
     search_space = search_space or {}
 
